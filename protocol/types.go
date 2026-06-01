@@ -81,11 +81,11 @@ type Choice struct {
 
 // ChatResponse is a normalized chat completion result.
 type ChatResponse struct {
-	ID        string      `json:"id"`
-	Model     string      `json:"model"`
-	CreatedAt time.Time   `json:"created_at"`
-	Choices   []Choice    `json:"choices"`
-	Usage     TokenUsage  `json:"usage"`
+	ID        string              `json:"id"`
+	Model     string              `json:"model"`
+	CreatedAt time.Time           `json:"created_at"`
+	Choices   []Choice            `json:"choices"`
+	Usage     TokenUsage          `json:"usage"`
 	Metrics   metrics.CallMetrics `json:"metrics,omitempty"`
 }
 
