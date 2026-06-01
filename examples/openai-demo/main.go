@@ -8,34 +8,33 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"io"
 	"log"
-	"os"
 
 	"github.com/LingByte/lingllm/protocol"
 	_ "github.com/LingByte/lingllm/protocol/openai"
-	"github.com/LingByte/lingllm/shared/models"
 )
 
 func main() {
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		log.Fatal("OPENAI_API_KEY is required")
-	}
+	apiKey := flag.String("apikey", "", "")
+	model := flag.String("model", "", "")
+	baseUrl := flag.String("base_url", "", "")
+	flag.Parse()
 
 	client, err := protocol.NewChatModel(protocol.ClientConfig{
 		Provider: protocol.ProviderOpenAI,
-		APIKey:   apiKey,
-		Model:    envOr("OPENAI_MODEL", models.OpenAIGPT4o),
-		BaseURL:  os.Getenv("OPENAI_BASE_URL"),
+		APIKey:   *apiKey,
+		Model:    *model,
+		BaseURL:  *baseUrl,
 	})
 	if err != nil {
 		log.Fatalf("create client: %v", err)
 	}
 
 	ctx := context.Background()
-	prompt := envOr("PROMPT", "Say hello in one short sentence.")
+	prompt := "Say hello in one short sentence."
 
 	req := protocol.ChatRequest{
 		Model:    client.Name(),
@@ -69,11 +68,4 @@ func main() {
 	}
 	fmt.Println()
 	fmt.Printf("stream latency: %v | ttft: %v\n", stream.Metrics().Latency(), stream.Metrics().FirstTokenLatency())
-}
-
-func envOr(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
 }
