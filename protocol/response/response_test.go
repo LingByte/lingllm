@@ -6,7 +6,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/LingByte/lingllm/protocol"
 )
@@ -99,5 +101,110 @@ func TestFactoryRegistration(t *testing.T) {
 	}
 	if client.Name() != "openai-responses" {
 		t.Errorf("unexpected client name: %s", client.Name())
+	}
+}
+
+func TestResponsesStreamMetrics(t *testing.T) {
+	now := time.Now()
+	s := &responsesStream{
+		startAt: now, firstAt: now, endAt: now, model: "gpt-4",
+		usage:  protocol.TokenUsage{TotalTokens: 5},
+		chunks: 1, bytes: 20, httpStatus: 200,
+	}
+	m := s.Metrics()
+	if m.Provider != "openai-responses" || m.TotalTokens != 5 {
+		t.Errorf("unexpected metrics: %+v", m)
+	}
+}
+
+func TestResponsesStreamDoneAndSkipEmptyDelta(t *testing.T) {
+	body := "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"\"}}]}\n\n" +
+		"data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"z\"}}]}\n\n" +
+		"data: [DONE]\n\n"
+	s := &responsesStream{body: io.NopCloser(strings.NewReader(body)), model: "gpt-4"}
+	chunk, err := s.Recv()
+	if err != nil || chunk.Delta != "z" {
+		t.Fatalf("Recv failed: chunk=%+v err=%v", chunk, err)
+	}
+}
+
+func TestResponsesStreamReadLinePartialEOF(t *testing.T) {
+	s := &responsesStream{body: io.NopCloser(strings.NewReader("line"))}
+	line, err := s.readLine()
+	if line != "line" || err != io.EOF {
+		t.Fatalf("unexpected: %q err=%v", line, err)
+	}
+}
+
+func TestChatHTTPError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "fail", http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	client, _ := NewClient(Config{APIKey: "sk-test", BaseURL: server.URL, Model: "gpt-4"})
+	_, err := client.Chat(context.Background(), protocol.ChatRequest{
+		Model: "gpt-4", Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestChatValidationError(t *testing.T) {
+	client, _ := NewClient(Config{APIKey: "sk-test", Model: "gpt-4"})
+	_, err := client.Chat(context.Background(), protocol.ChatRequest{})
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+}
+
+func TestStreamChatHTTPError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "fail", http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	client, _ := NewClient(Config{APIKey: "sk-test", BaseURL: server.URL, Model: "gpt-4"})
+	_, err := client.StreamChat(context.Background(), protocol.ChatRequest{
+		Model: "gpt-4", Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestResponsesStreamInvalidJSON(t *testing.T) {
+	s := &responsesStream{body: io.NopCloser(strings.NewReader("data: bad\n\n"))}
+	_, err := s.Recv()
+	if err == nil {
+		t.Fatal("expected decode error")
+	}
+}
+
+func TestResponsesStreamClose(t *testing.T) {
+	s := &responsesStream{}
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+}
+
+func TestChatWithOrgProjectHeaders(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("OpenAI-Organization") != "org" {
+			t.Errorf("missing org header")
+		}
+		w.Write([]byte(`{"id":"1","model":"gpt-4","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{}}`))
+	}))
+	defer server.Close()
+
+	client, _ := NewClient(Config{
+		APIKey: "sk-test", BaseURL: server.URL, Model: "gpt-4", Organization: "org", Project: "proj",
+	})
+	_, err := client.Chat(context.Background(), protocol.ChatRequest{
+		Model: "gpt-4", Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
+	})
+	if err != nil {
+		t.Fatalf("Chat failed: %v", err)
 	}
 }

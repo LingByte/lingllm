@@ -38,16 +38,16 @@ func RegisterFactory(provider ProviderType, factory ClientFactory) {
 // Example usage:
 //
 //	import (
-//		"github.com/LingByte/LingVoice/pkg/protocol/llm"
-//		_ "github.com/LingByte/LingVoice/pkg/protocol/llm/openai"  // auto-registers
+//		"github.com/LingByte/lingllm/protocol"
+//		_ "github.com/LingByte/lingllm/protocol/openai"
 //	)
 //
-//	cfg := llm.ClientConfig{
+//	cfg := protocol.ClientConfig{
 //		Provider: llm.ProviderOpenAI,
 //		APIKey:   "sk-...",
 //		Model:    "gpt-4",
 //	}
-//	client, err := llm.NewChatModel(cfg)
+//	client, err := protocol.NewChatModel(cfg)
 func NewChatModel(cfg ClientConfig) (ChatModel, error) {
 	factory, ok := factories[cfg.Provider]
 	if !ok {
