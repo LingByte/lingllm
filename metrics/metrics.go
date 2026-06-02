@@ -18,6 +18,37 @@ type CallMetrics struct {
 	CompletionTokens int       `json:"completion_tokens"`
 	TotalTokens      int       `json:"total_tokens"`
 	Error            string    `json:"error,omitempty"`
+	CacheHit         bool      `json:"cache_hit,omitempty"`
+	CacheSize        int       `json:"cache_size,omitempty"`
+}
+
+// CacheMetrics reports cache performance indicators
+type CacheMetrics struct {
+	TotalRequests   int64   `json:"total_requests"`
+	CacheHits       int64   `json:"cache_hits"`
+	CacheMisses     int64   `json:"cache_misses"`
+	HitRate         float64 `json:"hit_rate"`
+	TotalSize       int64   `json:"total_size"`
+	EntryCount      int     `json:"entry_count"`
+	EvictionCount   int64   `json:"eviction_count"`
+	AvgEntrySize    int64   `json:"avg_entry_size"`
+	MaxSize         int64   `json:"max_size"`
+	CurrentSize     int64   `json:"current_size"`
+	UtilizationRate float64 `json:"utilization_rate"`
+}
+
+// CalculateUtilizationRate calculates cache utilization rate
+func (cm *CacheMetrics) CalculateUtilizationRate() {
+	if cm.MaxSize > 0 {
+		cm.UtilizationRate = float64(cm.CurrentSize) / float64(cm.MaxSize)
+	}
+}
+
+// CalculateAvgEntrySize calculates average entry size
+func (cm *CacheMetrics) CalculateAvgEntrySize() {
+	if cm.EntryCount > 0 {
+		cm.AvgEntrySize = cm.TotalSize / int64(cm.EntryCount)
+	}
 }
 
 // Latency returns end-to-end latency (EndAt-StartAt) if available.
