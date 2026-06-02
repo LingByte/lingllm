@@ -26,6 +26,7 @@ func NewDefaultFactory() *DefaultFactory {
 	df.Register(&OllamaFactory{})
 	df.Register(&LocalFactory{})
 	df.Register(&NvidiaFactory{})
+	df.Register(&DashScopeFactory{})
 
 	return df
 }
@@ -124,9 +125,6 @@ func (f *OllamaFactory) Supports(provider string) bool {
 }
 
 func (f *OllamaFactory) Create(ctx context.Context, cfg *Config) (Embedder, error) {
-	if cfg.BaseURL == "" {
-		return nil, ErrBaseURLRequired
-	}
 	if cfg.Model == "" {
 		return nil, ErrModelNotFound
 	}
@@ -205,4 +203,26 @@ func (f *NvidiaFactory) Create(ctx context.Context, cfg *Config) (Embedder, erro
 	}
 
 	return NewNvidiaEmbedder(cfg), nil
+}
+
+// DashScopeFactory DashScope embedder 工厂
+type DashScopeFactory struct{}
+
+func (f *DashScopeFactory) Name() string {
+	return "dashscope"
+}
+
+func (f *DashScopeFactory) Supports(provider string) bool {
+	return provider == "dashscope"
+}
+
+func (f *DashScopeFactory) Create(ctx context.Context, cfg *Config) (Embedder, error) {
+	if cfg.APIKey == "" {
+		return nil, ErrAPIKeyRequired
+	}
+	if cfg.Model == "" {
+		return nil, ErrModelNotFound
+	}
+
+	return NewDashScopeEmbedder(cfg), nil
 }
