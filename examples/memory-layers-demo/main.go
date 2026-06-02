@@ -76,7 +76,7 @@ func interactiveConversation(ctx context.Context, client protocol.ChatModel, mod
 	}
 
 	for {
-		fmt.Print("👤 You: ")
+		fmt.Print("You: ")
 		if !scanner.Scan() {
 			break
 		}
@@ -89,9 +89,9 @@ func interactiveConversation(ctx context.Context, client protocol.ChatModel, mod
 		}
 
 		if input == "status" {
-			fmt.Println("\n📊 L1 State:")
+			fmt.Println("\nL1 State:")
 			showL1State(wm)
-			fmt.Println("\n📚 L2 State:")
+			fmt.Println("\nL2 State:")
 			showL2State(stm)
 			fmt.Println()
 			continue
@@ -101,11 +101,19 @@ func interactiveConversation(ctx context.Context, client protocol.ChatModel, mod
 			continue
 		}
 
+		// Add L2 context to L1 if this is a new round (first message)
+		if wm.GetStats().MessageCount == 0 {
+			l2Context := stm.BuildContextString(3)
+			if l2Context != "" {
+				wm.AddMessage(protocol.RoleSystem, "Previous conversation context:\n"+l2Context)
+			}
+		}
+
 		// Add user message to L1
 		wm.AddMessage(protocol.RoleUser, input)
 
 		// Get LLM response
-		fmt.Print("🤖 Assistant: ")
+		fmt.Print("Assistant: ")
 		messages := wm.GetMessages()
 		req := protocol.ChatRequest{
 			Model:     model,
@@ -123,11 +131,17 @@ func interactiveConversation(ctx context.Context, client protocol.ChatModel, mod
 		fmt.Printf("%s\n\n", response)
 		wm.AddMessage(protocol.RoleAssistant, response)
 
-		// Check if L1 capacity exceeded (4 messages = 2 turns)
-		stats := wm.GetStats()
-		if stats.MessageCount >= 4 {
+		// Check if L1 capacity exceeded (4 user turns)
+		// Count only user messages (not system or assistant messages)
+		userMessageCount := 0
+		for _, msg := range wm.GetMessages() {
+			if msg.Role == protocol.RoleUser {
+				userMessageCount++
+			}
+		}
+		if userMessageCount >= 4 {
 			fmt.Println("─────────────────────────────────────────────────────────────")
-			fmt.Printf("� L1 capacity exceeded (%d messages). Summarizing to L2...\n", stats.MessageCount)
+			fmt.Printf("L1 capacity exceeded (%d user messages). Summarizing to L2...\n", userMessageCount)
 
 			// Generate summary and add to L2
 			summary := stm.GenerateSummaryFromWorkingMemory(wm)
@@ -139,15 +153,15 @@ func interactiveConversation(ctx context.Context, client protocol.ChatModel, mod
 
 			fmt.Printf("✓ Round %s summarized and added to L2\n", wm.GetRoundID())
 			if evicted != nil {
-				fmt.Printf("⚠️  Evicted round %s (L2 capacity exceeded)\n", evicted.RoundID)
+				fmt.Printf("Evicted round %s (L2 capacity exceeded)\n", evicted.RoundID)
 			}
 
 			// Show L2 state
-			fmt.Println("\n📚 L2 State:")
+			fmt.Println("\n L2 State:")
 			showL2State(stm)
 
 			// Clear L1 and start new round
-			fmt.Println("\n🔄 Clearing L1 for next round...")
+			fmt.Println("\nClearing L1 for next round...")
 			wm.Clear()
 			roundNum++
 			wm = memory.NewWorkingMemory(fmt.Sprintf("round-%d", roundNum))
