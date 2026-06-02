@@ -19,14 +19,13 @@ import (
 
 func main() {
 	apiKey := flag.String("apikey", "", "")
-	model := flag.String("model", "", "")
+	model := flag.String("model", "claude", "")
 	baseUrl := flag.String("base_url", "", "")
 	flag.Parse()
 
-	client, err := protocol.NewChatModel(protocol.ClientConfig{
+	client, err := protocol.NewClient(protocol.ClientConfig{
 		Provider: protocol.ProviderOpenAI,
 		APIKey:   *apiKey,
-		Model:    *model,
 		BaseURL:  *baseUrl,
 	})
 	if err != nil {
@@ -37,7 +36,7 @@ func main() {
 	prompt := "Say hello in one short sentence."
 
 	req := protocol.ChatRequest{
-		Model:    client.Name(),
+		Model:    *model,
 		Messages: []protocol.Message{protocol.UserMessage(prompt)},
 	}
 

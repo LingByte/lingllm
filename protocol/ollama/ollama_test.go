@@ -15,7 +15,7 @@ import (
 )
 
 func TestNewClientDefaults(t *testing.T) {
-	c, err := NewClient(Config{Model: "llama3"})
+	c, err := NewClient(Config{})
 	if err != nil {
 		t.Fatalf("NewClient failed: %v", err)
 	}
@@ -33,7 +33,7 @@ func TestChat(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, _ := NewClient(Config{BaseURL: server.URL, Model: "llama3"})
+	client, _ := NewClient(Config{BaseURL: server.URL})
 	resp, err := client.Chat(context.Background(), protocol.ChatRequest{
 		Model:       "llama3",
 		Messages:    []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
@@ -54,7 +54,7 @@ func TestChatHTTPError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, _ := NewClient(Config{BaseURL: server.URL, Model: "llama3"})
+	client, _ := NewClient(Config{BaseURL: server.URL})
 	_, err := client.Chat(context.Background(), protocol.ChatRequest{
 		Model:    "llama3",
 		Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
@@ -71,7 +71,7 @@ func TestStreamChat(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, _ := NewClient(Config{BaseURL: server.URL, Model: "llama3"})
+	client, _ := NewClient(Config{BaseURL: server.URL})
 	stream, err := client.StreamChat(context.Background(), protocol.ChatRequest{
 		Model:    "llama3",
 		Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
@@ -119,14 +119,13 @@ func TestToOllamaMessagesAndResponse(t *testing.T) {
 }
 
 func TestFactoryRegistration(t *testing.T) {
-	client, err := protocol.NewChatModel(protocol.ClientConfig{
+	client, err := protocol.NewClient(protocol.ClientConfig{
 		Provider: protocol.ProviderOllama,
-		Model:    "llama3",
 	})
 	if err != nil {
 		t.Fatalf("factory registration failed: %v", err)
 	}
-	if client.Name() != "llama3" {
+	if client.Name() != "ollama" {
 		t.Errorf("unexpected client name: %s", client.Name())
 	}
 }
@@ -145,7 +144,7 @@ func TestOllamaStreamMetrics(t *testing.T) {
 }
 
 func TestChatValidationError(t *testing.T) {
-	client, _ := NewClient(Config{Model: "llama3"})
+	client, _ := NewClient(Config{})
 	_, err := client.Chat(context.Background(), protocol.ChatRequest{})
 	if err == nil {
 		t.Fatal("expected validation error")
@@ -161,7 +160,7 @@ func TestChatWithAPIKey(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, _ := NewClient(Config{BaseURL: server.URL, Model: "llama3", APIKey: "secret"})
+	client, _ := NewClient(Config{BaseURL: server.URL, APIKey: "secret"})
 	resp, err := client.Chat(context.Background(), protocol.ChatRequest{
 		Model: "llama3", Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
 	})
@@ -176,7 +175,7 @@ func TestStreamChatHTTPError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, _ := NewClient(Config{BaseURL: server.URL, Model: "llama3"})
+	client, _ := NewClient(Config{BaseURL: server.URL})
 	_, err := client.StreamChat(context.Background(), protocol.ChatRequest{
 		Model: "llama3", Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
 	})

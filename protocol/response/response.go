@@ -20,7 +20,6 @@ const defaultBaseURL = "https://api.openai.com/v1"
 type Config struct {
 	APIKey       string
 	BaseURL      string
-	Model        string
 	HTTPClient   *http.Client
 	Organization string
 	Project      string
@@ -52,7 +51,6 @@ func init() {
 		return NewClient(Config{
 			APIKey:       cfg.APIKey,
 			BaseURL:      cfg.BaseURL,
-			Model:        cfg.Model,
 			Organization: cfg.Organization,
 			Project:      cfg.Project,
 		})
@@ -62,22 +60,18 @@ func init() {
 // Chat via OpenAI-compatible /chat/completions (non-stream).
 func (c *Client) Chat(ctx context.Context, req protocol.ChatRequest) (*protocol.ChatResponse, error) {
 	start := time.Now()
-	effective := req
-	if effective.Model == "" {
-		effective.Model = c.cfg.Model
-	}
-	if err := effective.Validate(); err != nil {
+	if err := req.Validate(); err != nil {
 		return nil, err
 	}
 	payload := map[string]any{
-		"model":    effective.Model,
-		"messages": toResponsesMessages(effective.Messages),
+		"model":    req.Model,
+		"messages": toResponsesMessages(req.Messages),
 	}
-	if effective.MaxTokens > 0 {
-		payload["max_tokens"] = effective.MaxTokens
+	if req.MaxTokens > 0 {
+		payload["max_tokens"] = req.MaxTokens
 	}
-	if effective.Temperature != 0 {
-		payload["temperature"] = effective.Temperature
+	if req.Temperature != 0 {
+		payload["temperature"] = req.Temperature
 	}
 
 	body, err := json.Marshal(payload)
@@ -172,17 +166,13 @@ func (c *Client) Chat(ctx context.Context, req protocol.ChatRequest) (*protocol.
 // StreamChat uses SSE from /v1/responses with stream:true.
 func (c *Client) StreamChat(ctx context.Context, req protocol.ChatRequest) (protocol.ChatStream, error) {
 	start := time.Now()
-	effective := req
-	if effective.Model == "" {
-		effective.Model = c.cfg.Model
-	}
-	if err := effective.Validate(); err != nil {
+	if err := req.Validate(); err != nil {
 		return nil, err
 	}
 
 	payload := map[string]any{
-		"model":    effective.Model,
-		"messages": toResponsesMessages(effective.Messages),
+		"model":    req.Model,
+		"messages": toResponsesMessages(req.Messages),
 		"stream":   true,
 	}
 	body, err := json.Marshal(payload)
@@ -218,7 +208,7 @@ func (c *Client) StreamChat(ctx context.Context, req protocol.ChatRequest) (prot
 	return &responsesStream{
 		body:         httpResp.Body,
 		startAt:      start,
-		model:        effective.Model,
+		model:        req.Model,
 		httpStatus:   httpResp.StatusCode,
 		requestBytes: len(body),
 	}, nil

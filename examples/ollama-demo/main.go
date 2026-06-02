@@ -15,13 +15,11 @@ import (
 
 	"github.com/LingByte/lingllm/protocol"
 	_ "github.com/LingByte/lingllm/protocol/ollama"
-	"github.com/LingByte/lingllm/shared/models"
 )
 
 func main() {
-	client, err := protocol.NewChatModel(protocol.ClientConfig{
+	client, err := protocol.NewClient(protocol.ClientConfig{
 		Provider: protocol.ProviderOllama,
-		Model:    envOr("OLLAMA_MODEL", models.OllamaLlama32),
 		BaseURL:  envOr("OLLAMA_BASE_URL", "http://localhost:11434"),
 		APIKey:   os.Getenv("OLLAMA_API_KEY"),
 	})
@@ -31,9 +29,10 @@ func main() {
 
 	ctx := context.Background()
 	prompt := envOr("PROMPT", "Say hello in one short sentence.")
+	model := envOr("OLLAMA_MODEL", "llama3.2")
 
 	req := protocol.ChatRequest{
-		Model:    client.Name(),
+		Model:    model,
 		Messages: []protocol.Message{protocol.UserMessage(prompt)},
 	}
 

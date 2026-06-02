@@ -21,7 +21,7 @@ func TestNewClientRequiresAPIKey(t *testing.T) {
 }
 
 func TestNewClientDefaults(t *testing.T) {
-	c, err := NewClient(Config{APIKey: "key", Model: "claude-3"})
+	c, err := NewClient(Config{APIKey: "key"})
 	if err != nil {
 		t.Fatalf("NewClient failed: %v", err)
 	}
@@ -41,7 +41,7 @@ func TestChat(t *testing.T) {
 		}
 		fmt.Fprint(w, `{
 			"id":"msg_1",
-			"model":"claude-3",
+			"model":"claude",
 			"role":"assistant",
 			"content":[{"type":"text","text":"Hello from Claude"}],
 			"stop_reason":"end_turn",
@@ -50,9 +50,9 @@ func TestChat(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, _ := NewClient(Config{APIKey: "anthropic-key", BaseURL: server.URL, Model: "claude-3"})
+	client, _ := NewClient(Config{APIKey: "anthropic-key", BaseURL: server.URL})
 	resp, err := client.Chat(context.Background(), protocol.ChatRequest{
-		Model:    "claude-3",
+		Model:    "claude",
 		Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
 	})
 	if err != nil {
@@ -80,9 +80,9 @@ func TestStreamChat(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, _ := NewClient(Config{APIKey: "anthropic-key", BaseURL: server.URL, Model: "claude-3"})
+	client, _ := NewClient(Config{APIKey: "anthropic-key", BaseURL: server.URL})
 	stream, err := client.StreamChat(context.Background(), protocol.ChatRequest{
-		Model:    "claude-3",
+		Model:    "claude",
 		Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
 	})
 	if err != nil {
@@ -134,15 +134,14 @@ func TestMax(t *testing.T) {
 }
 
 func TestFactoryRegistration(t *testing.T) {
-	client, err := protocol.NewChatModel(protocol.ClientConfig{
+	client, err := protocol.NewClient(protocol.ClientConfig{
 		Provider: protocol.ProviderAnthropic,
 		APIKey:   "key",
-		Model:    "claude-3",
 	})
 	if err != nil {
 		t.Fatalf("factory registration failed: %v", err)
 	}
-	if client.Name() != "claude-3" {
+	if client.Name() != "anthropic" {
 		t.Errorf("unexpected client name: %s", client.Name())
 	}
 }
@@ -153,9 +152,9 @@ func TestChatHTTPError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, _ := NewClient(Config{APIKey: "key", BaseURL: server.URL, Model: "claude-3"})
+	client, _ := NewClient(Config{APIKey: "key", BaseURL: server.URL})
 	_, err := client.Chat(context.Background(), protocol.ChatRequest{
-		Model: "claude-3", Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
+		Model: "claude", Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
 	})
 	if err == nil {
 		t.Fatal("expected error")
@@ -168,9 +167,9 @@ func TestStreamChatHTTPError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, _ := NewClient(Config{APIKey: "key", BaseURL: server.URL, Model: "claude-3"})
+	client, _ := NewClient(Config{APIKey: "key", BaseURL: server.URL})
 	_, err := client.StreamChat(context.Background(), protocol.ChatRequest{
-		Model: "claude-3", Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
+		Model: "claude", Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
 	})
 	if err == nil {
 		t.Fatal("expected error")
@@ -213,7 +212,7 @@ func TestToChatResponseSkipsNonTextBlocks(t *testing.T) {
 }
 
 func TestChatValidationError(t *testing.T) {
-	client, _ := NewClient(Config{APIKey: "key", Model: "claude-3"})
+	client, _ := NewClient(Config{APIKey: "key"})
 	_, err := client.Chat(context.Background(), protocol.ChatRequest{})
 	if err == nil {
 		t.Fatal("expected validation error")
@@ -221,7 +220,7 @@ func TestChatValidationError(t *testing.T) {
 }
 
 func TestStreamChatValidationError(t *testing.T) {
-	client, _ := NewClient(Config{APIKey: "key", Model: "claude-3"})
+	client, _ := NewClient(Config{APIKey: "key"})
 	_, err := client.StreamChat(context.Background(), protocol.ChatRequest{})
 	if err == nil {
 		t.Fatal("expected validation error")
@@ -237,9 +236,9 @@ func TestBaseURLTrimSuffix(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, _ := NewClient(Config{APIKey: "key", BaseURL: server.URL + "/", Model: "claude-3"})
+	client, _ := NewClient(Config{APIKey: "key", BaseURL: server.URL + "/"})
 	_, err := client.Chat(context.Background(), protocol.ChatRequest{
-		Model: "claude-3", Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
+		Model: "claude", Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
 	})
 	if err != nil {
 		t.Fatalf("Chat failed: %v", err)

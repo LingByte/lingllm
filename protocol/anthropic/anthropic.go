@@ -23,7 +23,6 @@ const (
 type Config struct {
 	APIKey     string
 	BaseURL    string
-	Model      string
 	HTTPClient *http.Client
 }
 
@@ -48,14 +47,13 @@ func NewClient(cfg Config) (*Client, error) {
 	return &Client{cfg: cfg, httpClient: client}, nil
 }
 
-func (c *Client) Name() string { return c.cfg.Model }
+func (c *Client) Name() string { return "anthropic" }
 
 func init() {
 	protocol.RegisterFactory(protocol.ProviderAnthropic, func(cfg protocol.ClientConfig) (protocol.ChatModel, error) {
 		return NewClient(Config{
 			APIKey:  cfg.APIKey,
 			BaseURL: cfg.BaseURL,
-			Model:   cfg.Model,
 		})
 	})
 }
@@ -63,22 +61,18 @@ func init() {
 // Chat sends a message request to Anthropic and maps the response back to ChatResponse.
 func (c *Client) Chat(ctx context.Context, req protocol.ChatRequest) (*protocol.ChatResponse, error) {
 	start := time.Now()
-	effective := req
-	if effective.Model == "" {
-		effective.Model = c.cfg.Model
-	}
-	if err := effective.Validate(); err != nil {
+	if err := req.Validate(); err != nil {
 		return nil, err
 	}
 
 	payload := request{
-		Model:         effective.Model,
-		MaxTokens:     max(effective.MaxTokens, 1),
-		Messages:      toMessages(effective.Messages),
-		Temperature:   effective.Temperature,
-		TopP:          effective.TopP,
-		StopSequences: effective.Stop,
-		System:        extractSystemPrompt(effective.Messages),
+		Model:         req.Model,
+		MaxTokens:     max(req.MaxTokens, 1),
+		Messages:      toMessages(req.Messages),
+		Temperature:   req.Temperature,
+		TopP:          req.TopP,
+		StopSequences: req.Stop,
+		System:        extractSystemPrompt(req.Messages),
 	}
 
 	body, err := json.Marshal(payload)
@@ -137,22 +131,18 @@ func (c *Client) Chat(ctx context.Context, req protocol.ChatRequest) (*protocol.
 // StreamChat uses SSE-style streaming from Anthropic messages endpoint.
 func (c *Client) StreamChat(ctx context.Context, req protocol.ChatRequest) (protocol.ChatStream, error) {
 	start := time.Now()
-	effective := req
-	if effective.Model == "" {
-		effective.Model = c.cfg.Model
-	}
-	if err := effective.Validate(); err != nil {
+	if err := req.Validate(); err != nil {
 		return nil, err
 	}
 
 	payload := request{
-		Model:         effective.Model,
-		MaxTokens:     max(effective.MaxTokens, 1),
-		Messages:      toMessages(effective.Messages),
-		Temperature:   effective.Temperature,
-		TopP:          effective.TopP,
-		StopSequences: effective.Stop,
-		System:        extractSystemPrompt(effective.Messages),
+		Model:         req.Model,
+		MaxTokens:     max(req.MaxTokens, 1),
+		Messages:      toMessages(req.Messages),
+		Temperature:   req.Temperature,
+		TopP:          req.TopP,
+		StopSequences: req.Stop,
+		System:        extractSystemPrompt(req.Messages),
 		Stream:        true,
 	}
 
@@ -184,7 +174,7 @@ func (c *Client) StreamChat(ctx context.Context, req protocol.ChatRequest) (prot
 	stream := &anthropicStream{
 		body:         httpResp.Body,
 		startAt:      start,
-		model:        effective.Model,
+		model:        req.Model,
 		httpStatus:   httpResp.StatusCode,
 		requestBytes: len(body),
 	}

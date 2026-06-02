@@ -17,7 +17,6 @@ import (
 // Config for Ollama HTTP API.
 type Config struct {
 	BaseURL    string
-	Model      string
 	APIKey     string // optional, if gateway uses key
 	HTTPClient *http.Client
 }
@@ -39,14 +38,13 @@ func NewClient(cfg Config) (*Client, error) {
 	return &Client{cfg: cfg, httpClient: hc}, nil
 }
 
-func (c *Client) Name() string { return c.cfg.Model }
+func (c *Client) Name() string { return "ollama" }
 
 func init() {
 	protocol.RegisterFactory(protocol.ProviderOllama, func(cfg protocol.ClientConfig) (protocol.ChatModel, error) {
 		return NewClient(Config{
 			APIKey:  cfg.APIKey,
 			BaseURL: cfg.BaseURL,
-			Model:   cfg.Model,
 		})
 	})
 }
@@ -54,25 +52,21 @@ func init() {
 // Chat (non-streaming).
 func (c *Client) Chat(ctx context.Context, req protocol.ChatRequest) (*protocol.ChatResponse, error) {
 	start := time.Now()
-	effective := req
-	if effective.Model == "" {
-		effective.Model = c.cfg.Model
-	}
-	if err := effective.Validate(); err != nil {
+	if err := req.Validate(); err != nil {
 		return nil, err
 	}
 
 	payload := map[string]any{
-		"model":    effective.Model,
-		"messages": toOllamaMessages(effective.Messages),
+		"model":    req.Model,
+		"messages": toOllamaMessages(req.Messages),
 		"stream":   false,
 	}
-	if effective.MaxTokens > 0 {
-		payload["options"] = map[string]any{"num_predict": effective.MaxTokens}
+	if req.MaxTokens > 0 {
+		payload["options"] = map[string]any{"num_predict": req.MaxTokens}
 	}
-	if effective.Temperature != 0 {
+	if req.Temperature != 0 {
 		opt := payload["options"].(map[string]any)
-		opt["temperature"] = effective.Temperature
+		opt["temperature"] = req.Temperature
 	}
 
 	body, err := json.Marshal(payload)
@@ -129,17 +123,13 @@ func (c *Client) Chat(ctx context.Context, req protocol.ChatRequest) (*protocol.
 // StreamChat streams /api/chat with stream=true (line-delimited JSON).
 func (c *Client) StreamChat(ctx context.Context, req protocol.ChatRequest) (protocol.ChatStream, error) {
 	start := time.Now()
-	effective := req
-	if effective.Model == "" {
-		effective.Model = c.cfg.Model
-	}
-	if err := effective.Validate(); err != nil {
+	if err := req.Validate(); err != nil {
 		return nil, err
 	}
 
 	payload := map[string]any{
-		"model":    effective.Model,
-		"messages": toOllamaMessages(effective.Messages),
+		"model":    req.Model,
+		"messages": toOllamaMessages(req.Messages),
 		"stream":   true,
 	}
 	body, err := json.Marshal(payload)
@@ -170,7 +160,7 @@ func (c *Client) StreamChat(ctx context.Context, req protocol.ChatRequest) (prot
 	return &ollamaStream{
 		body:         httpResp.Body,
 		startAt:      start,
-		model:        effective.Model,
+		model:        req.Model,
 		requestBytes: len(body),
 		httpStatus:   httpResp.StatusCode,
 	}, nil

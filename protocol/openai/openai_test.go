@@ -21,14 +21,14 @@ func TestNewClientRequiresAPIKey(t *testing.T) {
 }
 
 func TestNewClientDefaults(t *testing.T) {
-	c, err := NewClient(Config{APIKey: "sk-test", Model: "gpt-4"})
+	c, err := NewClient(Config{APIKey: "sk-test"})
 	if err != nil {
 		t.Fatalf("NewClient failed: %v", err)
 	}
 	if c.cfg.BaseURL != defaultBaseURL {
 		t.Errorf("unexpected base URL: %s", c.cfg.BaseURL)
 	}
-	if c.Name() != "gpt-4" {
+	if c.Name() != "openai" {
 		t.Errorf("unexpected name: %s", c.Name())
 	}
 }
@@ -44,7 +44,7 @@ func TestChat(t *testing.T) {
 		fmt.Fprint(w, `{
 			"id":"chatcmpl-1",
 			"created":1700000000,
-			"model":"gpt-4",
+			"model":"claude",
 			"choices":[{"index":0,"message":{"role":"assistant","content":"Hello"},"finish_reason":"stop"}],
 			"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}
 		}`)
@@ -54,13 +54,13 @@ func TestChat(t *testing.T) {
 	client, err := NewClient(Config{
 		APIKey:  "sk-test",
 		BaseURL: server.URL,
-		Model:   "gpt-4",
 	})
 	if err != nil {
 		t.Fatalf("NewClient failed: %v", err)
 	}
 
 	resp, err := client.Chat(context.Background(), protocol.ChatRequest{
+		Model:    "claude",
 		Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
 	})
 	if err != nil {
@@ -83,9 +83,9 @@ func TestChatHTTPError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, _ := NewClient(Config{APIKey: "sk-test", BaseURL: server.URL, Model: "gpt-4"})
+	client, _ := NewClient(Config{APIKey: "sk-test", BaseURL: server.URL})
 	_, err := client.Chat(context.Background(), protocol.ChatRequest{
-		Model:    "gpt-4",
+		Model:    "claude",
 		Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
 	})
 	if err == nil {
@@ -101,9 +101,9 @@ func TestStreamChat(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, _ := NewClient(Config{APIKey: "sk-test", BaseURL: server.URL, Model: "gpt-4"})
+	client, _ := NewClient(Config{APIKey: "sk-test", BaseURL: server.URL})
 	stream, err := client.StreamChat(context.Background(), protocol.ChatRequest{
-		Model:    "gpt-4",
+		Model:    "claude",
 		Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
 	})
 	if err != nil {
@@ -141,7 +141,7 @@ func TestToOpenAIMessages(t *testing.T) {
 
 func TestToChatResponse(t *testing.T) {
 	raw := openAIResponse{
-		ID: "id-1", Created: 1700000000, Model: "gpt-4",
+		ID: "id-1", Created: 1700000000, Model: "claude",
 		Choices: []openAIChoice{{
 			Index:        0,
 			Message:      openAIMessage{Role: "assistant", Content: "ok"},
@@ -156,15 +156,14 @@ func TestToChatResponse(t *testing.T) {
 }
 
 func TestFactoryRegistration(t *testing.T) {
-	client, err := protocol.NewChatModel(protocol.ClientConfig{
+	client, err := protocol.NewClient(protocol.ClientConfig{
 		Provider: protocol.ProviderOpenAI,
 		APIKey:   "sk-test",
-		Model:    "gpt-4",
 	})
 	if err != nil {
 		t.Fatalf("factory registration failed: %v", err)
 	}
-	if client.Name() != "gpt-4" {
+	if client.Name() != "openai" {
 		t.Errorf("unexpected client name: %s", client.Name())
 	}
 }
@@ -175,7 +174,7 @@ func TestOpenAIStreamMetrics(t *testing.T) {
 		startAt: now,
 		firstAt: now,
 		endAt:   now,
-		model:   "gpt-4",
+		model:   "claude",
 		usage: protocol.TokenUsage{
 			PromptTokens: 1, CompletionTokens: 2, TotalTokens: 3,
 		},
@@ -183,7 +182,7 @@ func TestOpenAIStreamMetrics(t *testing.T) {
 	}
 
 	m := s.Metrics()
-	if m.Provider != "openai" || m.Model != "gpt-4" || m.TotalTokens != 3 {
+	if m.Provider != "openai" || m.Model != "claude" || m.TotalTokens != 3 {
 		t.Errorf("unexpected metrics: %+v", m)
 	}
 }
@@ -192,7 +191,7 @@ func TestOpenAIStreamRecvUsageAndEmptyChoices(t *testing.T) {
 	body := "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":2,\"total_tokens\":3}}\n\n" +
 		"data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"y\"}}]}\n\n" +
 		"data: [DONE]\n\n"
-	s := &openAIStream{body: io.NopCloser(strings.NewReader(body)), model: "gpt-4"}
+	s := &openAIStream{body: io.NopCloser(strings.NewReader(body)), model: "claude"}
 	chunk, err := s.Recv()
 	if err != nil || chunk.Delta != "y" {
 		t.Fatalf("Recv failed: chunk=%+v err=%v", chunk, err)
@@ -215,25 +214,10 @@ type failReader struct{}
 func (f *failReader) Read(p []byte) (int, error) { return 0, io.ErrUnexpectedEOF }
 
 func TestChatValidationError(t *testing.T) {
-	client, _ := NewClient(Config{APIKey: "sk-test", Model: "gpt-4"})
+	client, _ := NewClient(Config{APIKey: "sk-test"})
 	_, err := client.Chat(context.Background(), protocol.ChatRequest{})
 	if err == nil {
 		t.Fatal("expected validation error")
-	}
-}
-
-func TestChatUsesDefaultModel(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, `{"id":"1","created":1,"model":"gpt-4","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{}}`)
-	}))
-	defer server.Close()
-
-	client, _ := NewClient(Config{APIKey: "sk-test", BaseURL: server.URL, Model: "gpt-4"})
-	resp, err := client.Chat(context.Background(), protocol.ChatRequest{
-		Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
-	})
-	if err != nil || resp.FirstContent() != "ok" {
-		t.Fatalf("Chat failed: resp=%+v err=%v", resp, err)
 	}
 }
 
@@ -242,16 +226,16 @@ func TestChatWithOrgAndProjectHeaders(t *testing.T) {
 		if r.Header.Get("OpenAI-Organization") != "org" || r.Header.Get("OpenAI-Project") != "proj" {
 			t.Errorf("missing org/project headers")
 		}
-		fmt.Fprint(w, `{"id":"1","created":1,"model":"gpt-4","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{}}`)
+		fmt.Fprint(w, `{"id":"1","created":1,"model":"claude","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{}}`)
 	}))
 	defer server.Close()
 
 	client, _ := NewClient(Config{
-		APIKey: "sk-test", BaseURL: server.URL, Model: "gpt-4",
+		APIKey: "sk-test", BaseURL: server.URL,
 		Organization: "org", Project: "proj",
 	})
 	_, err := client.Chat(context.Background(), protocol.ChatRequest{
-		Model: "gpt-4", Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
+		Model: "claude", Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
 	})
 	if err != nil {
 		t.Fatalf("Chat failed: %v", err)
@@ -264,9 +248,9 @@ func TestStreamChatHTTPError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, _ := NewClient(Config{APIKey: "sk-test", BaseURL: server.URL, Model: "gpt-4"})
+	client, _ := NewClient(Config{APIKey: "sk-test", BaseURL: server.URL})
 	_, err := client.StreamChat(context.Background(), protocol.ChatRequest{
-		Model: "gpt-4", Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
+		Model: "claude", Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
 	})
 	if err == nil {
 		t.Fatal("expected stream error")
@@ -279,9 +263,9 @@ func TestStreamChatInvalidChunk(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, _ := NewClient(Config{APIKey: "sk-test", BaseURL: server.URL, Model: "gpt-4"})
+	client, _ := NewClient(Config{APIKey: "sk-test", BaseURL: server.URL})
 	stream, _ := client.StreamChat(context.Background(), protocol.ChatRequest{
-		Model: "gpt-4", Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
+		Model: "claude", Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
 	})
 	_, err := stream.Recv()
 	if err == nil {

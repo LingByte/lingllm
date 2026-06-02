@@ -16,7 +16,6 @@ import (
 
 	"github.com/LingByte/lingllm/protocol"
 	_ "github.com/LingByte/lingllm/protocol/response"
-	"github.com/LingByte/lingllm/shared/models"
 )
 
 func main() {
@@ -26,11 +25,10 @@ func main() {
 		log.Fatal("GATEWAY_API_KEY and GATEWAY_BASE_URL are required")
 	}
 
-	client, err := protocol.NewChatModel(protocol.ClientConfig{
+	client, err := protocol.NewClient(protocol.ClientConfig{
 		Provider: protocol.ProviderOpenAIResponse,
 		APIKey:   apiKey,
 		BaseURL:  baseURL,
-		Model:    envOr("GATEWAY_MODEL", models.GatewayGPT4o),
 	})
 	if err != nil {
 		log.Fatalf("create client: %v", err)
@@ -38,9 +36,10 @@ func main() {
 
 	ctx := context.Background()
 	prompt := envOr("PROMPT", "Say hello in one short sentence.")
+	model := envOr("GATEWAY_MODEL", "claude")
 
 	req := protocol.ChatRequest{
-		Model:    envOr("GATEWAY_MODEL", models.GatewayGPT4o),
+		Model:    model,
 		Messages: []protocol.Message{protocol.UserMessage(prompt)},
 	}
 

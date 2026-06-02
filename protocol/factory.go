@@ -17,7 +17,6 @@ type ClientConfig struct {
 	Provider     ProviderType
 	APIKey       string
 	BaseURL      string
-	Model        string
 	Organization string // OpenAI only
 	Project      string // OpenAI only
 }
@@ -32,7 +31,7 @@ func RegisterFactory(provider ProviderType, factory ClientFactory) {
 	factories[provider] = factory
 }
 
-// NewChatModel creates a ChatModel instance based on provider type.
+// NewClient creates a ChatModel instance based on provider type.
 // Providers must be registered via RegisterFactory or by importing their init packages.
 //
 // Example usage:
@@ -45,10 +44,10 @@ func RegisterFactory(provider ProviderType, factory ClientFactory) {
 //	cfg := protocol.ClientConfig{
 //		Provider: llm.ProviderOpenAI,
 //		APIKey:   "sk-...",
-//		Model:    "gpt-4",
+//		BaseURL:  "https://api.openai.com/v1",
 //	}
-//	client, err := protocol.NewChatModel(cfg)
-func NewChatModel(cfg ClientConfig) (ChatModel, error) {
+//	client, err := protocol.NewClient(cfg)
+func NewClient(cfg ClientConfig) (ChatModel, error) {
 	factory, ok := factories[cfg.Provider]
 	if !ok {
 		return nil, fmt.Errorf("provider %s not registered; import the provider package to auto-register", cfg.Provider)

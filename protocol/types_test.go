@@ -168,7 +168,6 @@ func TestClientConfig(t *testing.T) {
 	config := ClientConfig{
 		Provider: ProviderOpenAI,
 		APIKey:   "test-key",
-		Model:    "gpt-4",
 		BaseURL:  "https://api.openai.com/v1",
 	}
 
@@ -178,11 +177,7 @@ func TestClientConfig(t *testing.T) {
 	if config.APIKey != "test-key" {
 		t.Errorf("Expected API key 'test-key', got '%s'", config.APIKey)
 	}
-	if config.Model != "gpt-4" {
-		t.Errorf("Expected model 'gpt-4', got '%s'", config.Model)
-	}
 }
-
 func TestValidate(t *testing.T) {
 	var nilReq *ChatRequest
 	if err := nilReq.Validate(); err == nil {

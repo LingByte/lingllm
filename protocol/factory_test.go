@@ -15,23 +15,23 @@ func (m *mockFactoryModel) StreamChat(ctx context.Context, req ChatRequest) (Cha
 	return nil, nil
 }
 
-func TestRegisterFactoryAndNewChatModel(t *testing.T) {
+func TestRegisterFactoryAndNewClient(t *testing.T) {
 	const testProvider ProviderType = "test-provider-register"
 	RegisterFactory(testProvider, func(cfg ClientConfig) (ChatModel, error) {
 		return &mockFactoryModel{}, nil
 	})
 
-	client, err := NewChatModel(ClientConfig{Provider: testProvider})
+	client, err := NewClient(ClientConfig{Provider: testProvider})
 	if err != nil {
-		t.Fatalf("NewChatModel failed: %v", err)
+		t.Fatalf("NewClient failed: %v", err)
 	}
 	if client.Name() != "mock" {
 		t.Errorf("unexpected client name: %s", client.Name())
 	}
 }
 
-func TestNewChatModelUnregistered(t *testing.T) {
-	_, err := NewChatModel(ClientConfig{Provider: ProviderType("unknown-provider-xyz")})
+func TestNewClientUnregistered(t *testing.T) {
+	_, err := NewClient(ClientConfig{Provider: ProviderType("unknown-provider-xyz")})
 	if err == nil {
 		t.Fatal("expected error for unregistered provider")
 	}

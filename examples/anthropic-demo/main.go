@@ -15,7 +15,6 @@ import (
 
 	"github.com/LingByte/lingllm/protocol"
 	_ "github.com/LingByte/lingllm/protocol/anthropic"
-	"github.com/LingByte/lingllm/shared/models"
 )
 
 func main() {
@@ -24,10 +23,9 @@ func main() {
 		log.Fatal("ANTHROPIC_API_KEY is required")
 	}
 
-	client, err := protocol.NewChatModel(protocol.ClientConfig{
+	client, err := protocol.NewClient(protocol.ClientConfig{
 		Provider: protocol.ProviderAnthropic,
 		APIKey:   apiKey,
-		Model:    envOr("ANTHROPIC_MODEL", models.AnthropicClaudeSonnet46),
 		BaseURL:  os.Getenv("ANTHROPIC_BASE_URL"),
 	})
 	if err != nil {
@@ -36,9 +34,10 @@ func main() {
 
 	ctx := context.Background()
 	prompt := envOr("PROMPT", "Say hello in one short sentence.")
+	model := envOr("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
 
 	req := protocol.ChatRequest{
-		Model:    client.Name(),
+		Model:    model,
 		Messages: []protocol.Message{protocol.UserMessage(prompt)},
 	}
 

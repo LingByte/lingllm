@@ -20,7 +20,6 @@ const defaultBaseURL = "https://api.openai.com/v1"
 type Config struct {
 	APIKey       string
 	BaseURL      string
-	Model        string
 	HTTPClient   *http.Client
 	Organization string
 	Project      string
@@ -47,14 +46,13 @@ func NewClient(cfg Config) (*Client, error) {
 	return &Client{cfg: cfg, httpClient: client}, nil
 }
 
-func (c *Client) Name() string { return c.cfg.Model }
+func (c *Client) Name() string { return "openai" }
 
 func init() {
 	protocol.RegisterFactory(protocol.ProviderOpenAI, func(cfg protocol.ClientConfig) (protocol.ChatModel, error) {
 		return NewClient(Config{
 			APIKey:       cfg.APIKey,
 			BaseURL:      cfg.BaseURL,
-			Model:        cfg.Model,
 			Organization: cfg.Organization,
 			Project:      cfg.Project,
 		})
@@ -64,11 +62,7 @@ func init() {
 // Chat executes a chat completion request against OpenAI.
 func (c *Client) Chat(ctx context.Context, req protocol.ChatRequest) (*protocol.ChatResponse, error) {
 	start := time.Now()
-	effective := req
-	if effective.Model == "" {
-		effective.Model = c.cfg.Model
-	}
-	if err := effective.Validate(); err != nil {
+	if err := req.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -80,12 +74,12 @@ func (c *Client) Chat(ctx context.Context, req protocol.ChatRequest) (*protocol.
 		TopP        float32         `json:"top_p,omitempty"`
 		Stop        []string        `json:"stop,omitempty"`
 	}{
-		Model:       effective.Model,
-		Messages:    toOpenAIMessages(effective.Messages),
-		MaxTokens:   effective.MaxTokens,
-		Temperature: effective.Temperature,
-		TopP:        effective.TopP,
-		Stop:        effective.Stop,
+		Model:       req.Model,
+		Messages:    toOpenAIMessages(req.Messages),
+		MaxTokens:   req.MaxTokens,
+		Temperature: req.Temperature,
+		TopP:        req.TopP,
+		Stop:        req.Stop,
 	}
 
 	body, err := json.Marshal(payload)
@@ -149,11 +143,7 @@ func (c *Client) Chat(ctx context.Context, req protocol.ChatRequest) (*protocol.
 // StreamChat uses SSE stream from /chat/completions with stream=true.
 func (c *Client) StreamChat(ctx context.Context, req protocol.ChatRequest) (protocol.ChatStream, error) {
 	start := time.Now()
-	effective := req
-	if effective.Model == "" {
-		effective.Model = c.cfg.Model
-	}
-	if err := effective.Validate(); err != nil {
+	if err := req.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -166,12 +156,12 @@ func (c *Client) StreamChat(ctx context.Context, req protocol.ChatRequest) (prot
 		Stop        []string        `json:"stop,omitempty"`
 		Stream      bool            `json:"stream"`
 	}{
-		Model:       effective.Model,
-		Messages:    toOpenAIMessages(effective.Messages),
-		MaxTokens:   effective.MaxTokens,
-		Temperature: effective.Temperature,
-		TopP:        effective.TopP,
-		Stop:        effective.Stop,
+		Model:       req.Model,
+		Messages:    toOpenAIMessages(req.Messages),
+		MaxTokens:   req.MaxTokens,
+		Temperature: req.Temperature,
+		TopP:        req.TopP,
+		Stop:        req.Stop,
 		Stream:      true,
 	}
 
@@ -209,7 +199,7 @@ func (c *Client) StreamChat(ctx context.Context, req protocol.ChatRequest) (prot
 	stream := &openAIStream{
 		body:         httpResp.Body,
 		startAt:      start,
-		model:        effective.Model,
+		model:        req.Model,
 		httpStatus:   httpResp.StatusCode,
 		requestBytes: len(body),
 	}
@@ -245,7 +235,6 @@ type openAIResponse struct {
 // openAIStream implements llm.ChatStream for SSE responses.
 type openAIStream struct {
 	body          io.ReadCloser
-	buf           []byte
 	startAt       time.Time
 	firstAt       time.Time
 	endAt         time.Time
