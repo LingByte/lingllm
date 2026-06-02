@@ -16,7 +16,7 @@ import (
 type WorkingMemory struct {
 	// Messages in current round
 	messages []protocol.Message
-	
+
 	// ReAct chain: Thought -> Action -> Observation
 	thoughts     []string
 	actions      []ToolAction
@@ -230,7 +230,7 @@ func (w *WorkingMemory) GetContext() WorkingMemoryContext {
 	defer w.mu.RUnlock()
 
 	return WorkingMemoryContext{
-		RoundID: w.roundID,
+		RoundID:  w.roundID,
 		Messages: w.messages,
 		ReActChain: ReActChain{
 			Thoughts:     w.thoughts,

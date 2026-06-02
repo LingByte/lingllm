@@ -24,8 +24,8 @@ func TestAddRoundSummary(t *testing.T) {
 	stm := NewShortTermMemory(3, time.Hour)
 
 	summary := &RoundSummary{
-		RoundID: "round-1",
-		Summary: "Test summary",
+		RoundID:  "round-1",
+		Summary:  "Test summary",
 		Messages: 5,
 	}
 

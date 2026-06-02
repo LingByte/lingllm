@@ -169,11 +169,11 @@ func demoMemoryStatistics() {
 	// Add various messages and ReAct chain
 	wm.AddMessage(protocol.RoleUser, "Hello, how are you?")
 	wm.AddMessage(protocol.RoleAssistant, "I'm doing well, thanks for asking")
-	
+
 	wm.AddThought("The user is asking a greeting")
 	wm.AddAction("analyze", map[string]interface{}{"sentiment": "positive"})
 	wm.AddObservation("User is in a good mood")
-	
+
 	wm.AddMessage(protocol.RoleUser, "Let's start coding")
 	wm.AddMessage(protocol.RoleAssistant, "Great! What would you like to build?")
 

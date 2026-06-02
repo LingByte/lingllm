@@ -38,12 +38,6 @@ func main() {
 
 	ctx := context.Background()
 
-	fmt.Println("=== LingLLM L1+L2 Memory System Demo ===\n")
-	fmt.Println("L1 Capacity: 4 messages (auto-summary when exceeded)")
-	fmt.Println("L2 Capacity: 3 rounds")
-	fmt.Println("Type 'exit' to quit, 'status' to see memory state\n")
-	fmt.Println("─────────────────────────────────────────────────────────────\n")
-
 	// Create L2 short-term memory with persistence
 	stm := memory.NewShortTermMemory(3, 24*time.Hour)
 	if err := stm.BindPersistence(*dataDir, "demo-user"); err != nil {
@@ -178,7 +172,7 @@ func interactiveConversation(ctx context.Context, client protocol.ChatModel, mod
 				fmt.Println("\n� L2 Context (for next round):")
 				fmt.Println(l2Context)
 			}
-			fmt.Println("─────────────────────────────────────────────────────────────\n")
+			fmt.Println("─────────────────────────────────────────────────────────────")
 		}
 	}
 
@@ -284,4 +278,3 @@ func showL2State(stm *memory.ShortTermMemory) {
 		}
 	}
 }
-
