@@ -50,9 +50,11 @@ func (m *mockModel) StreamChat(ctx context.Context, req protocol.ChatRequest) (p
 
 type mockStream struct{}
 
-func (s *mockStream) Recv() (*protocol.ChatStreamChunk, error) { return nil, fmt.Errorf("stream ended") }
-func (s *mockStream) Close() error                              { return nil }
-func (s *mockStream) Metrics() metrics.CallMetrics             { return metrics.CallMetrics{} }
+func (s *mockStream) Recv() (*protocol.ChatStreamChunk, error) {
+	return nil, fmt.Errorf("stream ended")
+}
+func (s *mockStream) Close() error                 { return nil }
+func (s *mockStream) Metrics() metrics.CallMetrics { return metrics.CallMetrics{} }
 
 func translationChain() {
 	// Create a translation chain: Input(map[string]any) -> Output(string)
@@ -92,7 +94,7 @@ func translationChain() {
 
 	// 6. Execute
 	input := map[string]any{
-		"text":       "Hello, how are you?",
+		"text":        "Hello, how are you?",
 		"target_lang": "Chinese",
 	}
 

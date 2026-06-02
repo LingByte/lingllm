@@ -216,7 +216,7 @@ func cosineSimilarity(a, b []float32) float32 {
 	if normA == 0 || normB == 0 {
 		return 0
 	}
-	return dotProduct / (float32(float64(normA)*float64(normB)))
+	return dotProduct / (float32(float64(normA) * float64(normB)))
 }
 
 // SelectBySimilarity selects top-k most similar examples.
@@ -237,7 +237,7 @@ func (ss *SemanticSimilaritySelector) SelectBySimilarity(query string, k int) ([
 
 	// Score each example
 	type scoredExample struct {
-		example   Example
+		example    Example
 		similarity float32
 	}
 	var scored []scoredExample

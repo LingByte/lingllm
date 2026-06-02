@@ -92,7 +92,7 @@ func TestTextBlock(t *testing.T) {
 func TestIfBlock(t *testing.T) {
 	t.Run("string without else", func(t *testing.T) {
 		ib := &IfBlock{
-			Condition: "show",
+			Condition:  "show",
 			ThenBlocks: []Block{&TextBlock{Content: "content"}},
 		}
 		expected := "{{#if show}}content{{/if}}"
@@ -103,7 +103,7 @@ func TestIfBlock(t *testing.T) {
 
 	t.Run("string with else", func(t *testing.T) {
 		ib := &IfBlock{
-			Condition: "show",
+			Condition:  "show",
 			ThenBlocks: []Block{&TextBlock{Content: "yes"}},
 			ElseBlocks: []Block{&TextBlock{Content: "no"}},
 		}
@@ -115,8 +115,8 @@ func TestIfBlock(t *testing.T) {
 
 	t.Run("string with negate", func(t *testing.T) {
 		ib := &IfBlock{
-			Condition: "show",
-			Negate:    true,
+			Condition:  "show",
+			Negate:     true,
 			ThenBlocks: []Block{&TextBlock{Content: "content"}},
 		}
 		if !containsString(ib.String(), "{{^") {
@@ -128,8 +128,8 @@ func TestIfBlock(t *testing.T) {
 func TestEachBlock(t *testing.T) {
 	t.Run("string representation", func(t *testing.T) {
 		eb := &EachBlock{
-			Path:       "items",
-			ItemName:   "item",
+			Path:        "items",
+			ItemName:    "item",
 			InnerBlocks: []Block{&TextBlock{Content: "{{item}}"}},
 		}
 		expected := "{{#each items}}{{item}}{{/each}}"
@@ -525,9 +525,9 @@ func TestRenderBlock(t *testing.T) {
 		tpl := MustNewTemplate("test", "")
 		var sb strings.Builder
 		ifBlock := &IfBlock{
-			Condition: "show",
+			Condition:  "show",
 			ThenBlocks: []Block{&TextBlock{Content: "visible"}},
-			Negate:    false,
+			Negate:     false,
 		}
 		err := tpl.renderBlock(&sb, ifBlock, map[string]any{"show": true})
 		if err != nil {
@@ -542,10 +542,10 @@ func TestRenderBlock(t *testing.T) {
 		tpl := MustNewTemplate("test", "")
 		var sb strings.Builder
 		ifBlock := &IfBlock{
-			Condition: "show",
+			Condition:  "show",
 			ThenBlocks: []Block{&TextBlock{Content: "visible"}},
 			ElseBlocks: []Block{&TextBlock{Content: "hidden"}},
-			Negate:    false,
+			Negate:     false,
 		}
 		// Key "show" exists (value is false), so exists=true, then branch
 		err := tpl.renderBlock(&sb, ifBlock, map[string]any{"show": false})
@@ -561,10 +561,10 @@ func TestRenderBlock(t *testing.T) {
 		tpl := MustNewTemplate("test", "")
 		var sb strings.Builder
 		ifBlock := &IfBlock{
-			Condition: "show",
+			Condition:  "show",
 			ThenBlocks: []Block{&TextBlock{Content: "visible"}},
 			ElseBlocks: []Block{&TextBlock{Content: "hidden"}},
-			Negate:    false,
+			Negate:     false,
 		}
 		// Key "show" doesn't exist, so exists=false, else branch
 		err := tpl.renderBlock(&sb, ifBlock, map[string]any{})
@@ -580,9 +580,9 @@ func TestRenderBlock(t *testing.T) {
 		tpl := MustNewTemplate("test", "")
 		var sb strings.Builder
 		ifBlock := &IfBlock{
-			Condition: "show",
+			Condition:  "show",
 			ThenBlocks: []Block{&TextBlock{Content: "shown"}},
-			Negate:    true,
+			Negate:     true,
 		}
 		// Key exists, exists=true, negate!=exists = false, then doesn't render
 		err := tpl.renderBlock(&sb, ifBlock, map[string]any{"show": true})
@@ -599,8 +599,8 @@ func TestRenderBlock(t *testing.T) {
 		tpl := MustNewTemplate("test", "")
 		var sb strings.Builder
 		eachBlock := &EachBlock{
-			Path:       "items",
-			ItemName:   "item",
+			Path:        "items",
+			ItemName:    "item",
 			InnerBlocks: []Block{&VariableBlock{Path: "item"}},
 		}
 		err := tpl.renderBlock(&sb, eachBlock, map[string]any{"items": []any{"a", "b", "c"}})
@@ -616,9 +616,9 @@ func TestRenderBlock(t *testing.T) {
 		tpl := MustNewTemplate("test", "")
 		var sb strings.Builder
 		eachBlock := &EachBlock{
-			Path:       "users",
-			ItemName:   "user",
-			KeyName:    "key",
+			Path:        "users",
+			ItemName:    "user",
+			KeyName:     "key",
 			InnerBlocks: []Block{&TextBlock{Content: "{{key}}:"}},
 		}
 		err := tpl.renderBlock(&sb, eachBlock, map[string]any{
@@ -634,8 +634,8 @@ func TestRenderBlock(t *testing.T) {
 		tpl := MustNewTemplate("test", "")
 		var sb strings.Builder
 		eachBlock := &EachBlock{
-			Path:       "nonexistent",
-			ItemName:   "item",
+			Path:        "nonexistent",
+			ItemName:    "item",
 			InnerBlocks: []Block{&TextBlock{Content: "item"}},
 		}
 		err := tpl.renderBlock(&sb, eachBlock, map[string]any{})
@@ -705,7 +705,7 @@ func TestTemplateRenderAdvanced(t *testing.T) {
 	t.Run("render with nested map array", func(t *testing.T) {
 		tpl := MustNewTemplate("test", "User: {{user.name}}, Item: {{items[0]}}")
 		result, err := tpl.Render(map[string]any{
-			"user": map[string]any{"name": "Alice"},
+			"user":  map[string]any{"name": "Alice"},
 			"items": []any{"apple", "banana"},
 		})
 		if err != nil {

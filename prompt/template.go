@@ -53,7 +53,7 @@ func (b *VariableBlock) String() string {
 
 // IfBlock represents conditional logic.
 type IfBlock struct {
-	Condition string
+	Condition  string
 	ThenBlocks []Block
 	ElseBlocks []Block
 	Negate     bool
@@ -74,9 +74,9 @@ func (b *IfBlock) String() string {
 
 // EachBlock represents iteration over a collection.
 type EachBlock struct {
-	Path      string
-	ItemName  string
-	KeyName   string
+	Path        string
+	ItemName    string
+	KeyName     string
 	InnerBlocks []Block
 }
 
@@ -96,15 +96,15 @@ func (b *IncludeBlock) String() string {
 
 // SwitchBlock represents switch/case logic.
 type SwitchBlock struct {
-	Variable  string
-	Cases     []CaseBlock
-	Default   []Block
+	Variable string
+	Cases    []CaseBlock
+	Default  []Block
 }
 
 // CaseBlock represents a single case in switch.
 type CaseBlock struct {
-	Value    string
-	Blocks   []Block
+	Value  string
+	Blocks []Block
 }
 
 // Helper to convert block list to string.

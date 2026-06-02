@@ -6,8 +6,8 @@ import (
 	"io"
 
 	"github.com/LingByte/lingllm/metrics"
-	"github.com/LingByte/lingllm/protocol"
 	"github.com/LingByte/lingllm/prompt"
+	"github.com/LingByte/lingllm/protocol"
 )
 
 // Runnable represents a composable unit that can be invoked or streamed.
@@ -123,9 +123,13 @@ func (c *NodeChain) Transform(ctx context.Context, reader protocol.StreamReader)
 }
 
 func FollowUpRequest(input protocol.ChatRequest, result *protocol.ChatResponse) protocol.ChatRequest {
+	messages := append(input.Messages, protocol.Message{
+		Role:    protocol.RoleAssistant,
+		Content: result.FirstContent(),
+	})
 	return protocol.ChatRequest{
 		Model:       input.Model,
-		Messages:    []protocol.Message{{Role: protocol.RoleAssistant, Content: result.FirstContent()}},
+		Messages:    messages,
 		MaxTokens:   input.MaxTokens,
 		Temperature: input.Temperature,
 		TopP:        input.TopP,
@@ -199,12 +203,10 @@ func (n *ProcessorNode) Name() string {
 }
 
 // Invoke executes the processor function.
+// Note: ProcessorNode should not be used as the first node in a chain.
+// Use ProcessResult instead when you have a previous response to process.
 func (n *ProcessorNode) Invoke(ctx context.Context, input protocol.ChatRequest) (*protocol.ChatResponse, error) {
-	resp := &protocol.ChatResponse{
-		Model:   input.Model,
-		Choices: []protocol.Choice{{Message: protocol.Message{Role: protocol.RoleUser, Content: ""}}},
-	}
-	return n.fn(ctx, resp)
+	return nil, fmt.Errorf("processor node %s cannot be invoked directly; use it after a model node", n.name)
 }
 
 // ProcessResult processes an existing response (for use in chains).
@@ -400,7 +402,7 @@ func NewGenericChain[I, O any](name string) *GenericChain[I, O] {
 // AppendPrompt adds a prompt template step.
 func (c *GenericChain[I, O]) AppendPrompt(name string, template PromptTemplate) *GenericChain[I, O] {
 	c.steps = append(c.steps, &genericPromptStep{
-		n: name,
+		n:        name,
 		template: template,
 	})
 	return c
@@ -409,8 +411,8 @@ func (c *GenericChain[I, O]) AppendPrompt(name string, template PromptTemplate) 
 // AppendModel adds a chat model step.
 func (c *GenericChain[I, O]) AppendModel(name string, model protocol.ChatModel) *GenericChain[I, O] {
 	c.steps = append(c.steps, &genericModelStep{
-		n: name,
-		model:    model,
+		n:     name,
+		model: model,
 	})
 	return c
 }
@@ -418,8 +420,8 @@ func (c *GenericChain[I, O]) AppendModel(name string, model protocol.ChatModel) 
 // AppendLambda adds a transformation lambda.
 func (c *GenericChain[I, O]) AppendLambda(name string, fn func(context.Context, any) (any, error)) *GenericChain[I, O] {
 	c.steps = append(c.steps, &genericLambdaStep{
-		n: name,
-		fn:       fn,
+		n:  name,
+		fn: fn,
 	})
 	return c
 }
@@ -461,7 +463,7 @@ func (c *GenericChain[I, O]) Invoke(ctx context.Context, input I) (O, error) {
 }
 
 type genericPromptStep struct {
-	n string
+	n        string
 	template PromptTemplate
 }
 

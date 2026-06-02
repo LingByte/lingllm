@@ -183,9 +183,9 @@ func TestProcessorNode(t *testing.T) {
 		resp.Choices[0].Message.Content = "processed"
 		return resp, nil
 	})
-	resp, err := node.Invoke(context.Background(), protocol.ChatRequest{Model: "m"})
-	if err != nil || resp.FirstContent() != "processed" {
-		t.Fatalf("Invoke failed: resp=%+v err=%v", resp, err)
+	_, err := node.Invoke(context.Background(), protocol.ChatRequest{Model: "m"})
+	if err == nil {
+		t.Fatal("expected invoke error for processor node")
 	}
 
 	reader := protocol.StreamReaderFromArray([]*protocol.ChatStreamChunk{{Delta: "raw"}})
@@ -367,5 +367,123 @@ func TestStreamProcessorFunc(t *testing.T) {
 	chunk, err := fn.ProcessChunk(context.Background(), &protocol.ChatStreamChunk{Delta: "x"})
 	if err != nil || chunk.Delta != "x" {
 		t.Fatalf("ProcessChunk failed: %+v err=%v", chunk, err)
+	}
+}
+
+func TestFollowUpRequest(t *testing.T) {
+	input := protocol.ChatRequest{
+		Model: "gpt-4",
+		Messages: []protocol.Message{
+			{Role: protocol.RoleUser, Content: "hello"},
+			{Role: protocol.RoleAssistant, Content: "hi"},
+		},
+		MaxTokens:   100,
+		Temperature: 0.7,
+		TopP:        0.9,
+		Stop:        []string{"END"},
+		Metadata:    map[string]string{"key": "value"},
+	}
+	result := &protocol.ChatResponse{
+		Choices: []protocol.Choice{{Message: protocol.Message{Content: "response"}}},
+	}
+
+	followUp := FollowUpRequest(input, result)
+
+	if followUp.Model != "gpt-4" {
+		t.Errorf("model mismatch: %s", followUp.Model)
+	}
+	if len(followUp.Messages) != 3 {
+		t.Errorf("expected 3 messages, got %d", len(followUp.Messages))
+	}
+	if followUp.Messages[2].Content != "response" {
+		t.Errorf("last message content mismatch: %s", followUp.Messages[2].Content)
+	}
+	if followUp.MaxTokens != 100 {
+		t.Errorf("max tokens mismatch: %d", followUp.MaxTokens)
+	}
+	if followUp.Temperature != 0.7 {
+		t.Errorf("temperature mismatch: %f", followUp.Temperature)
+	}
+	if followUp.TopP != 0.9 {
+		t.Errorf("top_p mismatch: %f", followUp.TopP)
+	}
+	if len(followUp.Stop) != 1 || followUp.Stop[0] != "END" {
+		t.Errorf("stop mismatch: %v", followUp.Stop)
+	}
+	if followUp.Metadata["key"] != "value" {
+		t.Errorf("metadata mismatch: %v", followUp.Metadata)
+	}
+}
+
+func TestChainInvokeMultiNodeWithProcessor(t *testing.T) {
+	first := &stubModel{chatResp: &protocol.ChatResponse{
+		Choices: []protocol.Choice{{Message: protocol.Message{Content: "step1"}}},
+	}}
+	second := &stubModel{chatResp: &protocol.ChatResponse{
+		Choices: []protocol.Choice{{Message: protocol.Message{Content: "step2"}}},
+	}}
+	c := New("multi-proc",
+		NewModelNode("first", first),
+		NewProcessorNode("proc", func(ctx context.Context, resp *protocol.ChatResponse) (*protocol.ChatResponse, error) {
+			resp.Choices[0].Message.Content = resp.FirstContent() + "-processed"
+			return resp, nil
+		}),
+		NewModelNode("second", second),
+	)
+	resp, err := c.Invoke(context.Background(), protocol.ChatRequest{
+		Model:    "gpt-4",
+		Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
+	})
+	if err != nil {
+		t.Fatalf("Invoke failed: %v", err)
+	}
+	if resp.FirstContent() != "step2" {
+		t.Errorf("expected step2, got %s", resp.FirstContent())
+	}
+}
+
+func TestChainStreamMultiNodeFinal(t *testing.T) {
+	first := &stubModel{chatResp: &protocol.ChatResponse{
+		Choices: []protocol.Choice{{Message: protocol.Message{Content: "mid"}}},
+	}}
+	stream := &stubStream{chunks: []*protocol.ChatStreamChunk{{Delta: "final"}}}
+	second := &stubModel{stream: stream}
+	c := New("stream-multi-final",
+		NewModelNode("first", first),
+		NewModelNode("second", second),
+	)
+	got, err := c.Stream(context.Background(), protocol.ChatRequest{
+		Model:    "gpt-4",
+		Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "hi"}},
+	})
+	if err != nil {
+		t.Fatalf("Stream failed: %v", err)
+	}
+	chunk, _ := got.Recv()
+	if chunk.Delta != "final" {
+		t.Errorf("expected final, got %s", chunk.Delta)
+	}
+}
+
+func TestProcessingStreamClose(t *testing.T) {
+	upstream := &stubStream{chunks: []*protocol.ChatStreamChunk{{Delta: "a"}}}
+	ps := NewProcessingStream(upstream, StreamProcessorFunc(func(ctx context.Context, chunk *protocol.ChatStreamChunk) (*protocol.ChatStreamChunk, error) {
+		return chunk, nil
+	}))
+	if err := ps.Close(); err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+	if _, err := ps.Recv(); err == nil {
+		t.Fatal("expected EOF after close")
+	}
+}
+
+func TestModelNodeMetrics(t *testing.T) {
+	model := &stubModel{chatResp: &protocol.ChatResponse{
+		Choices: []protocol.Choice{{Message: protocol.Message{Content: "hello"}}},
+	}}
+	node := NewModelNode("test", model)
+	if node.Name() != "test" {
+		t.Errorf("unexpected node name: %s", node.Name())
 	}
 }

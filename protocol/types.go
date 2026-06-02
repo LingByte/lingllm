@@ -30,8 +30,8 @@ type Message struct {
 
 // ToolCall represents a tool invocation request.
 type ToolCall struct {
-	ID       string      `json:"id"`
-	Type     string      `json:"type"`
+	ID       string       `json:"id"`
+	Type     string       `json:"type"`
 	Function FunctionCall `json:"function"`
 }
 

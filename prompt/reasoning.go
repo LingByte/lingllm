@@ -16,10 +16,10 @@ type Step struct {
 
 // ReasoningTemplate provides chain-of-thought prompting.
 type ReasoningTemplate struct {
-	stepsTemplate   *Template
-	format          ReasoningFormat
-	includeActions  bool
-	stopAtStep      int // 0 means no limit
+	stepsTemplate  *Template
+	format         ReasoningFormat
+	includeActions bool
+	stopAtStep     int // 0 means no limit
 }
 
 // ReasoningFormat defines how reasoning steps are formatted.
@@ -260,18 +260,18 @@ func (rt *ReasoningTemplate) ToConversation(userInput string) *Conversation {
 // TreeOfThought represents branching reasoning paths.
 type TreeOfThought struct {
 	root        *ToTNode
-	maxDepth   int
+	maxDepth    int
 	branchLimit int
 }
 
 // ToTNode represents a single node in the reasoning tree.
 type ToTNode struct {
-	Thought   string
-	Score     float32
-	Parent    *ToTNode
-	Children  []*ToTNode
-	Depth     int
-	Visited   bool
+	Thought  string
+	Score    float32
+	Parent   *ToTNode
+	Children []*ToTNode
+	Depth    int
+	Visited  bool
 }
 
 // NewTreeOfThought creates a new tree of thought.
@@ -385,7 +385,7 @@ func (tot *TreeOfThought) String() string {
 
 // ReflectionTemplate provides self-reflection prompting.
 type ReflectionTemplate struct {
-	critiqueTemplate   *Template
+	critiqueTemplate    *Template
 	improvementTemplate *Template
 }
 
