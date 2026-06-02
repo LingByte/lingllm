@@ -143,8 +143,14 @@ func interactiveConversation(ctx context.Context, client protocol.ChatModel, mod
 			fmt.Println("─────────────────────────────────────────────────────────────")
 			fmt.Printf("L1 capacity exceeded (%d user messages). Summarizing to L2...\n", userMessageCount)
 
-			// Generate summary and add to L2
-			summary := stm.GenerateSummaryFromWorkingMemory(wm)
+			// Generate comprehensive summary using LLM
+			summary, err := generateComprehensiveSummary(ctx, client, model, wm)
+			if err != nil {
+				log.Printf("Error generating summary: %v", err)
+				continue
+			}
+
+			// Add summary to L2
 			evicted, err := stm.AddRoundSummary(summary)
 			if err != nil {
 				log.Printf("Error adding summary: %v", err)
@@ -179,19 +185,74 @@ func interactiveConversation(ctx context.Context, client protocol.ChatModel, mod
 	// Final summary if L1 has messages
 	if wm.GetStats().MessageCount > 0 {
 		fmt.Println("\n─────────────────────────────────────────────────────────────")
-		fmt.Println("💾 Saving final round to L2...")
-		summary := stm.GenerateSummaryFromWorkingMemory(wm)
-		evicted, err := stm.AddRoundSummary(summary)
+		fmt.Println("Saving final round to L2...")
+		summary, err := generateComprehensiveSummary(ctx, client, model, wm)
 		if err != nil {
-			log.Printf("Error adding summary: %v", err)
+			log.Printf("Error generating summary: %v", err)
 		} else {
-			fmt.Printf("✓ Round %s summarized and added to L2\n", wm.GetRoundID())
-			if evicted != nil {
-				fmt.Printf("⚠️  Evicted round %s (L2 capacity exceeded)\n", evicted.RoundID)
+			evicted, err := stm.AddRoundSummary(summary)
+			if err != nil {
+				log.Printf("Error adding summary: %v", err)
+			} else {
+				fmt.Printf("✓ Round %s summarized and added to L2\n", wm.GetRoundID())
+				if evicted != nil {
+					fmt.Printf("Evicted round %s (L2 capacity exceeded)\n", evicted.RoundID)
+				}
 			}
 		}
 		fmt.Println("─────────────────────────────────────────────────────────────")
 	}
+}
+
+// generateComprehensiveSummary uses LLM to summarize the entire L1 conversation
+func generateComprehensiveSummary(ctx context.Context, client protocol.ChatModel, model string, wm *memory.WorkingMemory) (*memory.RoundSummary, error) {
+	stats := wm.GetStats()
+
+	// Build conversation text for summarization
+	var conversationText strings.Builder
+	conversationText.WriteString("Please summarize the following conversation concisely, capturing the main topics, key points, and important information:\n\n")
+
+	for _, msg := range wm.GetMessages() {
+		if msg.Role == protocol.RoleUser {
+			conversationText.WriteString("User: " + msg.Content + "\n\n")
+		} else if msg.Role == protocol.RoleAssistant {
+			conversationText.WriteString("Assistant: " + msg.Content + "\n\n")
+		}
+	}
+
+	conversationText.WriteString("\nProvide a concise summary that captures the essence of this conversation.")
+
+	// Call LLM to generate summary
+	req := protocol.ChatRequest{
+		Model: model,
+		Messages: []protocol.Message{
+			{
+				Role:    protocol.RoleUser,
+				Content: conversationText.String(),
+			},
+		},
+		MaxTokens: 500,
+	}
+
+	resp, err := client.Chat(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	summaryText := resp.FirstContent()
+
+	// Create round summary
+	return &memory.RoundSummary{
+		RoundID:      stats.RoundID,
+		Summary:      summaryText,
+		KeyPoints:    []string{},
+		Messages:     stats.MessageCount,
+		Thoughts:     stats.ThoughtCount,
+		Actions:      stats.ActionCount,
+		Observations: stats.ObservationCount,
+		Timestamp:    time.Now(),
+		ExpiresAt:    time.Now().Add(24 * time.Hour),
+	}, nil
 }
 
 // showL1State displays the current state of L1 working memory
