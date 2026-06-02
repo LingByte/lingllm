@@ -1,0 +1,160 @@
+package embedder
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+)
+
+// Copyright (c) 2026 LingByte. All rights reserved.
+// SPDX-License-Identifier: AGPL-3.0
+
+// OpenAIEmbedder OpenAI embedding 实现
+type OpenAIEmbedder struct {
+	baseURL    string
+	apiKey     string
+	model      string
+	dimension  int
+	httpClient *http.Client
+}
+
+// NewOpenAIEmbedder 创建 OpenAI embedder
+func NewOpenAIEmbedder(cfg *Config) *OpenAIEmbedder {
+	baseURL := strings.TrimRight(cfg.BaseURL, "/")
+	if baseURL == "" {
+		baseURL = "https://api.openai.com/v1"
+	}
+
+	dimension := cfg.Dimension
+	if dimension <= 0 {
+		dimension = 1536 // OpenAI 默认维度
+	}
+
+	timeout := cfg.Timeout
+	if timeout <= 0 {
+		timeout = 30
+	}
+
+	return &OpenAIEmbedder{
+		baseURL:    baseURL,
+		apiKey:     cfg.APIKey,
+		model:      cfg.Model,
+		dimension:  dimension,
+		httpClient: &http.Client{Timeout: time.Duration(timeout) * time.Second},
+	}
+}
+
+func (e *OpenAIEmbedder) Name() string {
+	return "openai"
+}
+
+func (e *OpenAIEmbedder) Provider() string {
+	return "openai"
+}
+
+func (e *OpenAIEmbedder) Dimension() int {
+	return e.dimension
+}
+
+func (e *OpenAIEmbedder) Close() error {
+	return nil
+}
+
+// Embed 批量向量化
+func (e *OpenAIEmbedder) Embed(ctx context.Context, texts []string) ([][]float32, error) {
+	if len(texts) == 0 {
+		return nil, ErrEmptyInput
+	}
+
+	// 清理输入
+	cleanedTexts := make([]string, 0, len(texts))
+	for _, text := range texts {
+		text = strings.TrimSpace(text)
+		if text == "" {
+			text = " " // OpenAI 不接受空字符串
+		}
+		cleanedTexts = append(cleanedTexts, text)
+	}
+
+	// 构建请求
+	reqBody := map[string]interface{}{
+		"model": e.model,
+		"input": cleanedTexts,
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrEmbedFailed, err)
+	}
+
+	// 发送请求
+	req, err := http.NewRequestWithContext(ctx, "POST", e.baseURL+"/embeddings", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrConnectionFailed, err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+e.apiKey)
+
+	resp, err := e.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrConnectionFailed, err)
+	}
+	defer resp.Body.Close()
+
+	// 读取响应
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrEmbedFailed, err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusTooManyRequests {
+			return nil, ErrRateLimited
+		}
+		return nil, fmt.Errorf("%w: status %d: %s", ErrEmbedFailed, resp.StatusCode, string(respBody))
+	}
+
+	// 解析响应
+	var result struct {
+		Data []struct {
+			Embedding []float32 `json:"embedding"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidResponse, err)
+	}
+
+	// 提取向量
+	vectors := make([][]float32, 0, len(result.Data))
+	for _, item := range result.Data {
+		vectors = append(vectors, item.Embedding)
+	}
+
+	return vectors, nil
+}
+
+// EmbedSingle 单个文本向量化
+func (e *OpenAIEmbedder) EmbedSingle(ctx context.Context, text string) ([]float32, error) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return nil, ErrEmptyInput
+	}
+
+	vectors, err := e.Embed(ctx, []string{text})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(vectors) == 0 {
+		return nil, ErrInvalidResponse
+	}
+
+	return vectors[0], nil
+}
