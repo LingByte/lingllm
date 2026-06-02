@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -21,10 +22,23 @@ const (
 
 // Message represents a single turn in a chat conversation.
 type Message struct {
-	Role    MessageRole `json:"role"`
-	Content string      `json:"content"`
-	// Optional tool call identifier (used when RoleAssistant triggers tool calls).
-	ToolCallID string `json:"tool_call_id,omitempty"`
+	Role       MessageRole `json:"role"`
+	Content    string      `json:"content"`
+	ToolCallID string      `json:"tool_call_id,omitempty"`
+	ToolCalls  []ToolCall  `json:"tool_calls,omitempty"`
+}
+
+// ToolCall represents a tool invocation request.
+type ToolCall struct {
+	ID       string      `json:"id"`
+	Type     string      `json:"type"`
+	Function FunctionCall `json:"function"`
+}
+
+// FunctionCall represents a function call with name and arguments.
+type FunctionCall struct {
+	Name      string          `json:"name"`
+	Arguments json.RawMessage `json:"arguments"`
 }
 
 // Tool defines a tool/function that the model can call.

@@ -7,6 +7,7 @@ import (
 
 	"github.com/LingByte/lingllm/metrics"
 	"github.com/LingByte/lingllm/protocol"
+	"github.com/LingByte/lingllm/prompt"
 )
 
 // Runnable represents a composable unit that can be invoked or streamed.
@@ -23,27 +24,28 @@ type Node interface {
 	Name() string
 }
 
-// Chain represents a sequence of operations that can be chained together.
-type Chain struct {
+// NodeChain represents a sequence of nodes that can be chained together.
+// This is the legacy API, prefer using NewChain for new code.
+type NodeChain struct {
 	nodes []Node
 	name  string
 }
 
-// New creates a new chain with the given nodes.
-func New(name string, nodes ...Node) *Chain {
-	return &Chain{
+// NewNodeChain creates a new node chain with the given nodes.
+func NewNodeChain(name string, nodes ...Node) *NodeChain {
+	return &NodeChain{
 		nodes: nodes,
 		name:  name,
 	}
 }
 
 // Name returns the chain's name.
-func (c *Chain) Name() string {
+func (c *NodeChain) Name() string {
 	return c.name
 }
 
 // Invoke executes all nodes in sequence synchronously.
-func (c *Chain) Invoke(ctx context.Context, input protocol.ChatRequest) (*protocol.ChatResponse, error) {
+func (c *NodeChain) Invoke(ctx context.Context, input protocol.ChatRequest) (*protocol.ChatResponse, error) {
 	if len(c.nodes) == 0 {
 		return nil, fmt.Errorf("chain has no nodes")
 	}
@@ -55,8 +57,15 @@ func (c *Chain) Invoke(ctx context.Context, input protocol.ChatRequest) (*protoc
 		if i == 0 {
 			result, err = node.Invoke(ctx, input)
 		} else {
-			nextReq := followUpRequest(input, result)
-			result, err = node.Invoke(ctx, nextReq)
+			// Check if this is a processor node
+			if procNode, ok := node.(*ProcessorNode); ok {
+				// For processor nodes, pass the previous result for processing
+				// The processor modifies the result in place
+				result, err = procNode.ProcessResult(ctx, result)
+			} else {
+				nextReq := FollowUpRequest(input, result)
+				result, err = node.Invoke(ctx, nextReq)
+			}
 		}
 		if err != nil {
 			return nil, fmt.Errorf("chain node %d (%s) failed: %w", i, node.Name(), err)
@@ -67,7 +76,7 @@ func (c *Chain) Invoke(ctx context.Context, input protocol.ChatRequest) (*protoc
 }
 
 // Stream executes all nodes in sequence with streaming on the final node.
-func (c *Chain) Stream(ctx context.Context, input protocol.ChatRequest) (protocol.ChatStream, error) {
+func (c *NodeChain) Stream(ctx context.Context, input protocol.ChatRequest) (protocol.ChatStream, error) {
 	if len(c.nodes) == 0 {
 		return nil, fmt.Errorf("chain has no nodes")
 	}
@@ -80,7 +89,7 @@ func (c *Chain) Stream(ctx context.Context, input protocol.ChatRequest) (protoco
 			if i == 0 {
 				result, err = node.Invoke(ctx, input)
 			} else {
-				result, err = node.Invoke(ctx, followUpRequest(input, result))
+				result, err = node.Invoke(ctx, FollowUpRequest(input, result))
 			}
 			if err != nil {
 				return nil, fmt.Errorf("chain node %d (%s) failed: %w", i, node.Name(), err)
@@ -88,7 +97,7 @@ func (c *Chain) Stream(ctx context.Context, input protocol.ChatRequest) (protoco
 		} else {
 			streamInput := input
 			if len(c.nodes) > 1 {
-				streamInput = followUpRequest(input, result)
+				streamInput = FollowUpRequest(input, result)
 			}
 			return node.Stream(ctx, streamInput)
 		}
@@ -98,7 +107,7 @@ func (c *Chain) Stream(ctx context.Context, input protocol.ChatRequest) (protoco
 }
 
 // Collect reads all chunks from a stream into a response.
-func (c *Chain) Collect(ctx context.Context, reader protocol.StreamReader) (*protocol.ChatResponse, error) {
+func (c *NodeChain) Collect(ctx context.Context, reader protocol.StreamReader) (*protocol.ChatResponse, error) {
 	if len(c.nodes) == 0 {
 		return nil, fmt.Errorf("chain has no nodes")
 	}
@@ -106,14 +115,14 @@ func (c *Chain) Collect(ctx context.Context, reader protocol.StreamReader) (*pro
 }
 
 // Transform applies a transformation to each chunk in a stream.
-func (c *Chain) Transform(ctx context.Context, reader protocol.StreamReader) (protocol.StreamReader, error) {
+func (c *NodeChain) Transform(ctx context.Context, reader protocol.StreamReader) (protocol.StreamReader, error) {
 	if len(c.nodes) == 0 {
 		return nil, fmt.Errorf("chain has no nodes")
 	}
 	return c.nodes[len(c.nodes)-1].Transform(ctx, reader)
 }
 
-func followUpRequest(input protocol.ChatRequest, result *protocol.ChatResponse) protocol.ChatRequest {
+func FollowUpRequest(input protocol.ChatRequest, result *protocol.ChatResponse) protocol.ChatRequest {
 	return protocol.ChatRequest{
 		Model:       input.Model,
 		Messages:    []protocol.Message{{Role: protocol.RoleAssistant, Content: result.FirstContent()}},
@@ -156,14 +165,15 @@ func (n *ModelNode) Stream(ctx context.Context, input protocol.ChatRequest) (pro
 
 // Collect reads all chunks from a stream into a response.
 func (n *ModelNode) Collect(ctx context.Context, reader protocol.StreamReader) (*protocol.ChatResponse, error) {
-	return protocol.CollectStream(ctx, reader)
+	return CollectStream(ctx, reader)
 }
 
 // Transform applies a pass-through transformation to each chunk.
 func (n *ModelNode) Transform(ctx context.Context, reader protocol.StreamReader) (protocol.StreamReader, error) {
-	return protocol.TransformStream(ctx, reader, protocol.StreamTransformerFunc(func(ctx context.Context, chunk *protocol.ChatStreamChunk) (*protocol.ChatStreamChunk, error) {
+	s, err := TransformStream(reader, StreamTransformerFunc(func(ctx context.Context, chunk *protocol.ChatStreamChunk) (*protocol.ChatStreamChunk, error) {
 		return chunk, nil
-	})), nil
+	}))
+	return s, err
 }
 
 // ProcessorFunc processes a ChatResponse.
@@ -197,6 +207,11 @@ func (n *ProcessorNode) Invoke(ctx context.Context, input protocol.ChatRequest) 
 	return n.fn(ctx, resp)
 }
 
+// ProcessResult processes an existing response (for use in chains).
+func (n *ProcessorNode) ProcessResult(ctx context.Context, input *protocol.ChatResponse) (*protocol.ChatResponse, error) {
+	return n.fn(ctx, input)
+}
+
 // Stream is not supported for processor nodes.
 func (n *ProcessorNode) Stream(ctx context.Context, input protocol.ChatRequest) (protocol.ChatStream, error) {
 	return nil, fmt.Errorf("processor node %s does not support streaming", n.name)
@@ -204,7 +219,7 @@ func (n *ProcessorNode) Stream(ctx context.Context, input protocol.ChatRequest) 
 
 // Collect reads all chunks from a stream and applies the processor.
 func (n *ProcessorNode) Collect(ctx context.Context, reader protocol.StreamReader) (*protocol.ChatResponse, error) {
-	resp, err := protocol.CollectStream(ctx, reader)
+	resp, err := CollectStream(ctx, reader)
 	if err != nil {
 		return nil, err
 	}
@@ -349,6 +364,247 @@ func (b *Builder) AddNode(node Node) *Builder {
 }
 
 // Build creates the chain.
-func (b *Builder) Build() *Chain {
-	return New(b.name, b.nodes...)
+func (b *Builder) Build() *NodeChain {
+	return NewNodeChain(b.name, b.nodes...)
+}
+
+// New is an alias for NewNodeChain for backwards compatibility.
+// Deprecated: Use NewNodeChain for new code.
+func New(name string, nodes ...Node) *NodeChain {
+	return NewNodeChain(name, nodes...)
+}
+
+// --- Generic Chain API ---
+
+// GenericChain represents a sequence of operations with type-safe input and output.
+type GenericChain[I, O any] struct {
+	name     string
+	steps    []GenericStep
+	compiled bool
+}
+
+// GenericStep is a single step in a generic chain.
+type GenericStep interface {
+	execute(ctx context.Context, input any) (any, error)
+	stepName() string
+}
+
+// NewGenericChain creates a new generic chain.
+func NewGenericChain[I, O any](name string) *GenericChain[I, O] {
+	return &GenericChain[I, O]{
+		name:  name,
+		steps: make([]GenericStep, 0),
+	}
+}
+
+// AppendPrompt adds a prompt template step.
+func (c *GenericChain[I, O]) AppendPrompt(name string, template PromptTemplate) *GenericChain[I, O] {
+	c.steps = append(c.steps, &genericPromptStep{
+		n: name,
+		template: template,
+	})
+	return c
+}
+
+// AppendModel adds a chat model step.
+func (c *GenericChain[I, O]) AppendModel(name string, model protocol.ChatModel) *GenericChain[I, O] {
+	c.steps = append(c.steps, &genericModelStep{
+		n: name,
+		model:    model,
+	})
+	return c
+}
+
+// AppendLambda adds a transformation lambda.
+func (c *GenericChain[I, O]) AppendLambda(name string, fn func(context.Context, any) (any, error)) *GenericChain[I, O] {
+	c.steps = append(c.steps, &genericLambdaStep{
+		n: name,
+		fn:       fn,
+	})
+	return c
+}
+
+// Compile validates the chain.
+func (c *GenericChain[I, O]) Compile(ctx context.Context) error {
+	if len(c.steps) == 0 {
+		return fmt.Errorf("chain %s has no steps", c.name)
+	}
+	c.compiled = true
+	return nil
+}
+
+// Invoke executes the chain.
+func (c *GenericChain[I, O]) Invoke(ctx context.Context, input I) (O, error) {
+	var zero O
+	if !c.compiled {
+		if err := c.Compile(ctx); err != nil {
+			return zero, err
+		}
+	}
+
+	var current any = input
+	var err error
+
+	for i, step := range c.steps {
+		current, err = step.execute(ctx, current)
+		if err != nil {
+			return zero, fmt.Errorf("chain step %d (%s) failed: %w", i, step.stepName(), err)
+		}
+	}
+
+	result, ok := current.(O)
+	if !ok {
+		return zero, fmt.Errorf("chain output type mismatch: got %T, want %T", current, zero)
+	}
+
+	return result, nil
+}
+
+type genericPromptStep struct {
+	n string
+	template PromptTemplate
+}
+
+func (s *genericPromptStep) stepName() string { return s.n }
+
+func (s *genericPromptStep) execute(ctx context.Context, input any) (any, error) {
+	data, ok := input.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("prompt expects map[string]any, got %T", input)
+	}
+	return s.template.Render(data)
+}
+
+type genericModelStep struct {
+	n     string
+	model protocol.ChatModel
+}
+
+func (s *genericModelStep) stepName() string { return s.n }
+
+func (s *genericModelStep) execute(ctx context.Context, input any) (any, error) {
+	req, ok := input.(protocol.ChatRequest)
+	if !ok {
+		if msgs, ok := input.([]protocol.Message); ok {
+			req = protocol.ChatRequest{Messages: msgs}
+		} else {
+			return nil, fmt.Errorf("model expects ChatRequest or []Message, got %T", input)
+		}
+	}
+	return s.model.Chat(ctx, req)
+}
+
+type genericLambdaStep struct {
+	n  string
+	fn func(context.Context, any) (any, error)
+}
+
+func (s *genericLambdaStep) stepName() string { return s.n }
+
+func (s *genericLambdaStep) execute(ctx context.Context, input any) (any, error) {
+	return s.fn(ctx, input)
+}
+
+// PromptTemplate defines a template that renders messages.
+type PromptTemplate interface {
+	Render(data map[string]any) ([]protocol.Message, error)
+}
+
+// SimplePrompt creates a prompt template from system and user templates.
+type SimplePrompt struct {
+	systemTemplate string
+	userTemplate   string
+}
+
+// NewSimplePrompt creates a simple prompt with system and user messages.
+func NewSimplePrompt(system, user string) *SimplePrompt {
+	return &SimplePrompt{systemTemplate: system, userTemplate: user}
+}
+
+func (p *SimplePrompt) Render(data map[string]any) ([]protocol.Message, error) {
+	var messages []protocol.Message
+
+	if p.systemTemplate != "" {
+		tpl, err := prompt.NewTemplate("system", p.systemTemplate)
+		if err != nil {
+			return nil, err
+		}
+		content, err := tpl.Render(data)
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, protocol.Message{Role: protocol.RoleSystem, Content: content})
+	}
+
+	if p.userTemplate != "" {
+		tpl, err := prompt.NewTemplate("user", p.userTemplate)
+		if err != nil {
+			return nil, err
+		}
+		content, err := tpl.Render(data)
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, protocol.Message{Role: protocol.RoleUser, Content: content})
+	}
+
+	return messages, nil
+}
+
+// --- Stream Utilities ---
+
+// StreamTransformer transforms chunks.
+type StreamTransformer interface {
+	Transform(ctx context.Context, chunk *protocol.ChatStreamChunk) (*protocol.ChatStreamChunk, error)
+}
+
+// StreamTransformerFunc is a function adapter for StreamTransformer.
+type StreamTransformerFunc func(ctx context.Context, chunk *protocol.ChatStreamChunk) (*protocol.ChatStreamChunk, error)
+
+func (f StreamTransformerFunc) Transform(ctx context.Context, chunk *protocol.ChatStreamChunk) (*protocol.ChatStreamChunk, error) {
+	return f(ctx, chunk)
+}
+
+// CollectStream collects all chunks into a response.
+func CollectStream(ctx context.Context, reader protocol.StreamReader) (*protocol.ChatResponse, error) {
+	var content string
+	for {
+		chunk, err := reader.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		content += chunk.Delta
+	}
+	return &protocol.ChatResponse{
+		Choices: []protocol.Choice{{Message: protocol.Message{Role: protocol.RoleAssistant, Content: content}}},
+	}, nil
+}
+
+// TransformStream applies a transformer to each chunk.
+func TransformStream(reader protocol.StreamReader, transformer StreamTransformer) (protocol.StreamReader, error) {
+	return &transStream{reader: reader, transformer: transformer}, nil
+}
+
+type transStream struct {
+	reader      protocol.StreamReader
+	transformer StreamTransformer
+}
+
+func (s *transStream) Recv() (*protocol.ChatStreamChunk, error) {
+	chunk, err := s.reader.Recv()
+	if err != nil {
+		return nil, err
+	}
+	return s.transformer.Transform(context.Background(), chunk)
+}
+
+func (s *transStream) Close() error {
+	return s.reader.Close()
+}
+
+func (s *transStream) Metrics() metrics.CallMetrics {
+	return s.reader.Metrics()
 }

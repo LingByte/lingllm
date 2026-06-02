@@ -16,7 +16,16 @@ func TestExecuteWithToolsToolError(t *testing.T) {
 
 	model := &testChatModel{
 		responses: []*protocol.ChatResponse{
-			{Choices: []protocol.Choice{{Message: protocol.Message{ToolCallID: "call_1"}}}},
+			{
+				Choices: []protocol.Choice{{
+					Message: protocol.Message{
+						Role: protocol.RoleAssistant,
+						ToolCalls: []protocol.ToolCall{
+							{ID: "call_1", Type: "function", Function: protocol.FunctionCall{Name: "calculate", Arguments: []byte("{}")}},
+						},
+					},
+				}},
+			},
 			{Choices: []protocol.Choice{{Message: protocol.Message{Content: "done"}}}},
 		},
 	}

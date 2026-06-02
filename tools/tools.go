@@ -10,17 +10,12 @@ import (
 )
 
 // ToolCall represents a tool invocation by the model.
-type ToolCall struct {
-	ID       string       `json:"id"`
-	Type     string       `json:"type"`
-	Function FunctionCall `json:"function"`
-}
+// Deprecated: Use protocol.ToolCall instead.
+type ToolCall = protocol.ToolCall
 
 // FunctionCall represents a function call with name and arguments.
-type FunctionCall struct {
-	Name      string          `json:"name"`
-	Arguments json.RawMessage `json:"arguments"`
-}
+// Deprecated: Use protocol.FunctionCall instead.
+type FunctionCall = protocol.FunctionCall
 
 // ToolResult represents the result of a tool execution.
 type ToolResult struct {
@@ -108,63 +103,120 @@ func (tc *ToolChain) ExecuteWithTools(ctx context.Context, req protocol.ChatRequ
 	}
 
 	messages := req.Messages
-	round := 0
+	rounds := 0
 
-	for round < tc.maxRounds {
+	for rounds < tc.maxRounds {
 		resp, err := tc.model.Chat(ctx, req)
 		if err != nil {
 			return nil, fmt.Errorf("model call failed: %w", err)
 		}
 
-		hasToolCalls := false
-		for _, choice := range resp.Choices {
-			if choice.Message.Content == "" && choice.Message.ToolCallID != "" {
-				hasToolCalls = true
-				break
-			}
-		}
+		// Extract tool calls from response
+		toolCalls := tc.extractToolCalls(resp)
 
-		if !hasToolCalls {
+		if len(toolCalls) == 0 {
 			return resp, nil
 		}
 
-		toolResults := make([]ToolResult, 0)
-		for _, choice := range resp.Choices {
-			if choice.Message.ToolCallID != "" {
-				result, err := tc.executor.Execute(ctx, choice.Message.Content, []byte("{}"))
-				if err != nil {
-					result = fmt.Sprintf("Error: %v", err)
-				}
-				toolResults = append(toolResults, ToolResult{
-					ToolCallID: choice.Message.ToolCallID,
-					Content:    result,
-					IsError:    err != nil,
-				})
+		// Execute tool calls
+		toolResults := make([]protocol.Message, 0, len(toolCalls))
+		for _, call := range toolCalls {
+			result, execErr := tc.executor.Execute(ctx, call.Function.Name, call.Function.Arguments)
+			if execErr != nil {
+				result = fmt.Sprintf("Error: %v", execErr)
 			}
-		}
-
-		if len(toolResults) == 0 {
-			return resp, nil
-		}
-
-		messages = append(messages, protocol.Message{
-			Role:    protocol.RoleAssistant,
-			Content: resp.FirstContent(),
-		})
-
-		for _, result := range toolResults {
-			messages = append(messages, protocol.Message{
+			toolResults = append(toolResults, protocol.Message{
 				Role:       protocol.RoleTool,
-				Content:    result.Content,
-				ToolCallID: result.ToolCallID,
+				Content:    result,
+				ToolCallID: call.ID,
 			})
 		}
 
-		req.Messages = messages
-		round++
+		// Add assistant message with tool calls to history
+		assistantMsg := protocol.Message{
+			Role:      protocol.RoleAssistant,
+			Content:   resp.FirstContent(),
+			ToolCalls: toolCalls,
+		}
+		messages = append(messages, assistantMsg)
+
+		// Add tool results to history
+		messages = append(messages, toolResults...)
+
+		// Prepare next request
+		req = protocol.ChatRequest{
+			Model:       req.Model,
+			Messages:    messages,
+			Tools:       tc.executor.GetTools(),
+			ToolChoice:  protocol.ToolChoiceAuto,
+			MaxTokens:   req.MaxTokens,
+			Temperature: req.Temperature,
+			TopP:        req.TopP,
+			Stop:        req.Stop,
+			Metadata:    req.Metadata,
+		}
+		rounds++
 	}
 
 	return nil, fmt.Errorf("max tool calling rounds (%d) exceeded", tc.maxRounds)
+}
+
+// extractToolCalls extracts tool calls from a response.
+func (tc *ToolChain) extractToolCalls(resp *protocol.ChatResponse) []protocol.ToolCall {
+	var toolCalls []protocol.ToolCall
+
+	for _, choice := range resp.Choices {
+		// Check Message.ToolCalls (OpenAI/Anthropic format)
+		if len(choice.Message.ToolCalls) > 0 {
+			toolCalls = append(toolCalls, choice.Message.ToolCalls...)
+		}
+
+		// Check Message.Content for ReAct-style tool calls
+		if choice.Message.Content != "" && len(choice.Message.ToolCalls) == 0 {
+			// Try to parse ReAct-style format: Action: tool_name\nAction Input: {...}
+			calls := tc.parseReActStyle(choice.Message.Content)
+			toolCalls = append(toolCalls, calls...)
+		}
+	}
+
+	return toolCalls
+}
+
+// parseReActStyle parses tool calls from ReAct-style content.
+func (tc *ToolChain) parseReActStyle(content string) []protocol.ToolCall {
+	var toolCalls []protocol.ToolCall
+	lines := strings.Split(content, "\n")
+
+	var currentAction, currentInput string
+	var callID int
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+
+		if strings.HasPrefix(line, "Action:") {
+			currentAction = strings.TrimPrefix(line, "Action:")
+			currentAction = strings.TrimSpace(currentAction)
+		} else if strings.HasPrefix(line, "Action Input:") {
+			currentInput = strings.TrimPrefix(line, "Action Input:")
+			currentInput = strings.TrimSpace(currentInput)
+
+			if currentAction != "" && currentInput != "" {
+				toolCalls = append(toolCalls, protocol.ToolCall{
+					ID:   fmt.Sprintf("call_%d", callID),
+					Type: "function",
+					Function: protocol.FunctionCall{
+						Name:      currentAction,
+						Arguments: json.RawMessage(currentInput),
+					},
+				})
+				callID++
+				currentAction = ""
+				currentInput = ""
+			}
+		}
+	}
+
+	return toolCalls
 }
 
 // MakeTool creates a simple tool definition.

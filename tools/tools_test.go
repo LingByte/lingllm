@@ -122,7 +122,16 @@ func TestExecuteWithToolsWithToolCall(t *testing.T) {
 
 	model := &testChatModel{
 		responses: []*protocol.ChatResponse{
-			{Choices: []protocol.Choice{{Message: protocol.Message{Role: protocol.RoleAssistant, ToolCallID: "call_1"}}}},
+			{
+				Choices: []protocol.Choice{{
+					Message: protocol.Message{
+						Role: protocol.RoleAssistant,
+						ToolCalls: []protocol.ToolCall{
+							{ID: "call_1", Type: "function", Function: protocol.FunctionCall{Name: "calculate", Arguments: []byte("{}")}},
+						},
+					},
+				}},
+			},
 			{Choices: []protocol.Choice{{Message: protocol.Message{Role: protocol.RoleAssistant, Content: "The answer is 4"}}}},
 		},
 	}
@@ -143,8 +152,26 @@ func TestExecuteWithToolsWithToolCall(t *testing.T) {
 func TestExecuteWithToolsMaxRoundsExceeded(t *testing.T) {
 	model := &testChatModel{
 		responses: []*protocol.ChatResponse{
-			{Choices: []protocol.Choice{{Message: protocol.Message{Role: protocol.RoleAssistant, ToolCallID: "call_1"}}}},
-			{Choices: []protocol.Choice{{Message: protocol.Message{Role: protocol.RoleAssistant, ToolCallID: "call_2"}}}},
+			{
+				Choices: []protocol.Choice{{
+					Message: protocol.Message{
+						Role: protocol.RoleAssistant,
+						ToolCalls: []protocol.ToolCall{
+							{ID: "call_1", Type: "function", Function: protocol.FunctionCall{Name: "calculate", Arguments: []byte("{}")}},
+						},
+					},
+				}},
+			},
+			{
+				Choices: []protocol.Choice{{
+					Message: protocol.Message{
+						Role: protocol.RoleAssistant,
+						ToolCalls: []protocol.ToolCall{
+							{ID: "call_2", Type: "function", Function: protocol.FunctionCall{Name: "calculate", Arguments: []byte("{}")}},
+						},
+					},
+				}},
+			},
 		},
 	}
 	executor := NewSimpleToolExecutor()
