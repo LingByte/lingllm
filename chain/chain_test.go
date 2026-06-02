@@ -478,6 +478,134 @@ func TestProcessingStreamClose(t *testing.T) {
 	}
 }
 
+// --- Batch Processing Tests ---
+
+func TestInvokeBatch(t *testing.T) {
+	// Test 批进批出: Multiple requests → Multiple responses
+	model := &stubModel{
+		chatResp: &protocol.ChatResponse{
+			Choices: []protocol.Choice{
+				{Message: protocol.Message{Role: protocol.RoleAssistant, Content: "response"}},
+			},
+		},
+	}
+	c := New("batch-invoke", NewModelNode("model", model))
+
+	inputs := []protocol.ChatRequest{
+		{Model: "gpt-4", Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "q1"}}},
+		{Model: "gpt-4", Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "q2"}}},
+		{Model: "gpt-4", Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "q3"}}},
+	}
+
+	results, err := c.InvokeBatch(context.Background(), inputs)
+	if err != nil {
+		t.Fatalf("InvokeBatch failed: %v", err)
+	}
+
+	if len(results) != 3 {
+		t.Errorf("expected 3 results, got %d", len(results))
+	}
+
+	for i, result := range results {
+		if result.FirstContent() != "response" {
+			t.Errorf("result %d: expected 'response', got '%s'", i, result.FirstContent())
+		}
+	}
+}
+
+func TestStreamBatch(t *testing.T) {
+	// Test 批进流出: Multiple requests → Stream of responses
+	stream := &stubStream{chunks: []*protocol.ChatStreamChunk{
+		{Delta: "resp"},
+	}}
+	model := &stubModel{stream: stream}
+	c := New("batch-stream", NewModelNode("model", model))
+
+	inputs := []protocol.ChatRequest{
+		{Model: "gpt-4", Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "q1"}}},
+		{Model: "gpt-4", Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "q2"}}},
+	}
+
+	result, err := c.StreamBatch(context.Background(), inputs)
+	if err != nil {
+		t.Fatalf("StreamBatch failed: %v", err)
+	}
+
+	// Read all chunks
+	var chunks []*protocol.ChatStreamChunk
+	for {
+		chunk, err := result.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("Recv failed: %v", err)
+		}
+		chunks = append(chunks, chunk)
+	}
+
+	if len(chunks) == 0 {
+		t.Fatal("expected at least one chunk")
+	}
+}
+
+func TestCollectBatch(t *testing.T) {
+	// Test 流进批出: Multiple streams → Multiple responses
+	c := New("batch-collect", NewModelNode("model", &stubModel{}))
+
+	readers := []protocol.StreamReader{
+		&stubStream{chunks: []*protocol.ChatStreamChunk{{Delta: "a"}, {Delta: "b"}}},
+		&stubStream{chunks: []*protocol.ChatStreamChunk{{Delta: "c"}, {Delta: "d"}}},
+	}
+
+	results, err := c.CollectBatch(context.Background(), readers)
+	if err != nil {
+		t.Fatalf("CollectBatch failed: %v", err)
+	}
+
+	if len(results) != 2 {
+		t.Errorf("expected 2 results, got %d", len(results))
+	}
+
+	if results[0].FirstContent() != "ab" {
+		t.Errorf("expected 'ab', got '%s'", results[0].FirstContent())
+	}
+
+	if results[1].FirstContent() != "cd" {
+		t.Errorf("expected 'cd', got '%s'", results[1].FirstContent())
+	}
+}
+
+func TestTransformBatch(t *testing.T) {
+	// Test 流进流出: Multiple streams → Multiple transformed streams
+	c := New("batch-transform", NewModelNode("model", &stubModel{}))
+
+	readers := []protocol.StreamReader{
+		&stubStream{chunks: []*protocol.ChatStreamChunk{{Delta: "a"}}},
+		&stubStream{chunks: []*protocol.ChatStreamChunk{{Delta: "b"}}},
+	}
+
+	results, err := c.TransformBatch(context.Background(), readers)
+	if err != nil {
+		t.Fatalf("TransformBatch failed: %v", err)
+	}
+
+	if len(results) != 2 {
+		t.Errorf("expected 2 results, got %d", len(results))
+	}
+
+	// Verify each stream is readable
+	for i, reader := range results {
+		chunk, err := reader.Recv()
+		if err != nil && err != io.EOF {
+			t.Errorf("stream %d: Recv failed: %v", i, err)
+		}
+		if chunk != nil && chunk.Delta == "" {
+			t.Errorf("stream %d: expected non-empty delta", i)
+		}
+	}
+}
+
 func TestModelNodeMetrics(t *testing.T) {
 	model := &stubModel{chatResp: &protocol.ChatResponse{
 		Choices: []protocol.Choice{{Message: protocol.Message{Content: "hello"}}},

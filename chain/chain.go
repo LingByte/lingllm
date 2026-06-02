@@ -610,3 +610,131 @@ func (s *transStream) Close() error {
 func (s *transStream) Metrics() metrics.CallMetrics {
 	return s.reader.Metrics()
 }
+
+// --- Batch Processing Methods ---
+
+// InvokeBatch executes the chain on multiple requests synchronously (批进批出)
+// Returns responses in the same order as inputs
+func (c *NodeChain) InvokeBatch(ctx context.Context, inputs []protocol.ChatRequest) ([]*protocol.ChatResponse, error) {
+	if len(c.nodes) == 0 {
+		return nil, fmt.Errorf("chain has no nodes")
+	}
+
+	results := make([]*protocol.ChatResponse, len(inputs))
+	for i, input := range inputs {
+		resp, err := c.Invoke(ctx, input)
+		if err != nil {
+			return nil, fmt.Errorf("batch item %d failed: %w", i, err)
+		}
+		results[i] = resp
+	}
+	return results, nil
+}
+
+// StreamBatch executes the chain on multiple requests with streaming (批进流出)
+// Returns a stream of responses
+func (c *NodeChain) StreamBatch(ctx context.Context, inputs []protocol.ChatRequest) (protocol.StreamReader, error) {
+	if len(c.nodes) == 0 {
+		return nil, fmt.Errorf("chain has no nodes")
+	}
+
+	// Create a pipe to stream results
+	pipe := &batchStreamPipe{
+		ch: make(chan *protocol.ChatStreamChunk, 100),
+	}
+
+	// Run batch processing in background
+	go func() {
+		defer close(pipe.ch)
+		for i, input := range inputs {
+			stream, err := c.Stream(ctx, input)
+			if err != nil {
+				// Send error as a chunk
+				pipe.ch <- &protocol.ChatStreamChunk{
+					Delta: fmt.Sprintf("Error processing item %d: %v\n", i, err),
+				}
+				continue
+			}
+
+			// Forward all chunks from this stream
+			for {
+				chunk, err := stream.Recv()
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					pipe.ch <- &protocol.ChatStreamChunk{
+						Delta: fmt.Sprintf("Stream error at item %d: %v\n", i, err),
+					}
+					break
+				}
+				pipe.ch <- chunk
+			}
+			stream.Close()
+
+			// Add separator between items
+			if i < len(inputs)-1 {
+				pipe.ch <- &protocol.ChatStreamChunk{Delta: "\n---\n"}
+			}
+		}
+	}()
+
+	return pipe, nil
+}
+
+// CollectBatch collects multiple streams into responses (流进批出)
+// Each stream is collected into a complete response
+func (c *NodeChain) CollectBatch(ctx context.Context, readers []protocol.StreamReader) ([]*protocol.ChatResponse, error) {
+	if len(c.nodes) == 0 {
+		return nil, fmt.Errorf("chain has no nodes")
+	}
+
+	results := make([]*protocol.ChatResponse, len(readers))
+	for i, reader := range readers {
+		resp, err := c.Collect(ctx, reader)
+		if err != nil {
+			return nil, fmt.Errorf("batch item %d collection failed: %w", i, err)
+		}
+		results[i] = resp
+	}
+	return results, nil
+}
+
+// TransformBatch applies transformations to multiple streams (流进流出)
+// Returns transformed streams
+func (c *NodeChain) TransformBatch(ctx context.Context, readers []protocol.StreamReader) ([]protocol.StreamReader, error) {
+	if len(c.nodes) == 0 {
+		return nil, fmt.Errorf("chain has no nodes")
+	}
+
+	results := make([]protocol.StreamReader, len(readers))
+	for i, reader := range readers {
+		transformed, err := c.Transform(ctx, reader)
+		if err != nil {
+			return nil, fmt.Errorf("batch item %d transform failed: %w", i, err)
+		}
+		results[i] = transformed
+	}
+	return results, nil
+}
+
+// batchStreamPipe implements protocol.ChatStream for batch streaming
+type batchStreamPipe struct {
+	ch chan *protocol.ChatStreamChunk
+}
+
+func (p *batchStreamPipe) Recv() (*protocol.ChatStreamChunk, error) {
+	chunk, ok := <-p.ch
+	if !ok {
+		return nil, io.EOF
+	}
+	return chunk, nil
+}
+
+func (p *batchStreamPipe) Close() error {
+	return nil
+}
+
+func (p *batchStreamPipe) Metrics() metrics.CallMetrics {
+	return metrics.CallMetrics{}
+}

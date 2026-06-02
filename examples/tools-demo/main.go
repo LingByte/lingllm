@@ -26,8 +26,9 @@ func main() {
 
 	// Create the LLM client
 	client, err := protocol.NewClient(protocol.ClientConfig{
-		APIKey:  *apiKey,
-		BaseURL: *baseURL,
+		Provider: "openai",
+		APIKey:   *apiKey,
+		BaseURL:  *baseURL,
 	})
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
@@ -45,7 +46,7 @@ func main() {
 
 	ctx := context.Background()
 
-	fmt.Println("=== LingLLM Tools Demo ===\n")
+	fmt.Println("=== LingLLM Tools Demo ===")
 
 	// Test 1: Simple calculation
 	fmt.Println("Test 1: Simple Calculation")
