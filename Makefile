@@ -53,14 +53,18 @@ fmt:
 	@gofmt -w .
 	@echo "✓ Format complete"
 
+cli:
+	@echo "Building CLI tool with version info..."
+	@bash build.sh
+
 tools-demo:
 	@echo "Building tools-demo..."
-	@go build $(LDFLAGS) -o tools-demo ./examples/tools-demo
+	@go build -o tools-demo ./examples/tools-demo
 	@echo "✓ tools-demo built"
 
 batch-demo:
 	@echo "Building batch-processing-demo..."
-	@go build $(LDFLAGS) -o batch-demo ./examples/batch-processing-demo
+	@go build -o batch-demo ./examples/batch-processing-demo
 	@echo "✓ batch-demo built"
 
 # Development targets
