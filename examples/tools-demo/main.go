@@ -9,9 +9,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/LingByte/lingllm/tools"
 	"github.com/LingByte/lingllm/protocol"
 	_ "github.com/LingByte/lingllm/protocol/openai"
+	"github.com/LingByte/lingllm/tools"
 )
 
 func main() {

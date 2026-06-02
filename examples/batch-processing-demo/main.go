@@ -37,7 +37,7 @@ func main() {
 
 	ctx := context.Background()
 
-	fmt.Println("=== LingLLM Batch Processing Demo ===\n")
+	fmt.Println("=== LingLLM Batch Processing Demo ===")
 
 	// Demo 1: 批进批出 (Batch In, Batch Out)
 	fmt.Println("Demo 1: 批进批出 (Batch In, Batch Out)")
@@ -50,12 +50,12 @@ func main() {
 	demoBatchInStreamOut(ctx, c, *model)
 
 	// Demo 3: 流进批出 (Stream In, Batch Out)
-	fmt.Println("\nDemo 3: 流进批出 (Stream In, Batch Out)")
+	fmt.Println("Demo 3: 流进批出 (Stream In, Batch Out)")
 	fmt.Println("─────────────────────────────────────")
 	demoStreamInBatchOut(ctx, c, *model)
 
 	// Demo 4: 流进流出 (Stream In, Stream Out)
-	fmt.Println("\nDemo 4: 流进流出 (Stream In, Stream Out)")
+	fmt.Println("Demo 4: 流进流出 (Stream In, Stream Out)")
 	fmt.Println("─────────────────────────────────────")
 	demoStreamInStreamOut(ctx, c, *model)
 }
@@ -65,7 +65,7 @@ func main() {
 func demoBatchInBatchOut(ctx context.Context, c *chain.NodeChain, model string) {
 	fmt.Println("场景: 批量翻译文本")
 	fmt.Println("输入: 3 个英文句子")
-	fmt.Println("输出: 3 个中文翻译\n")
+	fmt.Println("输出: 3 个中文翻译")
 
 	// 准备批量请求
 	requests := []protocol.ChatRequest{
@@ -112,11 +112,6 @@ func demoBatchInBatchOut(ctx context.Context, c *chain.NodeChain, model string) 
 // Demo 2: 批进流出 - 处理多个请求，流式返回所有响应
 // 场景: 实时处理多个查询、逐步显示批处理结果等
 func demoBatchInStreamOut(ctx context.Context, c *chain.NodeChain, model string) {
-	fmt.Println("场景: 批量生成创意文案")
-	fmt.Println("输入: 3 个产品名称")
-	fmt.Println("输出: 流式返回每个产品的创意文案\n")
-
-	// 准备批量请求
 	requests := []protocol.ChatRequest{
 		{
 			Model: model,
@@ -172,10 +167,6 @@ func demoBatchInStreamOut(ctx context.Context, c *chain.NodeChain, model string)
 // Demo 3: 流进批出 - 从多个流收集数据，返回完整响应
 // 场景: 聚合多个数据源、合并流式结果等
 func demoStreamInBatchOut(ctx context.Context, c *chain.NodeChain, model string) {
-	fmt.Println("场景: 从多个流收集数据并聚合")
-	fmt.Println("输入: 3 个流式响应")
-	fmt.Println("输出: 3 个完整的聚合响应\n")
-
 	// 创建多个流式请求
 	requests := []protocol.ChatRequest{
 		{
@@ -233,10 +224,6 @@ func demoStreamInBatchOut(ctx context.Context, c *chain.NodeChain, model string)
 // Demo 4: 流进流出 - 对多个流进行转换，返回转换后的流
 // 场景: 流处理管道、实时数据转换等
 func demoStreamInStreamOut(ctx context.Context, c *chain.NodeChain, model string) {
-	fmt.Println("场景: 流处理管道 - 对流式数据进行转换")
-	fmt.Println("输入: 3 个流式请求")
-	fmt.Println("输出: 3 个转换后的流\n")
-
 	// 创建多个流式请求
 	requests := []protocol.ChatRequest{
 		{
