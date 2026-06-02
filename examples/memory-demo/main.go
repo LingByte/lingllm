@@ -37,7 +37,7 @@ func main() {
 
 	ctx := context.Background()
 
-	fmt.Println("=== LingLLM Memory System Demo ===\n")
+	fmt.Println("=== LingLLM Memory System Demo ===")
 
 	// Demo 1: Working Memory
 	fmt.Println("Demo 1: Multi-turn Conversation with Memory")
