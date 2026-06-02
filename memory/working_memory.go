@@ -16,7 +16,7 @@ import (
 type WorkingMemory struct {
 	// Messages in current round
 	messages []protocol.Message
-
+	
 	// ReAct chain: Thought -> Action -> Observation
 	thoughts     []string
 	actions      []ToolAction
@@ -132,9 +132,9 @@ func (w *WorkingMemory) GetReActChain() ReActChain {
 	defer w.mu.RUnlock()
 
 	return ReActChain{
-		Thoughts:     append([]string{}, w.thoughts...),
-		Actions:      append([]ToolAction{}, w.actions...),
-		Observations: append([]string{}, w.observations...),
+		Thoughts:     w.thoughts,
+		Actions:      w.actions,
+		Observations: w.observations,
 	}
 }
 
@@ -159,11 +159,7 @@ func (w *WorkingMemory) GetAllTempVars() map[string]interface{} {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
-	vars := make(map[string]interface{})
-	for k, v := range w.tempVars {
-		vars[k] = v
-	}
-	return vars
+	return w.tempVars
 }
 
 // Clear clears all data (called after round completion).
@@ -183,6 +179,11 @@ func (w *WorkingMemory) GetStats() WorkingMemoryStats {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
+	return w.getStatsUnsafe()
+}
+
+// getStatsUnsafe returns statistics without locking (internal use only).
+func (w *WorkingMemory) getStatsUnsafe() WorkingMemoryStats {
 	return WorkingMemoryStats{
 		RoundID:          w.roundID,
 		MessageCount:     len(w.messages),
@@ -228,38 +229,16 @@ func (w *WorkingMemory) GetContext() WorkingMemoryContext {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
-	messages := make([]protocol.Message, len(w.messages))
-	copy(messages, w.messages)
-
-	thoughts := make([]string, len(w.thoughts))
-	copy(thoughts, w.thoughts)
-
-	actions := make([]ToolAction, len(w.actions))
-	copy(actions, w.actions)
-
-	observations := make([]string, len(w.observations))
-	copy(observations, w.observations)
-
-	tempVars := make(map[string]interface{})
-	for k, v := range w.tempVars {
-		tempVars[k] = v
-	}
-
 	return WorkingMemoryContext{
-		RoundID:    w.roundID,
-		Messages:   messages,
-		ReActChain: ReActChain{Thoughts: thoughts, Actions: actions, Observations: observations},
-		TempVars:   tempVars,
-		Stats: WorkingMemoryStats{
-			RoundID:          w.roundID,
-			MessageCount:     len(w.messages),
-			ThoughtCount:     len(w.thoughts),
-			ActionCount:      len(w.actions),
-			ObservationCount: len(w.observations),
-			TempVarCount:     len(w.tempVars),
-			Duration:         time.Since(w.startTime),
-			StartTime:        w.startTime,
+		RoundID: w.roundID,
+		Messages: w.messages,
+		ReActChain: ReActChain{
+			Thoughts:     w.thoughts,
+			Actions:      w.actions,
+			Observations: w.observations,
 		},
+		TempVars: w.tempVars,
+		Stats:    w.getStatsUnsafe(),
 	}
 }
 
