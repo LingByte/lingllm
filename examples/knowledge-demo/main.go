@@ -23,7 +23,8 @@ func main() {
 	fmt.Println("1. Qdrant")
 	fmt.Println("2. Milvus")
 	fmt.Println("3. RAGFlow")
-	fmt.Print("\nEnter choice (1-3): ")
+	fmt.Println("4. Alibaba Bailian")
+	fmt.Print("\nEnter choice (1-4): ")
 	choice, _ := reader.ReadString('\n')
 	choice = strings.TrimSpace(choice)
 
@@ -37,6 +38,8 @@ func main() {
 		handler, err = setupMilvus(reader)
 	case "3":
 		handler, err = setupRAGFlow(reader)
+	case "4":
+		handler, err = setupAliyun(reader)
 	default:
 		fmt.Println("Invalid choice")
 		return
@@ -203,6 +206,75 @@ func setupRAGFlow(reader *bufio.Reader) (knowledge.KnowledgeHandler, error) {
 	}
 
 	fmt.Println("✓ Connected to RAGFlow\n")
+	return handler, nil
+}
+
+func setupAliyun(reader *bufio.Reader) (knowledge.KnowledgeHandler, error) {
+	fmt.Print("Enter Alibaba Bailian Endpoint (e.g., https://bailian.aliyuncs.com): ")
+	endpoint, _ := reader.ReadString('\n')
+	endpoint = strings.TrimSpace(endpoint)
+	if endpoint == "" {
+		return nil, fmt.Errorf("Endpoint is required")
+	}
+
+	fmt.Print("Enter Access Key ID: ")
+	accessKeyID, _ := reader.ReadString('\n')
+	accessKeyID = strings.TrimSpace(accessKeyID)
+	if accessKeyID == "" {
+		return nil, fmt.Errorf("Access Key ID is required")
+	}
+
+	fmt.Print("Enter Access Key Secret: ")
+	accessKeySecret, _ := reader.ReadString('\n')
+	accessKeySecret = strings.TrimSpace(accessKeySecret)
+	if accessKeySecret == "" {
+		return nil, fmt.Errorf("Access Key Secret is required")
+	}
+
+	fmt.Print("Enter Workspace ID: ")
+	workspaceID, _ := reader.ReadString('\n')
+	workspaceID = strings.TrimSpace(workspaceID)
+	if workspaceID == "" {
+		return nil, fmt.Errorf("Workspace ID is required")
+	}
+
+	fmt.Print("Enter Category ID (optional, press Enter to skip): ")
+	categoryID, _ := reader.ReadString('\n')
+	categoryID = strings.TrimSpace(categoryID)
+
+	fmt.Print("Enter Index/Namespace name: ")
+	namespace, _ := reader.ReadString('\n')
+	namespace = strings.TrimSpace(namespace)
+	if namespace == "" {
+		return nil, fmt.Errorf("Namespace is required")
+	}
+
+	fmt.Println("\nConnecting to Alibaba Bailian...")
+
+	handler, err := knowledge.NewKnowledgeHandler(knowledge.HandlerFactoryParams{
+		Provider:  knowledge.ProviderAliyun,
+		Namespace: namespace,
+		AliyunConfig: &knowledge.AliyunConfig{
+			Endpoint:        endpoint,
+			AccessKeyID:     accessKeyID,
+			AccessKeySecret: accessKeySecret,
+			WorkspaceID:     workspaceID,
+			CategoryID:      categoryID,
+			Timeout:         30 * time.Second,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	err = handler.Ping(ctx)
+	cancel()
+	if err != nil {
+		return nil, fmt.Errorf("error connecting to Alibaba Bailian: %v", err)
+	}
+
+	fmt.Println("✓ Connected to Alibaba Bailian\n")
 	return handler, nil
 }
 

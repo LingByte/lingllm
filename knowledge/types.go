@@ -19,6 +19,9 @@ const (
 
 	// ProviderRAGFlow RAGFlow RAG Engine
 	ProviderRAGFlow = "ragflow"
+
+	// ProviderAliyun Alibaba Bailian Knowledge Base
+	ProviderAliyun = "aliyun"
 )
 
 var (
@@ -178,11 +181,21 @@ type RAGFlowConfig struct {
 	Timeout time.Duration
 }
 
+// AliyunConfig configuration for Alibaba Bailian provider
+type AliyunConfig struct {
+	AccessKeyID     string
+	AccessKeySecret string
+	Endpoint        string
+	WorkspaceID     string
+	CategoryID      string
+	Timeout         time.Duration
+}
+
 // HandlerFactoryParams selects and configures a KnowledgeHandler.
 type HandlerFactoryParams struct {
-	// Provider is ProviderQdrant, ProviderMilvus, or ProviderRAGFlow (see constants in this package).
+	// Provider is ProviderQdrant, ProviderMilvus, ProviderRAGFlow, or ProviderAliyun (see constants in this package).
 	Provider string
-	// Namespace is the Qdrant / Milvus collection name or RAGFlow dataset name.
+	// Namespace is the Qdrant / Milvus collection name, RAGFlow dataset name, or Alibaba Bailian index name.
 	Namespace string
 	// QdrantConfig is required when Provider is ProviderQdrant
 	QdrantConfig *QdrantConfig
@@ -190,6 +203,8 @@ type HandlerFactoryParams struct {
 	MilvusConfig *MilvusConfig
 	// RAGFlowConfig is required when Provider is ProviderRAGFlow
 	RAGFlowConfig *RAGFlowConfig
+	// AliyunConfig is required when Provider is ProviderAliyun
+	AliyunConfig *AliyunConfig
 }
 
 // NewKnowledgeHandler returns a backend implementation for the given namespace configuration.
@@ -239,8 +254,26 @@ func NewKnowledgeHandler(p HandlerFactoryParams) (KnowledgeHandler, error) {
 			Embedder:   nil,
 		}
 		return rh, nil
+	case ProviderAliyun:
+		if p.AliyunConfig == nil {
+			return nil, errors.New("AliyunConfig is required for Aliyun provider")
+		}
+		timeout := p.AliyunConfig.Timeout
+		if timeout <= 0 {
+			timeout = 15 * time.Second
+		}
+		ah := &AliyunHandler{
+			AccessKeyID:     p.AliyunConfig.AccessKeyID,
+			AccessKeySecret: p.AliyunConfig.AccessKeySecret,
+			Endpoint:        p.AliyunConfig.Endpoint,
+			WorkspaceID:     p.AliyunConfig.WorkspaceID,
+			CategoryID:      p.AliyunConfig.CategoryID,
+			HTTPClient:      &http.Client{Timeout: timeout},
+			Embedder:        nil,
+		}
+		return ah, nil
 	default:
-		return nil, fmt.Errorf("unsupported knowledge provider %q (use %s, %s, or %s)", p.Provider, ProviderQdrant, ProviderMilvus, ProviderRAGFlow)
+		return nil, fmt.Errorf("unsupported knowledge provider %q (use %s, %s, %s, or %s)", p.Provider, ProviderQdrant, ProviderMilvus, ProviderRAGFlow, ProviderAliyun)
 	}
 }
 
