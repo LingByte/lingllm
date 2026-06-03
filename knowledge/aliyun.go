@@ -21,6 +21,11 @@ import (
 // AliyunHandler implements KnowledgeHandler using Alibaba Bailian.
 // Alibaba Bailian is a cloud-based RAG service with document management,
 // indexing, and semantic search capabilities.
+//
+// Note: Alibaba Bailian does not have a namespace concept. Instead, it uses:
+// - Workspace: Top-level organization unit
+// - Index: Knowledge base unit (equivalent to namespace in other systems)
+// Each Index is an independent knowledge base within a Workspace.
 type AliyunHandler struct {
 	AccessKeyID     string
 	AccessKeySecret string
@@ -34,6 +39,7 @@ type AliyunHandler struct {
 func (ah *AliyunHandler) Provider() string { return ProviderAliyun }
 
 // Upsert adds or updates records in Alibaba Bailian knowledge base
+// Note: In Alibaba Bailian, Namespace parameter maps to Index ID (knowledge base ID)
 func (ah *AliyunHandler) Upsert(ctx context.Context, records []Record, opts *UpsertOptions) error {
 	if ah == nil {
 		return ErrHandlerNotFound
@@ -47,7 +53,7 @@ func (ah *AliyunHandler) Upsert(ctx context.Context, records []Record, opts *Ups
 		ns = opts.Namespace
 	}
 
-	// Alibaba Bailian uses indexes as namespaces
+	// In Alibaba Bailian, each Index is an independent knowledge base
 	indexID, err := ah.ensureIndex(ctx, ns)
 	if err != nil {
 		return err
@@ -76,6 +82,7 @@ func (ah *AliyunHandler) Upsert(ctx context.Context, records []Record, opts *Ups
 }
 
 // Query searches documents in Alibaba Bailian knowledge base
+// Note: In Alibaba Bailian, Namespace parameter maps to Index ID (knowledge base ID)
 func (ah *AliyunHandler) Query(ctx context.Context, text string, opts *QueryOptions) ([]QueryResult, error) {
 	if ah == nil {
 		return nil, ErrHandlerNotFound
@@ -102,7 +109,7 @@ func (ah *AliyunHandler) Query(ctx context.Context, text string, opts *QueryOpti
 		}
 	}
 
-	// Get or create index
+	// Get or create Index (knowledge base)
 	indexID, err := ah.ensureIndex(ctx, ns)
 	if err != nil {
 		return nil, err
@@ -187,7 +194,8 @@ func (ah *AliyunHandler) Ping(ctx context.Context) error {
 	return nil
 }
 
-// CreateNamespace creates a new index in Alibaba Bailian
+// CreateNamespace creates a new Index (knowledge base) in Alibaba Bailian
+// Note: In Alibaba Bailian, namespace maps to Index, which is the knowledge base unit
 func (ah *AliyunHandler) CreateNamespace(ctx context.Context, name string) error {
 	if ah == nil {
 		return ErrHandlerNotFound
@@ -197,7 +205,7 @@ func (ah *AliyunHandler) CreateNamespace(ctx context.Context, name string) error
 		return ErrNamespaceNotFound
 	}
 
-	// Create index via Alibaba Bailian API
+	// Create Index via Alibaba Bailian API
 	reqBody := map[string]any{
 		"name":             name,
 		"structure_type":   "dsl_v2",
@@ -233,7 +241,8 @@ func (ah *AliyunHandler) CreateNamespace(ctx context.Context, name string) error
 	return nil
 }
 
-// DeleteNamespace deletes an index from Alibaba Bailian
+// DeleteNamespace deletes an Index (knowledge base) from Alibaba Bailian
+// Note: In Alibaba Bailian, namespace maps to Index, which is the knowledge base unit
 func (ah *AliyunHandler) DeleteNamespace(ctx context.Context, name string) error {
 	if ah == nil {
 		return ErrHandlerNotFound
@@ -275,7 +284,8 @@ func (ah *AliyunHandler) DeleteNamespace(ctx context.Context, name string) error
 	return nil
 }
 
-// ListNamespaces lists all indexes in Alibaba Bailian
+// ListNamespaces lists all Indexes (knowledge bases) in Alibaba Bailian
+// Note: In Alibaba Bailian, each Index is an independent knowledge base
 func (ah *AliyunHandler) ListNamespaces(ctx context.Context) ([]string, error) {
 	if ah == nil {
 		return nil, ErrHandlerNotFound
