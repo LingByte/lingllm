@@ -404,26 +404,42 @@ func (rh *RAGFlowHandler) Ping(ctx context.Context) error {
 		return ErrHandlerNotFound
 	}
 
-	reqURL := fmt.Sprintf("%s/api/v1/health", rh.BaseURL)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
-	if err != nil {
-		return err
+	// Try multiple health check endpoints
+	healthEndpoints := []string{
+		"/health",
+		"/api/health",
+		"/api/v1/health",
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", rh.APIKey))
+	var lastErr error
+	for _, endpoint := range healthEndpoints {
+		reqURL := fmt.Sprintf("%s%s", rh.BaseURL, endpoint)
 
-	resp, err := rh.HTTPClient.Do(req)
-	if err != nil {
-		return err
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", rh.APIKey))
+
+		resp, err := rh.HTTPClient.Do(req)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == http.StatusOK {
+			return nil
+		}
+		lastErr = fmt.Errorf("status=%d", resp.StatusCode)
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("ragflow health check failed: status=%d", resp.StatusCode)
+	if lastErr != nil {
+		return fmt.Errorf("ragflow health check failed: %v", lastErr)
 	}
-
-	return nil
+	return fmt.Errorf("ragflow health check failed: no valid endpoint found")
 }
 
 // CreateNamespace creates a new dataset in RAGFlow
