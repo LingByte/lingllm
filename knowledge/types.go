@@ -7,6 +7,10 @@ import (
 	"net/http"
 	"time"
 
+	bailian "github.com/alibabacloud-go/bailian-20231229/v2/client"
+	openapi "github.com/alibabacloud-go/darabonba-openapi/v2/client"
+	"github.com/alibabacloud-go/tea/tea"
+
 	"github.com/LingByte/lingllm/utils"
 )
 
@@ -258,18 +262,24 @@ func NewKnowledgeHandler(p HandlerFactoryParams) (KnowledgeHandler, error) {
 		if p.AliyunConfig == nil {
 			return nil, errors.New("AliyunConfig is required for Aliyun provider")
 		}
-		timeout := p.AliyunConfig.Timeout
-		if timeout <= 0 {
-			timeout = 15 * time.Second
+
+		// Create Alibaba Cloud client using official SDK
+		openapiConfig := &openapi.Config{
+			AccessKeyId:     tea.String(p.AliyunConfig.AccessKeyID),
+			AccessKeySecret: tea.String(p.AliyunConfig.AccessKeySecret),
+			Endpoint:        tea.String(p.AliyunConfig.Endpoint),
 		}
+
+		client, err := bailian.NewClient(openapiConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create alibaba bailian client: %w", err)
+		}
+
 		ah := &AliyunHandler{
-			AccessKeyID:     p.AliyunConfig.AccessKeyID,
-			AccessKeySecret: p.AliyunConfig.AccessKeySecret,
-			Endpoint:        p.AliyunConfig.Endpoint,
-			WorkspaceID:     p.AliyunConfig.WorkspaceID,
-			CategoryID:      p.AliyunConfig.CategoryID,
-			HTTPClient:      &http.Client{Timeout: timeout},
-			Embedder:        nil,
+			client:      client,
+			WorkspaceID: p.AliyunConfig.WorkspaceID,
+			CategoryID:  p.AliyunConfig.CategoryID,
+			Embedder:    nil,
 		}
 		return ah, nil
 	default:

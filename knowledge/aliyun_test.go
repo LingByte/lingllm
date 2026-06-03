@@ -2,7 +2,6 @@ package knowledge
 
 import (
 	"context"
-	"net/http"
 	"testing"
 )
 
@@ -81,9 +80,7 @@ func TestAliyunHandler_EmptyNamespace(t *testing.T) {
 }
 
 func TestAliyunHandler_EmptyRecordID(t *testing.T) {
-	ah := &AliyunHandler{
-		HTTPClient: &http.Client{},
-	}
+	ah := &AliyunHandler{}
 	ctx := context.Background()
 
 	if err := ah.Upsert(ctx, []Record{{ID: "", Content: "test"}}, nil); err == nil {
