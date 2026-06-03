@@ -243,10 +243,6 @@ func setupAliyun(reader *bufio.Reader) (knowledge.KnowledgeHandler, string, erro
 		return nil, "", fmt.Errorf("Workspace ID is required")
 	}
 
-	fmt.Print("Enter Category ID (optional, press Enter to skip): ")
-	categoryID, _ := reader.ReadString('\n')
-	categoryID = strings.TrimSpace(categoryID)
-
 	fmt.Print("Enter Index/Namespace name: ")
 	namespace, _ := reader.ReadString('\n')
 	namespace = strings.TrimSpace(namespace)
@@ -264,7 +260,6 @@ func setupAliyun(reader *bufio.Reader) (knowledge.KnowledgeHandler, string, erro
 			AccessKeyID:     accessKeyID,
 			AccessKeySecret: accessKeySecret,
 			WorkspaceID:     workspaceID,
-			CategoryID:      categoryID,
 			Timeout:         30 * time.Second,
 		},
 	})
@@ -304,19 +299,22 @@ func interactiveSession(kb *knowledge.KnowledgeBase) {
 			return
 		}
 
-		// Query the knowledge base
-		results, err := kb.Query(context.Background(), input, 5)
+		// Query the knowledge base with timing
+		startTime := time.Now()
+		results, err := kb.Query(context.Background(), input, 2)
+		duration := time.Since(startTime)
+
 		if err != nil {
 			fmt.Printf("Error: %v\n\n", err)
 			continue
 		}
 
 		if len(results) == 0 {
-			fmt.Println("No results found\n")
+			fmt.Printf("No results found (took %.2fms)\n\n", duration.Seconds()*1000)
 			continue
 		}
 
-		fmt.Printf("\nFound %d results:\n\n", len(results))
+		fmt.Printf("\nFound %d results (took %.2fms):\n\n", len(results), duration.Seconds()*1000)
 		for i, result := range results {
 			fmt.Printf("%d. %s\n", i+1, result.Record.Title)
 			fmt.Printf("   Content: %s\n", result.Record.Content)

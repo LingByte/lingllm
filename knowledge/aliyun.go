@@ -89,9 +89,11 @@ func (ah *AliyunHandler) Query(ctx context.Context, text string, opts *QueryOpti
 	// Use Alibaba Bailian Retrieve API
 	headers := make(map[string]*string)
 	retrieveRequest := &bailian.RetrieveRequest{
-		IndexId:             tea.String(indexID),
-		Query:               tea.String(text),
-		DenseSimilarityTopK: tea.Int32(topK),
+		IndexId:              tea.String(indexID),
+		Query:                tea.String(text),
+		DenseSimilarityTopK:  tea.Int32(topK),
+		SparseSimilarityTopK: tea.Int32(0),
+		RerankTopN:           tea.Int32(topK),
 	}
 
 	runtime := &teaUtil.RuntimeOptions{}
