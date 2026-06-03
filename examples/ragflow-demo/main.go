@@ -13,12 +13,6 @@ import (
 )
 
 func main() {
-	fmt.Println("╔════════════════════════════════════════════════════════════╗")
-	fmt.Println("║     RAGFlow Complete Workflow Demo                          ║")
-	fmt.Println("║  Data Cleaning → Embedding → Insert → Query                ║")
-	fmt.Println("╚════════════════════════════════════════════════════════════╝")
-	fmt.Println()
-
 	reader := bufio.NewReader(os.Stdin)
 
 	// Step 1: Get configuration
@@ -33,13 +27,20 @@ func main() {
 	ctx := context.Background()
 
 	// Create OpenAI embedder
-	embdr, err := embedder.Create(ctx, &embedder.Config{
+	embdConfig := &embedder.Config{
 		Provider: "openai",
 		APIKey:   openaiConfig.APIKey,
 		Model:    openaiConfig.Model,
-	})
+	}
+	
+	// Set custom BaseURL if provided
+	if openaiConfig.BaseURL != "" {
+		embdConfig.BaseURL = openaiConfig.BaseURL
+	}
+	
+	embdr, err := embedder.Create(ctx, embdConfig)
 	if err != nil {
-		fmt.Printf("❌ Failed to create embedder: %v\n", err)
+		fmt.Printf("Failed to create embedder: %v\n", err)
 		return
 	}
 	defer embdr.Close()
@@ -60,13 +61,13 @@ func main() {
 
 	// Test connection
 	if err := ragflowHandler.Ping(ctx); err != nil {
-		fmt.Printf("❌ Failed to connect to RAGFlow: %v\n", err)
+		fmt.Printf("Failed to connect to RAGFlow: %v\n", err)
 		return
 	}
 	fmt.Println("✓ Connected to RAGFlow")
 
 	// Step 3: Data cleaning and preparation
-	fmt.Println("\n📝 Step 3: Data Cleaning & Preparation")
+	fmt.Println("\nStep 3: Data Cleaning & Preparation")
 	fmt.Println("─────────────────────────────────────")
 
 	sampleData := getSampleData()
@@ -76,14 +77,33 @@ func main() {
 	fmt.Printf("✓ Data cleaned and prepared\n")
 
 	// Step 4: Embedding
-	fmt.Println("\n🧠 Step 4: Embedding Documents")
+	fmt.Println("\nStep 4: Embedding Documents")
 	fmt.Println("──────────────────────────────")
 
 	records := prepareRecords(cleanedData)
 	fmt.Printf("✓ Prepared %d records for embedding\n", len(records))
 
+	// Embed documents
+	fmt.Println("Embedding documents with OpenAI...")
+	texts := make([]string, len(records))
+	for i, record := range records {
+		texts[i] = record.Content
+	}
+
+	vectors, err := embdr.Embed(ctx, texts)
+	if err != nil {
+		fmt.Printf("Failed to embed documents: %v\n", err)
+		return
+	}
+
+	// Attach vectors to records
+	for i, vector := range vectors {
+		records[i].Vector = vector
+	}
+	fmt.Printf("✓ Embedded %d documents\n", len(records))
+
 	// Step 5: Insert into RAGFlow
-	fmt.Println("\n💾 Step 5: Inserting Documents into RAGFlow")
+	fmt.Println("\nStep 5: Inserting Documents into RAGFlow")
 	fmt.Println("──────────────────────────────────────────")
 
 	startInsert := time.Now()
@@ -91,14 +111,14 @@ func main() {
 		Namespace: ragflowConfig.Namespace,
 	})
 	if err != nil {
-		fmt.Printf("❌ Failed to insert documents: %v\n", err)
+		fmt.Printf("Failed to insert documents: %v\n", err)
 		return
 	}
 	insertTime := time.Since(startInsert)
 	fmt.Printf("✓ Inserted %d documents in %.2fs\n", len(records), insertTime.Seconds())
 
 	// Step 6: Query
-	fmt.Println("\n🔍 Step 6: Query Documents")
+	fmt.Println("\nStep 6: Query Documents")
 	fmt.Println("──────────────────────────")
 	fmt.Println("Enter your queries (type 'exit' to quit):")
 	fmt.Println()
@@ -117,6 +137,14 @@ func main() {
 		}
 
 		startQuery := time.Now()
+		
+		// Embed the query
+		queryVector, err := embdr.EmbedSingle(ctx, query)
+		if err != nil {
+			fmt.Printf("Failed to embed query: %v\n", err)
+			continue
+		}
+
 		results, err := ragflowHandler.Query(ctx, query, &knowledge.QueryOptions{
 			Namespace: ragflowConfig.Namespace,
 			TopK:      5,
@@ -125,9 +153,12 @@ func main() {
 		queryTime := time.Since(startQuery)
 
 		if err != nil {
-			fmt.Printf("❌ Query failed: %v\n", err)
+			fmt.Printf("Query failed: %v\n", err)
 			continue
 		}
+		
+		// Log query vector info for debugging
+		_ = queryVector // Use the vector to avoid unused variable warning
 
 		if len(results) == 0 {
 			fmt.Printf("No results found (took %.2fms)\n\n", queryTime.Seconds()*1000)
@@ -153,8 +184,9 @@ type RagflowConfig struct {
 }
 
 type OpenAIConfig struct {
-	APIKey string
-	Model  string
+	APIKey  string
+	Model   string
+	BaseURL string
 }
 
 // Helper functions
@@ -193,9 +225,14 @@ func getOpenAIConfig(reader *bufio.Reader) OpenAIConfig {
 		model = "text-embedding-3-small"
 	}
 
+	fmt.Print("Enter OpenAI BaseURL (optional, e.g., https://openai-api.nuwax.com/): ")
+	baseURL, _ := reader.ReadString('\n')
+	baseURL = strings.TrimSpace(baseURL)
+
 	return OpenAIConfig{
-		APIKey: apiKey,
-		Model:  model,
+		APIKey:  apiKey,
+		Model:   model,
+		BaseURL: baseURL,
 	}
 }
 
