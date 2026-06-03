@@ -56,7 +56,11 @@ func main() {
 
 	fmt.Printf("✓ Created %s embedder\n", emb.Provider())
 	fmt.Printf("  Model: %s\n", *model)
-	fmt.Printf("  Dimension: %d\n\n", emb.Dimension())
+	fmt.Printf("  Dimension: %d\n", emb.Dimension())
+	if *baseURL != "" {
+		fmt.Printf("  Base URL: %s\n", *baseURL)
+	}
+	fmt.Println()
 
 	// Test texts
 	texts := []string{
