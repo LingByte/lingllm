@@ -16,6 +16,9 @@ const (
 
 	// ProviderMilvus Milvus Vector Database
 	ProviderMilvus = "milvus"
+
+	// ProviderRAGFlow RAGFlow RAG Engine
+	ProviderRAGFlow = "ragflow"
 )
 
 var (
@@ -168,16 +171,25 @@ type MilvusConfig struct {
 	DBName   string
 }
 
+// RAGFlowConfig configuration for RAGFlow provider
+type RAGFlowConfig struct {
+	BaseURL string
+	APIKey  string
+	Timeout time.Duration
+}
+
 // HandlerFactoryParams selects and configures a KnowledgeHandler.
 type HandlerFactoryParams struct {
-	// Provider is ProviderQdrant or ProviderMilvus (see constants in this package).
+	// Provider is ProviderQdrant, ProviderMilvus, or ProviderRAGFlow (see constants in this package).
 	Provider string
-	// Namespace is the Qdrant / Milvus collection name.
+	// Namespace is the Qdrant / Milvus collection name or RAGFlow dataset name.
 	Namespace string
 	// QdrantConfig is required when Provider is ProviderQdrant
 	QdrantConfig *QdrantConfig
 	// MilvusConfig is required when Provider is ProviderMilvus
 	MilvusConfig *MilvusConfig
+	// RAGFlowConfig is required when Provider is ProviderRAGFlow
+	RAGFlowConfig *RAGFlowConfig
 }
 
 // NewKnowledgeHandler returns a backend implementation for the given namespace configuration.
@@ -212,8 +224,23 @@ func NewKnowledgeHandler(p HandlerFactoryParams) (KnowledgeHandler, error) {
 			cli:      nil,
 		}
 		return mh, nil
+	case ProviderRAGFlow:
+		if p.RAGFlowConfig == nil {
+			return nil, errors.New("RAGFlowConfig is required for RAGFlow provider")
+		}
+		timeout := p.RAGFlowConfig.Timeout
+		if timeout <= 0 {
+			timeout = 15 * time.Second
+		}
+		rh := &RAGFlowHandler{
+			BaseURL:    p.RAGFlowConfig.BaseURL,
+			APIKey:     p.RAGFlowConfig.APIKey,
+			HTTPClient: &http.Client{Timeout: timeout},
+			Embedder:   nil,
+		}
+		return rh, nil
 	default:
-		return nil, fmt.Errorf("unsupported knowledge provider %q (use %s or %s)", p.Provider, ProviderQdrant, ProviderMilvus)
+		return nil, fmt.Errorf("unsupported knowledge provider %q (use %s, %s, or %s)", p.Provider, ProviderQdrant, ProviderMilvus, ProviderRAGFlow)
 	}
 }
 
