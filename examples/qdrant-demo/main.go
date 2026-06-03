@@ -119,56 +119,105 @@ func main() {
 			title: "Go Programming Language",
 			content: "Go is an open-source programming language that makes it easy to build simple, reliable, and efficient software. " +
 				"It is designed for concurrent programming and has excellent support for networking and systems programming. " +
-				"Go's simplicity and performance make it ideal for cloud infrastructure and microservices.",
+				"Go's simplicity and performance make it ideal for cloud infrastructure and microservices. " +
+				"Go features include fast compilation, built-in concurrency with goroutines and channels, garbage collection, " +
+				"static typing with type inference, and a comprehensive standard library. " +
+				"Go is widely used for building web servers, APIs, command-line tools, and distributed systems. " +
+				"Popular Go projects include Docker, Kubernetes, Prometheus, and Terraform. " +
+				"Go's syntax is clean and minimalist, making it easy to learn for developers from other languages. " +
+				"The Go community is active and supportive, with many open-source libraries and frameworks available.",
 			tags: []string{"programming", "golang", "backend"},
 		},
 		{
 			title: "Python for Data Science",
 			content: "Python has become the de facto standard for data science and machine learning. " +
 				"Libraries like NumPy, Pandas, and Scikit-learn provide powerful tools for data analysis and modeling. " +
-				"Python's simplicity and extensive ecosystem make it perfect for data scientists and researchers.",
+				"Python's simplicity and extensive ecosystem make it perfect for data scientists and researchers. " +
+				"NumPy provides efficient numerical computing with multi-dimensional arrays and mathematical functions. " +
+				"Pandas offers data manipulation and analysis with DataFrames and Series. " +
+				"Scikit-learn provides machine learning algorithms for classification, regression, and clustering. " +
+				"TensorFlow and PyTorch are popular deep learning frameworks for neural networks. " +
+				"Jupyter notebooks enable interactive data exploration and visualization. " +
+				"Matplotlib and Seaborn provide powerful data visualization capabilities. " +
+				"Python's readability and extensive documentation make it ideal for collaborative data science projects.",
 			tags: []string{"python", "data-science", "machine-learning"},
 		},
 		{
 			title: "Kubernetes Container Orchestration",
 			content: "Kubernetes is an open-source container orchestration platform that automates deployment, scaling, and management of containerized applications. " +
 				"It provides declarative configuration and powerful automation capabilities for managing complex distributed systems. " +
-				"Kubernetes has become the industry standard for container orchestration.",
+				"Kubernetes has become the industry standard for container orchestration. " +
+				"Key features include automatic scaling, self-healing, rolling updates, and service discovery. " +
+				"Kubernetes uses pods as the smallest deployable units, containing one or more containers. " +
+				"Services provide stable network endpoints for pod groups, enabling load balancing. " +
+				"ConfigMaps and Secrets manage application configuration and sensitive data. " +
+				"Persistent volumes handle stateful data storage in containerized environments. " +
+				"Kubernetes is widely adopted by enterprises for managing microservices architectures.",
 			tags: []string{"kubernetes", "containers", "devops"},
 		},
 		{
 			title: "Machine Learning Fundamentals",
 			content: "Machine learning is a subset of artificial intelligence that enables systems to learn and improve from experience without being explicitly programmed. " +
 				"Key concepts include supervised learning, unsupervised learning, and reinforcement learning. " +
-				"Understanding these fundamentals is essential for building effective ML systems.",
+				"Understanding these fundamentals is essential for building effective ML systems. " +
+				"Supervised learning uses labeled data to train models for classification and regression tasks. " +
+				"Unsupervised learning discovers patterns in unlabeled data through clustering and dimensionality reduction. " +
+				"Reinforcement learning trains agents to make sequential decisions through reward signals. " +
+				"Feature engineering transforms raw data into meaningful features for model training. " +
+				"Model evaluation uses metrics like accuracy, precision, recall, and F1-score. " +
+				"Cross-validation prevents overfitting and ensures model generalization.",
 			tags: []string{"machine-learning", "ai", "algorithms"},
 		},
 		{
 			title: "Cloud Computing Architecture",
 			content: "Cloud computing provides on-demand access to computing resources over the internet. " +
 				"Major cloud providers like AWS, Azure, and Google Cloud offer various services including compute, storage, and databases. " +
-				"Cloud architecture patterns help design scalable and resilient systems.",
+				"Cloud architecture patterns help design scalable and resilient systems. " +
+				"Infrastructure as a Service (IaaS) provides virtualized computing resources over the internet. " +
+				"Platform as a Service (PaaS) offers development platforms and tools for building applications. " +
+				"Software as a Service (SaaS) delivers applications over the internet. " +
+				"Auto-scaling adjusts resources based on demand, optimizing costs and performance. " +
+				"Load balancing distributes traffic across multiple servers for high availability. " +
+				"Cloud security includes encryption, identity management, and compliance controls.",
 			tags: []string{"cloud", "aws", "architecture"},
 		},
 		{
 			title: "REST API Design Best Practices",
 			content: "REST (Representational State Transfer) is an architectural style for designing networked applications. " +
 				"Best practices include using proper HTTP methods, meaningful URLs, and appropriate status codes. " +
-				"Well-designed REST APIs are easy to understand, use, and maintain.",
+				"Well-designed REST APIs are easy to understand, use, and maintain. " +
+				"Use GET for retrieving resources, POST for creating, PUT for updating, and DELETE for removing. " +
+				"Resource URLs should be nouns (e.g., /users, /products) not verbs. " +
+				"Versioning APIs ensures backward compatibility when making breaking changes. " +
+				"Pagination handles large result sets efficiently. " +
+				"Proper error responses with meaningful messages help API consumers debug issues. " +
+				"Authentication and authorization protect API resources from unauthorized access.",
 			tags: []string{"api", "rest", "web-development"},
 		},
 		{
 			title: "Database Optimization Techniques",
 			content: "Database optimization is crucial for application performance. " +
 				"Techniques include proper indexing, query optimization, and connection pooling. " +
-				"Understanding database internals helps design efficient data access patterns.",
+				"Understanding database internals helps design efficient data access patterns. " +
+				"Indexes speed up data retrieval but slow down write operations, requiring careful planning. " +
+				"Query analysis tools identify slow queries and optimization opportunities. " +
+				"Denormalization trades storage for query performance in specific scenarios. " +
+				"Connection pooling reduces overhead of creating new database connections. " +
+				"Caching frequently accessed data reduces database load. " +
+				"Partitioning large tables improves query performance and maintenance.",
 			tags: []string{"database", "optimization", "sql"},
 		},
 		{
 			title: "DevOps and CI/CD Pipelines",
 			content: "DevOps practices emphasize collaboration between development and operations teams. " +
 				"CI/CD pipelines automate testing and deployment processes, enabling faster and more reliable releases. " +
-				"Tools like Jenkins, GitLab CI, and GitHub Actions facilitate modern DevOps workflows.",
+				"Tools like Jenkins, GitLab CI, and GitHub Actions facilitate modern DevOps workflows. " +
+				"Continuous Integration automatically builds and tests code changes on every commit. " +
+				"Continuous Deployment automatically releases validated changes to production. " +
+				"Infrastructure as Code manages infrastructure through version-controlled code. " +
+				"Monitoring and logging provide visibility into application and system health. " +
+				"Incident response procedures minimize downtime and impact. " +
+				"DevOps culture promotes shared responsibility and continuous improvement.",
 			tags: []string{"devops", "cicd", "automation"},
 		},
 	}
