@@ -57,9 +57,6 @@ func main() {
 }
 
 func demoIndexDocuments(engine search.Engine) {
-	fmt.Println("╔════════════════════════════════════════════════════════════╗")
-	fmt.Println("║ Demo 1: Index Documents")
-	fmt.Println("╚════════════════════════════════════════════════════════════╝\n")
 
 	docs := []search.Doc{
 		{
@@ -137,9 +134,6 @@ func demoIndexDocuments(engine search.Engine) {
 }
 
 func demoBasicSearch(engine search.Engine) {
-	fmt.Println("╔════════════════════════════════════════════════════════════╗")
-	fmt.Println("║ Demo 2: Basic Search")
-	fmt.Println("╚════════════════════════════════════════════════════════════╝\n")
 
 	queries := []string{"Go", "Python", "machine learning"}
 
@@ -163,9 +157,6 @@ func demoBasicSearch(engine search.Engine) {
 }
 
 func demoAdvancedSearch(engine search.Engine) {
-	fmt.Println("╔════════════════════════════════════════════════════════════╗")
-	fmt.Println("║ Demo 3: Advanced Search")
-	fmt.Println("╚════════════════════════════════════════════════════════════╝\n")
 
 	// Search with must terms
 	fmt.Println("Search: Programming articles with high views")
@@ -193,9 +184,6 @@ func demoAdvancedSearch(engine search.Engine) {
 }
 
 func demoFacetedSearch(engine search.Engine) {
-	fmt.Println("╔════════════════════════════════════════════════════════════╗")
-	fmt.Println("║ Demo 4: Faceted Search")
-	fmt.Println("╚════════════════════════════════════════════════════════════╝\n")
 
 	result, err := engine.Search(context.Background(), search.SearchRequest{
 		Keyword: "programming",
@@ -226,9 +214,6 @@ func demoFacetedSearch(engine search.Engine) {
 }
 
 func demoSuggestions(engine search.Engine) {
-	fmt.Println("╔════════════════════════════════════════════════════════════╗")
-	fmt.Println("║ Demo 5: Search Suggestions")
-	fmt.Println("╚════════════════════════════════════════════════════════════╝\n")
 
 	// Autocomplete suggestions
 	keywords := []string{"Go", "Py", "Mach"}
@@ -253,9 +238,6 @@ func demoSuggestions(engine search.Engine) {
 }
 
 func demoHighlighting(engine search.Engine) {
-	fmt.Println("╔════════════════════════════════════════════════════════════╗")
-	fmt.Println("║ Demo 6: Highlighting")
-	fmt.Println("╚════════════════════════════════════════════════════════════╝\n")
 
 	result, err := engine.Search(context.Background(), search.SearchRequest{
 		Keyword:         "programming",
