@@ -182,12 +182,20 @@ func (rh *RAGFlowHandler) Query(ctx context.Context, text string, opts *QueryOpt
 		} `json:"data"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&searchResp); err != nil {
-		return nil, err
+	// Read response body for error handling
+	respBody, _ := io.ReadAll(resp.Body)
+	
+	if err := json.Unmarshal(respBody, &searchResp); err != nil {
+		return nil, fmt.Errorf("ragflow search decode failed: %w, body=%s", err, string(respBody))
 	}
 
 	if searchResp.Code != 0 {
-		return nil, fmt.Errorf("ragflow search error: code=%d", searchResp.Code)
+		// code=101 usually means dataset not found or empty
+		// Return empty results instead of error for better UX
+		if searchResp.Code == 101 {
+			return []QueryResult{}, nil
+		}
+		return nil, fmt.Errorf("ragflow search error: code=%d, body=%s", searchResp.Code, string(respBody))
 	}
 
 	results := make([]QueryResult, 0, len(searchResp.Data.Chunks))
@@ -618,11 +626,13 @@ func (rh *RAGFlowHandler) getDatasetID(ctx context.Context, name string) (string
 		return "", err
 	}
 
+	// Case-insensitive comparison for dataset name
+	lowerName := strings.ToLower(name)
 	for _, ds := range datasets {
-		if ds == name {
-			// In a real implementation, we would return the actual ID
-			// For now, we use the name as ID
-			return name, nil
+		if strings.ToLower(ds) == lowerName {
+			// Return the actual dataset name from the server
+			// This ensures we use the correct case
+			return ds, nil
 		}
 	}
 
