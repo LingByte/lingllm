@@ -15,6 +15,7 @@ A universal Go library for building LLM applications with support for multiple p
 - **Full-Text Search**: Bleve-powered search with facets, highlighting, and suggestions
 - **Document Retrieval**: Multi-strategy retrieval (vector, keyword, hybrid) with reranking
 - **Chunking**: Intelligent document chunking with multiple strategies
+- **Knowledge Base**: Integrated knowledge management with vector databases (Qdrant, Milvus)
 
 ## Installation
 
@@ -296,6 +297,62 @@ func main() {
 }
 ```
 
+### Knowledge Base
+
+```go
+package main
+
+import (
+	"context"
+	"github.com/LingByte/lingllm/knowledge"
+	"github.com/LingByte/lingllm/embedder"
+	"github.com/LingByte/lingllm/search"
+)
+
+func main() {
+	// Create embedder
+	emb, _ := embedder.Create(context.Background(), &embedder.Config{
+		Provider: "openai",
+		Model:    "text-embedding-3-small",
+		APIKey:   os.Getenv("OPENAI_API_KEY"),
+	})
+
+	// Create search engine
+	searchCfg := search.Config{
+		IndexPath:           "./search_index",
+		DefaultSearchFields: []string{"title", "content"},
+	}
+	m := search.BuildIndexMapping("standard")
+	searcher, _ := search.New(searchCfg, m)
+
+	// Create vector database handler
+	handler, _ := knowledge.NewKnowledgeHandler(knowledge.HandlerFactoryParams{
+		Provider: knowledge.ProviderQdrant,
+		QdrantConfig: &knowledge.QdrantConfig{
+			BaseURL: "http://localhost:6333",
+			APIKey:  "your-api-key",
+		},
+	})
+
+	// Create knowledge base
+	kb, _ := knowledge.NewKnowledgeBase(knowledge.KnowledgeBaseConfig{
+		Handler:  handler,
+		Embedder: emb,
+		Searcher: searcher,
+	})
+	defer kb.Close()
+
+	// Add document
+	kb.AddDocument(context.Background(), "doc1", "Title", "Content...", nil)
+
+	// Query
+	results, _ := kb.Query(context.Background(), "search query", 10)
+	for _, result := range results {
+		fmt.Printf("%s (score: %.2f)\n", result.Record.Title, result.Score)
+	}
+}
+```
+
 ## Project Structure
 
 ```
@@ -335,6 +392,18 @@ lingllm/
 │   └── *_test.go      # Tests (80.6% coverage)
 ├── chunk/             # Document chunking strategies
 │   └── ...
+├── knowledge/         # Knowledge base management
+│   ├── types.go       # Core types and interfaces
+│   ├── integration.go # KnowledgeBase integration
+│   ├── qdrant.go      # Qdrant vector database handler
+│   ├── milvus.go      # Milvus vector database handler
+│   ├── embedding.go   # Embedding client (Nvidia)
+│   ├── doc_type_detector.go # Document type detection
+│   ├── README.md      # Knowledge base documentation
+│   └── *_test.go      # Tests (40+ tests)
+├── utils/             # Shared utilities
+│   ├── clean.go       # Text cleaning utilities
+│   └── *_test.go      # Tests
 ├── shared/            # Shared utilities
 ├── examples/          # Example implementations
 │   ├── embedder-demo/ # Multi-provider embedding demo
@@ -420,6 +489,26 @@ The `retrieve` package implements multi-strategy document retrieval:
 - **Hybrid Strategy**: Combines vector and keyword with configurable weights
 - **Reranking**: Optional document re-scoring
 - **Min Score Filtering**: Quality control for results
+
+### Knowledge Base
+
+The `knowledge` package provides integrated knowledge management:
+
+- **Multi-Backend Support**: Qdrant and Milvus vector databases
+- **Intelligent Chunking**: Automatic document type detection and optimal chunking
+- **Semantic Search**: Vector-based similarity with embeddings
+- **Full-Text Search**: Keyword-based search integration
+- **Hybrid Retrieval**: Combine vector and keyword search
+- **Document Management**: Add, query, delete, and list documents
+- **Metadata Support**: Flexible metadata storage and filtering
+- **Document Type Detection**: Structured, Table/KV, Unstructured
+
+Features:
+- Automatic document chunking based on type
+- Embedding generation for semantic search
+- Integration with search engines
+- Multi-tenancy with namespaces
+- Health checks and monitoring
 
 ## Supported Providers
 
@@ -513,6 +602,14 @@ MIT License - see LICENSE file for details
   - 3 strategies: Vector, Keyword, Hybrid
   - Reranking support
   - 26 tests
+
+- **Knowledge Base Module** (40+ tests)
+  - Multi-backend support (Qdrant, Milvus)
+  - Intelligent document chunking
+  - Semantic and keyword search
+  - Document type detection
+  - Metadata support
+  - Health checks
 
 - **Chunk Module**
   - Multiple chunking strategies
