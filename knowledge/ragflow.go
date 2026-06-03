@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strings"
@@ -49,99 +50,50 @@ func (rh *RAGFlowHandler) Upsert(ctx context.Context, records []Record, opts *Up
 	}
 
 	// Upload documents to RAGFlow
-	// Try multiple upload endpoints and formats
+	// According to RAGFlow API docs, documents should be uploaded as multipart/form-data
+	// with type=empty to create empty virtual documents
 	for _, record := range records {
 		if strings.TrimSpace(record.ID) == "" {
 			return fmt.Errorf("record id cannot be empty")
 		}
 
-		// Try multiple upload configurations
-		uploadConfigs := []map[string]any{
-			// Format 1: Standard documents endpoint
-			{
-				"endpoint": fmt.Sprintf("%s/api/v1/datasets/%s/documents", rh.BaseURL, url.PathEscape(datasetID)),
-				"body": map[string]any{
-					"name":    record.ID,
-					"type":    "doc",
-					"content": record.Content,
-					"metadata": map[string]any{
-						"title": record.Title,
-					},
-				},
-			},
-			// Format 2: Chunks endpoint
-			{
-				"endpoint": fmt.Sprintf("%s/api/v1/datasets/%s/chunks", rh.BaseURL, url.PathEscape(datasetID)),
-				"body": map[string]any{
-					"content": record.Content,
-					"metadata": map[string]any{
-						"title":  record.Title,
-						"doc_id": record.ID,
-					},
-				},
-			},
-			// Format 3: Simple doc endpoint
-			{
-				"endpoint": fmt.Sprintf("%s/api/v1/datasets/%s/doc", rh.BaseURL, url.PathEscape(datasetID)),
-				"body": map[string]any{
-					"content": record.Content,
-					"title":   record.Title,
-				},
-			},
-			// Format 4: File-like upload
-			{
-				"endpoint": fmt.Sprintf("%s/api/v1/datasets/%s/documents", rh.BaseURL, url.PathEscape(datasetID)),
-				"body": map[string]any{
-					"file_name": record.ID,
-					"content":   record.Content,
-				},
-			},
+		// Create empty document first, then we can add content via chunks API
+		// Using type=empty to create a virtual document
+		uploadURL := fmt.Sprintf("%s/api/v1/datasets/%s/documents?type=empty", rh.BaseURL, url.PathEscape(datasetID))
+
+		// Create multipart form
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+
+		// Add name field
+		if err := writer.WriteField("name", record.ID); err != nil {
+			return fmt.Errorf("failed to write name field: %w", err)
 		}
 
-		var lastErr error
-		uploaded := false
-
-		for _, config := range uploadConfigs {
-			endpoint := config["endpoint"].(string)
-			reqBody := config["body"].(map[string]any)
-
-			body, err := json.Marshal(reqBody)
-			if err != nil {
-				lastErr = err
-				continue
-			}
-
-			req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-			if err != nil {
-				lastErr = err
-				continue
-			}
-
-			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", rh.APIKey))
-
-			resp, err := rh.HTTPClient.Do(req)
-			if err != nil {
-				lastErr = err
-				continue
-			}
-
-			respBody, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
-
-			// Accept various success status codes
-			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-				uploaded = true
-				break
-			}
-			lastErr = fmt.Errorf("status=%d body=%s", resp.StatusCode, string(respBody))
+		// Close the writer to finalize the form
+		if err := writer.Close(); err != nil {
+			return fmt.Errorf("failed to close multipart writer: %w", err)
 		}
 
-		if !uploaded {
-			if lastErr != nil {
-				return fmt.Errorf("ragflow upload failed for document %s: %v", record.ID, lastErr)
-			}
-			return fmt.Errorf("ragflow upload failed for document %s: no valid endpoint found", record.ID)
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, uploadURL, body)
+		if err != nil {
+			return fmt.Errorf("failed to create request for document %s: %w", record.ID, err)
+		}
+
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", rh.APIKey))
+
+		resp, err := rh.HTTPClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("failed to upload document %s: %w", record.ID, err)
+		}
+
+		respBody, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		// Accept various success status codes
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return fmt.Errorf("ragflow upload failed for document %s: status=%d, body=%s", record.ID, resp.StatusCode, string(respBody))
 		}
 	}
 
