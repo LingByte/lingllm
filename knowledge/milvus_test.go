@@ -464,8 +464,8 @@ func TestMilvusHandler_UpsertErrors(t *testing.T) {
 	}
 
 	h3 := &MilvusHandler{cli: newFakeMilvusDB()}
-	if err := h3.Upsert(ctx, []Record{{ID: "1", Content: "hello"}}, &UpsertOptions{Namespace: "n"}); err != ErrEmbedderNotFound {
-		t.Fatalf("want ErrEmbedderNotFound, got %v", err)
+	if err := h3.Upsert(ctx, []Record{{ID: "1", Content: "hello"}}, &UpsertOptions{Namespace: "n"}); err != ErrHandlerNotFound {
+		t.Fatalf("want ErrHandlerNotFound, got %v", err)
 	}
 
 	h4 := &MilvusHandler{cli: newFakeMilvusDB(), Embedder: fakeEmbedder{dim: 2}}
@@ -489,8 +489,8 @@ func TestMilvusHandler_QueryErrors(t *testing.T) {
 		t.Fatalf("want ErrEmptyQuery, got %v", err)
 	}
 	h3 := &MilvusHandler{cli: newFakeMilvusDB()}
-	if _, err := h3.Query(ctx, "x", nil); err != ErrEmbedderNotFound {
-		t.Fatalf("want ErrEmbedderNotFound, got %v", err)
+	if _, err := h3.Query(ctx, "x", nil); err != ErrHandlerNotFound {
+		t.Fatalf("want ErrHandlerNotFound, got %v", err)
 	}
 }
 

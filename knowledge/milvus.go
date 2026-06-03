@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/LingByte/lingllm/embedder"
 	"github.com/milvus-io/milvus-sdk-go/v2/client"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
 )
@@ -45,7 +46,7 @@ type MilvusHandler struct {
 	Token    string
 	DBName   string
 
-	Embedder Embedder
+	Embedder embedder.Embedder
 
 	cli milvusDB
 }
@@ -229,7 +230,7 @@ func (h *MilvusHandler) Upsert(ctx context.Context, records []Record, opts *Upse
 	}
 	if dim <= 0 {
 		if h.Embedder == nil {
-			return ErrEmbedderNotFound
+			return ErrHandlerNotFound
 		}
 		if strings.TrimSpace(records[0].Content) == "" {
 			return ErrEmptyQuery
@@ -287,7 +288,7 @@ func (h *MilvusHandler) Upsert(ctx context.Context, records []Record, opts *Upse
 		}
 		if len(needIdx) > 0 {
 			if h.Embedder == nil {
-				return ErrEmbedderNotFound
+				return ErrHandlerNotFound
 			}
 			vecs, err := h.Embedder.Embed(ctx, inputs)
 			if err != nil {
@@ -410,7 +411,7 @@ func (h *MilvusHandler) Query(ctx context.Context, text string, opts *QueryOptio
 		return nil, ErrEmptyQuery
 	}
 	if h.Embedder == nil {
-		return nil, ErrEmbedderNotFound
+		return nil, ErrHandlerNotFound
 	}
 
 	var namespace string

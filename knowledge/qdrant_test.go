@@ -57,17 +57,44 @@ type fakeEmbedder struct {
 	dim int
 }
 
-func (f fakeEmbedder) Embed(ctx context.Context, inputs []string) ([][]float64, error) {
-	out := make([][]float64, 0, len(inputs))
+func (f fakeEmbedder) Embed(ctx context.Context, inputs []string) ([][]float32, error) {
+	out := make([][]float32, 0, len(inputs))
 	for _, in := range inputs {
-		vec := make([]float64, f.dim)
-		ln := float64(len(in))
+		vec := make([]float32, f.dim)
+		ln := float32(len(in))
 		for i := 0; i < f.dim; i++ {
-			vec[i] = ln + float64(i+1)
+			vec[i] = ln + float32(i+1)
 		}
 		out = append(out, vec)
 	}
 	return out, nil
+}
+
+func (f fakeEmbedder) EmbedSingle(ctx context.Context, text string) ([]float32, error) {
+	vecs, err := f.Embed(ctx, []string{text})
+	if err != nil {
+		return nil, err
+	}
+	if len(vecs) == 0 {
+		return nil, nil
+	}
+	return vecs[0], nil
+}
+
+func (f fakeEmbedder) Dimension() int {
+	return f.dim
+}
+
+func (f fakeEmbedder) Name() string {
+	return "fake"
+}
+
+func (f fakeEmbedder) Provider() string {
+	return "fake"
+}
+
+func (f fakeEmbedder) Close() error {
+	return nil
 }
 
 type inMemQdrant struct {

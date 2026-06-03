@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/LingByte/lingllm/embedder"
 )
 
 // Copyright (c) 2026 LingByte
@@ -21,7 +23,7 @@ type QdrantHandler struct {
 	BaseURL    string
 	APIKey     string
 	HTTPClient *http.Client
-	Embedder   Embedder
+	Embedder   embedder.Embedder
 }
 
 func (qh *QdrantHandler) Provider() string { return ProviderQdrant }
@@ -186,7 +188,7 @@ func (qh *QdrantHandler) Upsert(ctx context.Context, records []Record, opts *Ups
 	}
 	if vectorDim <= 0 {
 		if qh.Embedder == nil {
-			return ErrEmbedderNotFound
+			return ErrHandlerNotFound
 		}
 		if strings.TrimSpace(records[0].Content) == "" {
 			return ErrEmptyQuery
@@ -241,7 +243,7 @@ func (qh *QdrantHandler) Upsert(ctx context.Context, records []Record, opts *Ups
 		}
 		if len(needIdx) > 0 {
 			if qh.Embedder == nil {
-				return ErrEmbedderNotFound
+				return ErrHandlerNotFound
 			}
 			vecs, err := qh.Embedder.Embed(ctx, inputs)
 			if err != nil {
@@ -432,7 +434,7 @@ func (qh *QdrantHandler) Query(ctx context.Context, text string, opts *QueryOpti
 		return nil, err
 	}
 	if qh.Embedder == nil {
-		return nil, ErrEmbedderNotFound
+		return nil, ErrHandlerNotFound
 	}
 	vecs, err := qh.Embedder.Embed(ctx, []string{text})
 	if err != nil {
@@ -441,8 +443,13 @@ func (qh *QdrantHandler) Query(ctx context.Context, text string, opts *QueryOpti
 	if len(vecs) == 0 {
 		return nil, ErrInvalidVectorDimension
 	}
-	normalizeVec64InPlace(vecs[0])
-	qvec, err := qh.toFloat32s(vecs[0])
+	// Convert float32 to float64 for normalization
+	vec64 := make([]float64, len(vecs[0]))
+	for i, v := range vecs[0] {
+		vec64[i] = float64(v)
+	}
+	normalizeVec64InPlace(vec64)
+	qvec, err := qh.toFloat32s(vec64)
 	if err != nil {
 		return nil, err
 	}
@@ -648,7 +655,7 @@ func (qh *QdrantHandler) CreateNamespace(ctx context.Context, name string) error
 		return ErrNamespaceNotFound
 	}
 	if qh.Embedder == nil {
-		return ErrEmbedderNotFound
+		return ErrHandlerNotFound
 	}
 
 	// Best-effort dimension inference from embedder.

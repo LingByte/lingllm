@@ -22,7 +22,6 @@ var (
 	ErrHandlerNotFound        = errors.New("handler not be null")
 	ErrBaseURL                = errors.New("BaseURL is required")
 	ErrCollectionNotFound     = errors.New("Collection is required")
-	ErrEmbedderNotFound       = errors.New("Embedder is required")
 	ErrRecordNotFound         = errors.New("record not found")
 	ErrNamespaceNotFound      = errors.New("namespace not found")
 	ErrInvalidVectorDimension = errors.New("invalid vector dimension")
@@ -175,8 +174,6 @@ type HandlerFactoryParams struct {
 	Provider string
 	// Namespace is the Qdrant / Milvus collection name.
 	Namespace string
-	// Embedder is attached to the handler when Provider is Qdrant/Milvus (may be nil for delete-only calls).
-	Embedder Embedder
 	// QdrantConfig is required when Provider is ProviderQdrant
 	QdrantConfig *QdrantConfig
 	// MilvusConfig is required when Provider is ProviderMilvus
@@ -198,7 +195,7 @@ func NewKnowledgeHandler(p HandlerFactoryParams) (KnowledgeHandler, error) {
 			BaseURL:    p.QdrantConfig.BaseURL,
 			APIKey:     p.QdrantConfig.APIKey,
 			HTTPClient: &http.Client{Timeout: timeout},
-			Embedder:   p.Embedder,
+			Embedder:   nil,
 		}
 		return qh, nil
 	case ProviderMilvus:
@@ -211,7 +208,7 @@ func NewKnowledgeHandler(p HandlerFactoryParams) (KnowledgeHandler, error) {
 			Password: p.MilvusConfig.Password,
 			Token:    p.MilvusConfig.Token,
 			DBName:   p.MilvusConfig.DBName,
-			Embedder: p.Embedder,
+			Embedder: nil,
 			cli:      nil,
 		}
 		return mh, nil
@@ -250,10 +247,4 @@ type KnowledgeHandler interface {
 
 	// ListNamespaces List database namespace
 	ListNamespaces(ctx context.Context) ([]string, error)
-}
-
-type Embedder interface {
-
-	// Embed embed inputs
-	Embed(ctx context.Context, inputs []string) ([][]float64, error)
 }
