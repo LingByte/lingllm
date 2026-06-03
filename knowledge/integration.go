@@ -173,12 +173,18 @@ func (kb *KnowledgeBase) Query(ctx context.Context, query string, topK int) ([]Q
 		topK = 10
 	}
 
-	// Use vector database for semantic search
+	// Use vector database for semantic search (primary method)
 	if kb.handler != nil {
 		results, err := kb.handler.Query(ctx, query, &QueryOptions{
 			TopK: topK,
 		})
-		if err == nil && len(results) > 0 {
+		if err != nil {
+			// If handler returns error, try fallback to search engine
+			// Otherwise return the error from handler
+			if kb.searcher == nil {
+				return nil, err
+			}
+		} else if len(results) > 0 {
 			return results, nil
 		}
 	}
@@ -205,6 +211,11 @@ func (kb *KnowledgeBase) Query(ctx context.Context, query string, topK int) ([]Q
 			}
 			return queryResults, nil
 		}
+	}
+
+	// If we have a handler but no results and no searcher, return empty results
+	if kb.handler != nil {
+		return []QueryResult{}, nil
 	}
 
 	return nil, fmt.Errorf("no search engine available")
