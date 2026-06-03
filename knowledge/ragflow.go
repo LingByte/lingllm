@@ -406,6 +406,7 @@ func (rh *RAGFlowHandler) Ping(ctx context.Context) error {
 
 	// Try multiple health check endpoints
 	healthEndpoints := []string{
+		"/v1/system/healthz",
 		"/health",
 		"/api/health",
 		"/api/v1/health",
