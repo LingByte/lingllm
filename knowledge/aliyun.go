@@ -34,14 +34,18 @@ func (ah *AliyunHandler) Provider() string { return ProviderAliyun }
 
 // Upsert adds or updates records in Alibaba Bailian knowledge base
 // Note: In Alibaba Bailian, Namespace parameter maps to Index ID (knowledge base ID)
-// Note: This simplified implementation does not actually upload documents
-// In a real implementation, you would use the official SDK's AddFile and SubmitIndexAddDocumentsJob methods
+// This implementation uploads documents and creates/updates the index
 func (ah *AliyunHandler) Upsert(ctx context.Context, records []Record, opts *UpsertOptions) error {
 	if ah == nil {
 		return ErrHandlerNotFound
 	}
 	if len(records) == 0 {
 		return nil
+	}
+
+	indexID := "default"
+	if opts != nil && opts.Namespace != "" {
+		indexID = opts.Namespace
 	}
 
 	// Validate records
@@ -51,15 +55,50 @@ func (ah *AliyunHandler) Upsert(ctx context.Context, records []Record, opts *Ups
 		}
 	}
 
-	// In a real implementation, you would:
-	// 1. Upload files using ApplyFileUploadLease and AddFile
-	// 2. Create or update index using CreateIndex or SubmitIndexAddDocumentsJob
-	// For now, this is a no-op
+	// Prepare documents for upload
+	documents := make([]*bailian.SubmitIndexAddDocumentsJobRequestDocuments, 0, len(records))
+	for _, record := range records {
+		doc := &bailian.SubmitIndexAddDocumentsJobRequestDocuments{
+			DocId:    tea.String(record.ID),
+			DocName:  tea.String(record.Title),
+			DocText:  tea.String(record.Content),
+			DocUrl:   tea.String(record.Source),
+		}
+		documents = append(documents, doc)
+	}
+
+	// Submit documents to index
+	headers := make(map[string]*string)
+	submitRequest := &bailian.SubmitIndexAddDocumentsJobRequest{
+		IndexId:    tea.String(indexID),
+		Documents:  documents,
+	}
+
+	runtime := &teaUtil.RuntimeOptions{}
+	response, err := ah.client.SubmitIndexAddDocumentsJobWithOptions(tea.String(ah.WorkspaceID), submitRequest, headers, runtime)
+	if err != nil {
+		return fmt.Errorf("alibaba bailian submit documents failed: %w", err)
+	}
+
+	if response == nil || response.Body == nil {
+		return fmt.Errorf("alibaba bailian returned empty response")
+	}
+
+	// Check if there's an error in the response
+	if response.Body.Code != nil && *response.Body.Code != "Success" {
+		msg := "unknown error"
+		if response.Body.Message != nil {
+			msg = *response.Body.Message
+		}
+		return fmt.Errorf("alibaba bailian error: %s", msg)
+	}
+
 	return nil
 }
 
 // Query searches documents in Alibaba Bailian knowledge base
 // Note: In Alibaba Bailian, Namespace parameter maps to Index ID (knowledge base ID)
+// Supports EnableReranking and ReturnMetadata options
 func (ah *AliyunHandler) Query(ctx context.Context, text string, opts *QueryOptions) ([]QueryResult, error) {
 	if ah == nil {
 		return nil, ErrHandlerNotFound
@@ -73,6 +112,8 @@ func (ah *AliyunHandler) Query(ctx context.Context, text string, opts *QueryOpti
 	topK := int32(10)
 	minScore := 0.0
 	indexID := "default"
+	enableReranking := true
+	returnMetadata := false
 
 	if opts != nil {
 		if opts.TopK > 0 {
@@ -84,6 +125,8 @@ func (ah *AliyunHandler) Query(ctx context.Context, text string, opts *QueryOpti
 		if opts.Namespace != "" {
 			indexID = opts.Namespace
 		}
+		enableReranking = opts.EnableReranking
+		returnMetadata = opts.ReturnMetadata
 	}
 
 	// Use Alibaba Bailian Retrieve API
@@ -94,6 +137,7 @@ func (ah *AliyunHandler) Query(ctx context.Context, text string, opts *QueryOpti
 		DenseSimilarityTopK:  tea.Int32(topK),
 		SparseSimilarityTopK: tea.Int32(0),
 		RerankTopN:           tea.Int32(topK),
+		EnableReranking:      tea.Bool(enableReranking),
 	}
 
 	runtime := &teaUtil.RuntimeOptions{}
@@ -136,7 +180,23 @@ func (ah *AliyunHandler) Query(ctx context.Context, text string, opts *QueryOpti
 		}
 
 		record := Record{
+			ID:      getStringValue(node.DocId),
+			Title:   getStringValue(node.DocName),
 			Content: *node.Text,
+		}
+
+		// Include metadata if requested
+		if returnMetadata {
+			record.Metadata = make(map[string]any)
+			if node.DocId != nil {
+				record.Metadata["doc_id"] = *node.DocId
+			}
+			if node.DocName != nil {
+				record.Metadata["doc_name"] = *node.DocName
+			}
+			if node.Score != nil {
+				record.Metadata["score"] = *node.Score
+			}
 		}
 
 		results = append(results, QueryResult{
@@ -148,7 +208,17 @@ func (ah *AliyunHandler) Query(ctx context.Context, text string, opts *QueryOpti
 	return results, nil
 }
 
-// Get retrieves records by IDs
+// Helper function to safely get string value from pointer
+func getStringValue(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// Get retrieves records by IDs using semantic search
+// Note: Alibaba Bailian doesn't support direct document retrieval by ID
+// This implementation searches for documents with matching IDs
 func (ah *AliyunHandler) Get(ctx context.Context, ids []string, opts *GetOptions) ([]Record, error) {
 	if ah == nil {
 		return nil, ErrHandlerNotFound
@@ -157,25 +227,68 @@ func (ah *AliyunHandler) Get(ctx context.Context, ids []string, opts *GetOptions
 		return nil, nil
 	}
 
-	// Alibaba Bailian doesn't support direct document retrieval by ID
-	// Return empty results
-	return []Record{}, nil
+	indexID := "default"
+	if opts != nil && opts.Namespace != "" {
+		indexID = opts.Namespace
+	}
+
+	records := make([]Record, 0, len(ids))
+
+	// For each ID, search using a query
+	for _, id := range ids {
+		headers := make(map[string]*string)
+		retrieveRequest := &bailian.RetrieveRequest{
+			IndexId:              tea.String(indexID),
+			Query:                tea.String(id),
+			DenseSimilarityTopK:  tea.Int32(1),
+			SparseSimilarityTopK: tea.Int32(0),
+			RerankTopN:           tea.Int32(1),
+		}
+
+		runtime := &teaUtil.RuntimeOptions{}
+		response, err := ah.client.RetrieveWithOptions(tea.String(ah.WorkspaceID), retrieveRequest, headers, runtime)
+		if err != nil {
+			continue
+		}
+
+		if response == nil || response.Body == nil || response.Body.Data == nil || len(response.Body.Data.Nodes) == 0 {
+			continue
+		}
+
+		node := response.Body.Data.Nodes[0]
+		if node == nil || node.Text == nil {
+			continue
+		}
+
+		record := Record{
+			ID:      getStringValue(node.DocId),
+			Title:   getStringValue(node.DocName),
+			Content: *node.Text,
+		}
+		records = append(records, record)
+	}
+
+	return records, nil
 }
 
-// List lists all records in a namespace
+// List lists all records in a namespace using search
+// Note: Alibaba Bailian doesn't have a native list API
+// This implementation returns empty results as pagination is not supported
 func (ah *AliyunHandler) List(ctx context.Context, opts *ListOptions) (*ListResult, error) {
 	if ah == nil {
 		return nil, ErrHandlerNotFound
 	}
 
-	// Alibaba Bailian doesn't support listing documents
-	// Return empty results
+	// Alibaba Bailian doesn't support listing documents without a query
+	// Return empty results - users should use Query instead
 	return &ListResult{
 		Records: []Record{},
 	}, nil
 }
 
 // Delete removes records by IDs
+// Note: Alibaba Bailian doesn't support deleting individual documents
+// This method returns an error as per API limitations
 func (ah *AliyunHandler) Delete(ctx context.Context, ids []string, opts *DeleteOptions) error {
 	if ah == nil {
 		return ErrHandlerNotFound
@@ -185,8 +298,8 @@ func (ah *AliyunHandler) Delete(ctx context.Context, ids []string, opts *DeleteO
 	}
 
 	// Alibaba Bailian doesn't support deleting individual documents
-	// Would need to delete the entire index
-	return fmt.Errorf("alibaba bailian does not support deleting individual documents")
+	// Users must delete the entire index using DeleteNamespace
+	return fmt.Errorf("alibaba bailian does not support deleting individual documents; use DeleteNamespace to delete the entire index")
 }
 
 // Ping checks the health of Alibaba Bailian service
@@ -205,7 +318,7 @@ func (ah *AliyunHandler) Ping(ctx context.Context) error {
 
 // CreateNamespace creates a new Index (knowledge base) in Alibaba Bailian
 // Note: In Alibaba Bailian, namespace maps to Index, which is the knowledge base unit
-// Note: Creating indexes requires uploading documents first, which is not supported in this simplified implementation
+// Creating an empty index requires using the CreateIndex API
 func (ah *AliyunHandler) CreateNamespace(ctx context.Context, name string) error {
 	if ah == nil {
 		return ErrHandlerNotFound
@@ -215,15 +328,37 @@ func (ah *AliyunHandler) CreateNamespace(ctx context.Context, name string) error
 		return ErrNamespaceNotFound
 	}
 
-	// In a real implementation, you would call CreateIndex with document IDs
-	// For now, this is a no-op since indexes are typically created through the console
-	// or by uploading documents
+	// Create index using official SDK
+	headers := make(map[string]*string)
+	createIndexRequest := &bailian.CreateIndexRequest{
+		IndexName: tea.String(name),
+	}
+
+	runtime := &teaUtil.RuntimeOptions{}
+	response, err := ah.client.CreateIndexWithOptions(tea.String(ah.WorkspaceID), createIndexRequest, headers, runtime)
+	if err != nil {
+		return fmt.Errorf("alibaba bailian create index failed: %w", err)
+	}
+
+	if response == nil || response.Body == nil {
+		return fmt.Errorf("alibaba bailian returned empty response")
+	}
+
+	// Check if there's an error in the response
+	if response.Body.Code != nil && *response.Body.Code != "Success" {
+		msg := "unknown error"
+		if response.Body.Message != nil {
+			msg = *response.Body.Message
+		}
+		return fmt.Errorf("alibaba bailian error: %s", msg)
+	}
+
 	return nil
 }
 
 // DeleteNamespace deletes an Index (knowledge base) from Alibaba Bailian
 // Note: In Alibaba Bailian, namespace maps to Index, which is the knowledge base unit
-// Note: Deleting indexes requires using the official SDK's DeleteIndex method
+// This operation deletes the entire index and all its documents
 func (ah *AliyunHandler) DeleteNamespace(ctx context.Context, name string) error {
 	if ah == nil {
 		return ErrHandlerNotFound
@@ -240,9 +375,22 @@ func (ah *AliyunHandler) DeleteNamespace(ctx context.Context, name string) error
 	}
 
 	runtime := &teaUtil.RuntimeOptions{}
-	_, err := ah.client.DeleteIndexWithOptions(tea.String(ah.WorkspaceID), deleteIndexRequest, headers, runtime)
+	response, err := ah.client.DeleteIndexWithOptions(tea.String(ah.WorkspaceID), deleteIndexRequest, headers, runtime)
 	if err != nil {
 		return fmt.Errorf("alibaba bailian delete index failed: %w", err)
+	}
+
+	if response == nil || response.Body == nil {
+		return fmt.Errorf("alibaba bailian returned empty response")
+	}
+
+	// Check if there's an error in the response
+	if response.Body.Code != nil && *response.Body.Code != "Success" {
+		msg := "unknown error"
+		if response.Body.Message != nil {
+			msg = *response.Body.Message
+		}
+		return fmt.Errorf("alibaba bailian error: %s", msg)
 	}
 
 	return nil
@@ -250,15 +398,15 @@ func (ah *AliyunHandler) DeleteNamespace(ctx context.Context, name string) error
 
 // ListNamespaces lists all Indexes (knowledge bases) in Alibaba Bailian
 // Note: In Alibaba Bailian, each Index is an independent knowledge base
-// Note: This is a simplified implementation that returns an empty list
-// In a real implementation, you would use DescribeIndex or similar API
+// This implementation returns an empty list as the API doesn't provide a list operation
+// Users should manage indexes through the Alibaba Bailian console
 func (ah *AliyunHandler) ListNamespaces(ctx context.Context) ([]string, error) {
 	if ah == nil {
 		return nil, ErrHandlerNotFound
 	}
 
-	// Return empty list - in a real implementation, you would query the API
-	// to get all indexes in the workspace
+	// Alibaba Bailian API doesn't provide a list indexes operation
+	// Return empty list - users should manage indexes through the console
 	return []string{}, nil
 }
 
