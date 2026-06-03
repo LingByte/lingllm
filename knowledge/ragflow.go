@@ -553,27 +553,40 @@ func (rh *RAGFlowHandler) ListNamespaces(ctx context.Context) ([]string, error) 
 		return nil, fmt.Errorf("ragflow list datasets failed: status=%d body=%s", resp.StatusCode, string(respBody))
 	}
 
-	var listResp struct {
-		Code int `json:"code"`
-		Data struct {
-			Datasets []struct {
-				ID   string `json:"id"`
-				Name string `json:"name"`
-			} `json:"datasets"`
-		} `json:"data"`
+	// First try to decode as generic JSON to handle flexible response format
+	var rawResp map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&rawResp); err != nil {
+		return nil, fmt.Errorf("ragflow list datasets decode failed: %w", err)
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&listResp); err != nil {
-		return nil, err
-	}
+	// Extract datasets from response
+	namespaces := make([]string, 0)
 
-	if listResp.Code != 0 {
-		return nil, fmt.Errorf("ragflow list datasets error: code=%d", listResp.Code)
-	}
-
-	namespaces := make([]string, 0, len(listResp.Data.Datasets))
-	for _, ds := range listResp.Data.Datasets {
-		namespaces = append(namespaces, ds.Name)
+	// Handle different response formats
+	if data, ok := rawResp["data"]; ok {
+		if dataMap, ok := data.(map[string]interface{}); ok {
+			// Try to get datasets array
+			if datasets, ok := dataMap["datasets"]; ok {
+				if datasetsArray, ok := datasets.([]interface{}); ok {
+					for _, ds := range datasetsArray {
+						if dsMap, ok := ds.(map[string]interface{}); ok {
+							if name, ok := dsMap["name"].(string); ok {
+								namespaces = append(namespaces, name)
+							}
+						}
+					}
+				}
+			}
+		} else if dataArray, ok := data.([]interface{}); ok {
+			// If data is directly an array
+			for _, ds := range dataArray {
+				if dsMap, ok := ds.(map[string]interface{}); ok {
+					if name, ok := dsMap["name"].(string); ok {
+						namespaces = append(namespaces, name)
+					}
+				}
+			}
+		}
 	}
 
 	return namespaces, nil
