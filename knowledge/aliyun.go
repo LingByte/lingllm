@@ -359,4 +359,3 @@ func (ah *AliyunHandler) ListNamespaces(ctx context.Context) ([]string, error) {
 	// Return empty list - users should manage indexes through the console
 	return []string{}, nil
 }
-

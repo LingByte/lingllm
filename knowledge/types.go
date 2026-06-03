@@ -128,13 +128,13 @@ type UpsertOptions struct {
 }
 
 type QueryOptions struct {
-	Namespace        string
-	TopK             int
-	MinScore         float64  // 分数阈值
-	Filters          []Filter // 复杂过滤
-	Model            string   // embedding 模型
-	EnableReranking  bool     // 是否启用重排序（仅 Aliyun 支持）
-	ReturnMetadata   bool     // 是否返回完整元数据
+	Namespace       string
+	TopK            int
+	MinScore        float64  // 分数阈值
+	Filters         []Filter // 复杂过滤
+	Model           string   // embedding 模型
+	EnableReranking bool     // 是否启用重排序（仅 Aliyun 支持）
+	ReturnMetadata  bool     // 是否返回完整元数据
 }
 
 type QueryResult struct {
@@ -166,9 +166,9 @@ type ListResult struct {
 
 // QdrantConfig configuration for Qdrant provider
 type QdrantConfig struct {
-	BaseURL    string
-	APIKey     string
-	Timeout    time.Duration
+	BaseURL string
+	APIKey  string
+	Timeout time.Duration
 }
 
 // MilvusConfig configuration for Milvus provider

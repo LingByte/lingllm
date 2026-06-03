@@ -53,7 +53,7 @@ func (rh *RAGFlowHandler) Upsert(ctx context.Context, records []Record, opts *Up
 	// According to RAGFlow API docs, we need to upload actual file content
 	// We'll create temporary files with the document content and upload them
 	uploadedDocIDs := make([]string, 0, len(records))
-	
+
 	for _, record := range records {
 		if strings.TrimSpace(record.ID) == "" {
 			return fmt.Errorf("record id cannot be empty")
@@ -103,30 +103,30 @@ func (rh *RAGFlowHandler) Upsert(ctx context.Context, records []Record, opts *Up
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			return fmt.Errorf("ragflow upload failed for document %s: status=%d, body=%s", record.ID, resp.StatusCode, string(respBody))
 		}
-		
+
 		uploadedDocIDs = append(uploadedDocIDs, record.ID)
 	}
 
 	// Parse uploaded documents to make them searchable
 	if len(uploadedDocIDs) > 0 {
 		parseURL := fmt.Sprintf("%s/api/v1/datasets/%s/documents/run", rh.BaseURL, url.PathEscape(datasetID))
-		
+
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, parseURL, bytes.NewReader([]byte("{}")))
 		if err != nil {
 			return fmt.Errorf("failed to create parse request: %w", err)
 		}
-		
+
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", rh.APIKey))
-		
+
 		resp, err := rh.HTTPClient.Do(req)
 		if err != nil {
 			return fmt.Errorf("failed to parse documents: %w", err)
 		}
-		
+
 		respBody, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
-		
+
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			return fmt.Errorf("ragflow parse failed: status=%d, body=%s", resp.StatusCode, string(respBody))
 		}
@@ -372,9 +372,9 @@ func (rh *RAGFlowHandler) Get(ctx context.Context, ids []string, opts *GetOption
 		var docResp struct {
 			Code int `json:"code"`
 			Data struct {
-				ID       string `json:"id"`
-				Name     string `json:"name"`
-				Content  string `json:"content"`
+				ID       string         `json:"id"`
+				Name     string         `json:"name"`
+				Content  string         `json:"content"`
 				Metadata map[string]any `json:"metadata"`
 			} `json:"data"`
 		}

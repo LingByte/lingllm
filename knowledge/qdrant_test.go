@@ -368,4 +368,3 @@ func TestToFloat32s(t *testing.T) {
 		t.Fatalf("unexpected: %v %#v", err, v)
 	}
 }
-

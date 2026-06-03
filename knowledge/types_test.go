@@ -7,4 +7,3 @@ func TestTypes_ErrorsNonNil(t *testing.T) {
 		t.Fatalf("expected sentinel errors")
 	}
 }
-

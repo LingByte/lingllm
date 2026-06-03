@@ -181,7 +181,7 @@ func (e *NvidiaEmbedder) embedBatch(ctx context.Context, endpoint string, batch 
 	for attempt := 1; attempt <= e.maxRetries; attempt++ {
 		// 构建请求体
 		body := map[string]interface{}{
-			"model":  e.model,
+			"model":    e.model,
 			e.inputKey: batch,
 		}
 

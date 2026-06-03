@@ -14,7 +14,7 @@ import (
 func main() {
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
 	fmt.Println("║        LingLLM Knowledge Base Query Demo                    ║")
-	fmt.Println("╚════════════════════════════════════════════════════════════╝\n")
+	fmt.Print("╚════════════════════════════════════════════════════════════╝\n")
 
 	reader := bufio.NewReader(os.Stdin)
 
@@ -62,7 +62,7 @@ func main() {
 	}
 	defer kb.Close()
 
-	fmt.Println("✓ Knowledge base initialized\n")
+	fmt.Print("✓ Knowledge base initialized\n\n")
 
 	// Interactive query session
 	interactiveSession(kb)
@@ -109,7 +109,7 @@ func setupQdrant(reader *bufio.Reader) (knowledge.KnowledgeHandler, error) {
 		return nil, fmt.Errorf("error connecting to Qdrant: %v", err)
 	}
 
-	fmt.Println("✓ Connected to Qdrant\n")
+	fmt.Print("✓ Connected to Qdrant\n\n")
 	return handler, nil
 }
 
@@ -159,7 +159,7 @@ func setupMilvus(reader *bufio.Reader) (knowledge.KnowledgeHandler, error) {
 		return nil, fmt.Errorf("error connecting to Milvus: %v", err)
 	}
 
-	fmt.Println("✓ Connected to Milvus\n")
+	fmt.Print("✓ Connected to Milvus\n\n")
 	return handler, nil
 }
 
@@ -207,7 +207,7 @@ func setupRAGFlow(reader *bufio.Reader) (knowledge.KnowledgeHandler, error) {
 		return nil, fmt.Errorf("error connecting to RAGFlow: %v", err)
 	}
 
-	fmt.Println("✓ Connected to RAGFlow\n")
+	fmt.Print("✓ Connected to RAGFlow\n\n")
 	return handler, nil
 }
 
@@ -274,14 +274,14 @@ func setupAliyun(reader *bufio.Reader) (knowledge.KnowledgeHandler, string, erro
 		return nil, "", fmt.Errorf("error connecting to Alibaba Bailian: %v", err)
 	}
 
-	fmt.Println("✓ Connected to Alibaba Bailian\n")
+	fmt.Print("✓ Connected to Alibaba Bailian\n\n")
 	return handler, namespace, nil
 }
 
 func interactiveSession(kb *knowledge.KnowledgeBase) {
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
 	fmt.Println("║           Enter your query (type 'exit' to quit)            ║")
-	fmt.Println("╚════════════════════════════════════════════════════════════╝\n")
+	fmt.Print("╚════════════════════════════════════════════════════════════╝\n")
 
 	reader := bufio.NewReader(os.Stdin)
 

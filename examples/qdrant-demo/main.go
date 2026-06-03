@@ -15,14 +15,14 @@ import (
 func main() {
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
 	fmt.Println("║          LingLLM Qdrant RAG Workflow Demo                   ║")
-	fmt.Println("╚════════════════════════════════════════════════════════════╝\n")
+	fmt.Print("╚════════════════════════════════════════════════════════════╝\n")
 
 	reader := bufio.NewReader(os.Stdin)
 
 	// Step 1: Configure inputs
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
 	fmt.Println("║              Step 1: Configuration                         ║")
-	fmt.Println("╚════════════════════════════════════════════════════════════╝\n")
+	fmt.Print("╚════════════════════════════════════════════════════════════╝\n")
 
 	fmt.Print("Enter Qdrant BaseURL (default: http://localhost:6333): ")
 	qdrantURL, _ := reader.ReadString('\n')
@@ -65,9 +65,10 @@ func main() {
 	}
 
 	// Step 2: Initialize handlers
-	fmt.Println("\n╔════════════════════════════════════════════════════════════╗")
+	fmt.Print("\n")
+	fmt.Println("╔════════════════════════════════════════════════════════════╗")
 	fmt.Println("║           Step 2: Initialize Handlers                      ║")
-	fmt.Println("╚════════════════════════════════════════════════════════════╝\n")
+	fmt.Print("╚════════════════════════════════════════════════════════════╝\n")
 
 	fmt.Println("Creating OpenAI embedder...")
 	openaiEmbedder := embedder.NewOpenAIEmbedder(&embedder.Config{
@@ -103,13 +104,9 @@ func main() {
 		fmt.Printf("Error connecting to Qdrant: %v\n", err)
 		return
 	}
-	fmt.Println("✓ Connected to Qdrant\n")
+	fmt.Print("✓ Connected to Qdrant\n\n")
 
 	// Step 3: Prepare sample documents
-	fmt.Println("╔════════════════════════════════════════════════════════════╗")
-	fmt.Println("║         Step 3: Prepare Sample Documents                   ║")
-	fmt.Println("╚════════════════════════════════════════════════════════════╝\n")
-
 	documents := []struct {
 		title   string
 		content string
@@ -231,7 +228,7 @@ func main() {
 	// Step 4: Create records and upsert
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
 	fmt.Println("║          Step 4: Upsert Documents to Qdrant                ║")
-	fmt.Println("╚════════════════════════════════════════════════════════════╝\n")
+	fmt.Print("╚════════════════════════════════════════════════════════════╝\n")
 
 	records := make([]knowledge.Record, 0, len(documents))
 	for i, doc := range documents {
@@ -252,7 +249,7 @@ func main() {
 	}
 
 	fmt.Printf("Upserting %d documents...\n", len(records))
-	
+
 	// Set embedder on handler for upsert operation
 	// We need to do this because Qdrant handler uses embedder for vector generation
 	if qh, ok := qdrantHandler.(*knowledge.QdrantHandler); ok {
@@ -278,7 +275,7 @@ func main() {
 	// Step 5: Create knowledge base and interactive session
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
 	fmt.Println("║          Step 5: Interactive Query Session                 ║")
-	fmt.Println("╚════════════════════════════════════════════════════════════╝\n")
+	fmt.Print("╚════════════════════════════════════════════════════════════╝\n")
 
 	kb, err := knowledge.NewKnowledgeBase(knowledge.KnowledgeBaseConfig{
 		Handler:   qdrantHandler,
@@ -291,7 +288,7 @@ func main() {
 	}
 	defer kb.Close()
 
-	fmt.Println("Knowledge base initialized. Enter your queries (type 'exit' to quit):\n")
+	fmt.Print("Knowledge base initialized. Enter your queries (type 'exit' to quit):\n\n")
 
 	for {
 		fmt.Print("Query: ")

@@ -176,4 +176,3 @@ func splitLinesLimit(s string, max int) []string {
 }
 
 var _ DocumentTypeDetector = (*RuleBasedDocumentTypeDetector)(nil)
-

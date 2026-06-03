@@ -19,7 +19,7 @@ func main() {
 	dimension := flag.Int("dim", 0, "Vector dimension (0 = default)")
 	flag.Parse()
 
-	fmt.Println("=== LingLLM Embedder Demo ===\n")
+	fmt.Print("=== LingLLM Embedder Demo ===\n\n")
 
 	// Set default model based on provider
 	if *model == "" {
@@ -88,7 +88,7 @@ func main() {
 func demoSingleEmbedding(ctx context.Context, emb embedder.Embedder, text string) {
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
 	fmt.Println("║ Demo 1: Single Text Embedding")
-	fmt.Println("╚════════════════════════════════════════════════════════════╝\n")
+	fmt.Print("╚════════════════════════════════════════════════════════════╝\n")
 
 	start := time.Now()
 	vector, err := emb.EmbedSingle(ctx, text)
@@ -117,7 +117,7 @@ func demoSingleEmbedding(ctx context.Context, emb embedder.Embedder, text string
 func demoBatchEmbedding(ctx context.Context, emb embedder.Embedder, texts []string) {
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
 	fmt.Println("║ Demo 2: Batch Embedding")
-	fmt.Println("╚════════════════════════════════════════════════════════════╝\n")
+	fmt.Print("╚════════════════════════════════════════════════════════════╝\n")
 
 	start := time.Now()
 	vectors, err := emb.Embed(ctx, texts)
@@ -130,7 +130,7 @@ func demoBatchEmbedding(ctx context.Context, emb embedder.Embedder, texts []stri
 
 	fmt.Printf("✓ Embedded %d texts\n", len(vectors))
 	fmt.Printf("Time: %v\n", duration)
-	fmt.Printf("Average time per text: %v\n\n", duration / time.Duration(len(texts)))
+	fmt.Printf("Average time per text: %v\n\n", duration/time.Duration(len(texts)))
 
 	for i, text := range texts {
 		if i < len(vectors) {
@@ -146,7 +146,7 @@ func demoBatchEmbedding(ctx context.Context, emb embedder.Embedder, texts []stri
 func demoSemanticSimilarity(ctx context.Context, emb embedder.Embedder, texts []string) {
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
 	fmt.Println("║ Demo 3: Semantic Similarity (Cosine Distance)")
-	fmt.Println("╚════════════════════════════════════════════════════════════╝\n")
+	fmt.Print("╚════════════════════════════════════════════════════════════╝\n")
 
 	vectors, err := emb.Embed(ctx, texts)
 	if err != nil {
@@ -209,7 +209,7 @@ func demoSemanticSimilarity(ctx context.Context, emb embedder.Embedder, texts []
 func demoPerformanceMetrics(ctx context.Context, emb embedder.Embedder, texts []string) {
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
 	fmt.Println("║ Demo 4: Performance Metrics")
-	fmt.Println("╚════════════════════════════════════════════════════════════╝\n")
+	fmt.Print("╚════════════════════════════════════════════════════════════╝\n")
 
 	// Warm up
 	emb.Embed(ctx, texts[:1])

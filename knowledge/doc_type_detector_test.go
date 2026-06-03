@@ -68,4 +68,3 @@ func TestRuleBasedDocumentTypeDetector_UnstructuredNoPunct(t *testing.T) {
 		t.Fatalf("want unstructured, got %v", dt)
 	}
 }
-

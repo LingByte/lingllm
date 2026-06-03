@@ -80,7 +80,7 @@ func (e *OllamaEmbedder) Embed(ctx context.Context, texts []string) ([][]float32
 
 		// 构建请求
 		reqBody := map[string]interface{}{
-			"model": e.model,
+			"model":  e.model,
 			"prompt": text,
 		}
 

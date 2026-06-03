@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func setupTestEngine(t *testing.T) (Engine, string) {
@@ -492,7 +494,6 @@ func TestBleveEngine_WithDeadline_Timeout(t *testing.T) {
 		t.Fatalf("Expected timeout error, got nil")
 	}
 }
-
 
 func TestBleveEngine_Guard_Closed(t *testing.T) {
 	engine, indexPath := setupTestEngine(t)

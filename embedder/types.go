@@ -72,17 +72,17 @@ type EmbedderFactory interface {
 }
 
 var (
-	ErrEmptyInput        = errors.New("input is empty")
-	ErrInvalidDimension  = errors.New("invalid vector dimension")
-	ErrInvalidConfig     = errors.New("invalid configuration")
-	ErrProviderNotFound  = errors.New("provider not found")
-	ErrModelNotFound     = errors.New("model not found")
-	ErrAPIKeyRequired    = errors.New("API key is required")
-	ErrBaseURLRequired   = errors.New("BaseURL is required")
-	ErrEmbedFailed       = errors.New("embedding failed")
-	ErrConnectionFailed  = errors.New("connection failed")
-	ErrRateLimited       = errors.New("rate limited")
-	ErrInvalidResponse   = errors.New("invalid response")
+	ErrEmptyInput       = errors.New("input is empty")
+	ErrInvalidDimension = errors.New("invalid vector dimension")
+	ErrInvalidConfig    = errors.New("invalid configuration")
+	ErrProviderNotFound = errors.New("provider not found")
+	ErrModelNotFound    = errors.New("model not found")
+	ErrAPIKeyRequired   = errors.New("API key is required")
+	ErrBaseURLRequired  = errors.New("BaseURL is required")
+	ErrEmbedFailed      = errors.New("embedding failed")
+	ErrConnectionFailed = errors.New("connection failed")
+	ErrRateLimited      = errors.New("rate limited")
+	ErrInvalidResponse  = errors.New("invalid response")
 )
 
 // EmbedResult 向量化结果

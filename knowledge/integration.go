@@ -15,13 +15,13 @@ import (
 // KnowledgeBase integrates embedder, search, retrieve, and vector database
 // to provide a complete knowledge management solution.
 type KnowledgeBase struct {
-	handler       KnowledgeHandler
-	embedder      embedder.Embedder
-	searcher      search.Engine
-	retriever     retrieve.StrategyRetriever
-	detector      DocumentTypeDetector
-	chunkers      map[DocumentType]Chunker
-	namespace     string // Default namespace for queries
+	handler   KnowledgeHandler
+	embedder  embedder.Embedder
+	searcher  search.Engine
+	retriever retrieve.StrategyRetriever
+	detector  DocumentTypeDetector
+	chunkers  map[DocumentType]Chunker
+	namespace string // Default namespace for queries
 }
 
 // KnowledgeBaseConfig configuration for KnowledgeBase
@@ -55,13 +55,13 @@ func NewKnowledgeBase(cfg KnowledgeBaseConfig) (*KnowledgeBase, error) {
 	}
 
 	kb := &KnowledgeBase{
-		handler:    cfg.Handler,
-		embedder:   cfg.Embedder,
-		searcher:   cfg.Searcher,
-		retriever:  cfg.Retriever,
-		detector:   cfg.Detector,
-		chunkers:   cfg.Chunkers,
-		namespace:  cfg.Namespace,
+		handler:   cfg.Handler,
+		embedder:  cfg.Embedder,
+		searcher:  cfg.Searcher,
+		retriever: cfg.Retriever,
+		detector:  cfg.Detector,
+		chunkers:  cfg.Chunkers,
+		namespace: cfg.Namespace,
 	}
 
 	if kb.chunkers == nil {
