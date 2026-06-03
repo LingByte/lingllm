@@ -100,8 +100,22 @@ func (ah *AliyunHandler) Query(ctx context.Context, text string, opts *QueryOpti
 		return nil, fmt.Errorf("alibaba bailian retrieve failed: %w", err)
 	}
 
-	if response == nil || response.Body == nil || response.Body.Data == nil {
+	if response == nil || response.Body == nil {
 		return nil, fmt.Errorf("alibaba bailian returned empty response")
+	}
+
+	// Check if there's an error in the response
+	if response.Body.Code != nil && *response.Body.Code != "Success" {
+		msg := "unknown error"
+		if response.Body.Message != nil {
+			msg = *response.Body.Message
+		}
+		return nil, fmt.Errorf("alibaba bailian error: %s", msg)
+	}
+
+	// Return empty results if no data (this is normal when index doesn't exist or has no documents)
+	if response.Body.Data == nil || len(response.Body.Data.Nodes) == 0 {
+		return []QueryResult{}, nil
 	}
 
 	results := make([]QueryResult, 0)

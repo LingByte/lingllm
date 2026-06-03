@@ -21,6 +21,7 @@ type KnowledgeBase struct {
 	retriever     retrieve.StrategyRetriever
 	detector      DocumentTypeDetector
 	chunkers      map[DocumentType]Chunker
+	namespace     string // Default namespace for queries
 }
 
 // KnowledgeBaseConfig configuration for KnowledgeBase
@@ -42,6 +43,9 @@ type KnowledgeBaseConfig struct {
 
 	// Chunkers for different document types
 	Chunkers map[DocumentType]Chunker
+
+	// Default namespace for queries (optional)
+	Namespace string
 }
 
 // NewKnowledgeBase creates a new knowledge base instance
@@ -51,12 +55,13 @@ func NewKnowledgeBase(cfg KnowledgeBaseConfig) (*KnowledgeBase, error) {
 	}
 
 	kb := &KnowledgeBase{
-		handler:   cfg.Handler,
-		embedder:  cfg.Embedder,
-		searcher:  cfg.Searcher,
-		retriever: cfg.Retriever,
-		detector:  cfg.Detector,
-		chunkers:  cfg.Chunkers,
+		handler:    cfg.Handler,
+		embedder:   cfg.Embedder,
+		searcher:   cfg.Searcher,
+		retriever:  cfg.Retriever,
+		detector:   cfg.Detector,
+		chunkers:   cfg.Chunkers,
+		namespace:  cfg.Namespace,
 	}
 
 	if kb.chunkers == nil {
@@ -176,7 +181,8 @@ func (kb *KnowledgeBase) Query(ctx context.Context, query string, topK int) ([]Q
 	// Use vector database for semantic search (primary method)
 	if kb.handler != nil {
 		results, err := kb.handler.Query(ctx, query, &QueryOptions{
-			TopK: topK,
+			TopK:      topK,
+			Namespace: kb.namespace,
 		})
 		if err != nil {
 			// If handler returns error, try fallback to search engine

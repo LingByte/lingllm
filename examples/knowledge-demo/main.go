@@ -29,6 +29,7 @@ func main() {
 	choice = strings.TrimSpace(choice)
 
 	var handler knowledge.KnowledgeHandler
+	var namespace string
 	var err error
 
 	switch choice {
@@ -39,7 +40,7 @@ func main() {
 	case "3":
 		handler, err = setupRAGFlow(reader)
 	case "4":
-		handler, err = setupAliyun(reader)
+		handler, namespace, err = setupAliyun(reader)
 	default:
 		fmt.Println("Invalid choice")
 		return
@@ -52,7 +53,8 @@ func main() {
 
 	// Create knowledge base
 	kb, err := knowledge.NewKnowledgeBase(knowledge.KnowledgeBaseConfig{
-		Handler: handler,
+		Handler:   handler,
+		Namespace: namespace,
 	})
 	if err != nil {
 		fmt.Printf("Error creating knowledge base: %v\n", err)
@@ -209,33 +211,36 @@ func setupRAGFlow(reader *bufio.Reader) (knowledge.KnowledgeHandler, error) {
 	return handler, nil
 }
 
-func setupAliyun(reader *bufio.Reader) (knowledge.KnowledgeHandler, error) {
-	fmt.Print("Enter Alibaba Bailian Endpoint (e.g., https://bailian.aliyuncs.com): ")
+func setupAliyun(reader *bufio.Reader) (knowledge.KnowledgeHandler, string, error) {
+	fmt.Print("Enter Alibaba Bailian Endpoint (e.g., bailian.cn-beijing.aliyuncs.com or https://bailian.cn-beijing.aliyuncs.com): ")
 	endpoint, _ := reader.ReadString('\n')
 	endpoint = strings.TrimSpace(endpoint)
 	if endpoint == "" {
-		return nil, fmt.Errorf("Endpoint is required")
+		return nil, "", fmt.Errorf("Endpoint is required")
 	}
+
+	// Note: The Alibaba Cloud SDK will handle the protocol prefix
+	// You can provide either "bailian.cn-beijing.aliyuncs.com" or "https://bailian.cn-beijing.aliyuncs.com"
 
 	fmt.Print("Enter Access Key ID: ")
 	accessKeyID, _ := reader.ReadString('\n')
 	accessKeyID = strings.TrimSpace(accessKeyID)
 	if accessKeyID == "" {
-		return nil, fmt.Errorf("Access Key ID is required")
+		return nil, "", fmt.Errorf("Access Key ID is required")
 	}
 
 	fmt.Print("Enter Access Key Secret: ")
 	accessKeySecret, _ := reader.ReadString('\n')
 	accessKeySecret = strings.TrimSpace(accessKeySecret)
 	if accessKeySecret == "" {
-		return nil, fmt.Errorf("Access Key Secret is required")
+		return nil, "", fmt.Errorf("Access Key Secret is required")
 	}
 
 	fmt.Print("Enter Workspace ID: ")
 	workspaceID, _ := reader.ReadString('\n')
 	workspaceID = strings.TrimSpace(workspaceID)
 	if workspaceID == "" {
-		return nil, fmt.Errorf("Workspace ID is required")
+		return nil, "", fmt.Errorf("Workspace ID is required")
 	}
 
 	fmt.Print("Enter Category ID (optional, press Enter to skip): ")
@@ -246,7 +251,7 @@ func setupAliyun(reader *bufio.Reader) (knowledge.KnowledgeHandler, error) {
 	namespace, _ := reader.ReadString('\n')
 	namespace = strings.TrimSpace(namespace)
 	if namespace == "" {
-		return nil, fmt.Errorf("Namespace is required")
+		return nil, "", fmt.Errorf("Namespace is required")
 	}
 
 	fmt.Println("\nConnecting to Alibaba Bailian...")
@@ -264,18 +269,18 @@ func setupAliyun(reader *bufio.Reader) (knowledge.KnowledgeHandler, error) {
 		},
 	})
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	err = handler.Ping(ctx)
 	cancel()
 	if err != nil {
-		return nil, fmt.Errorf("error connecting to Alibaba Bailian: %v", err)
+		return nil, "", fmt.Errorf("error connecting to Alibaba Bailian: %v", err)
 	}
 
 	fmt.Println("✓ Connected to Alibaba Bailian\n")
-	return handler, nil
+	return handler, namespace, nil
 }
 
 func interactiveSession(kb *knowledge.KnowledgeBase) {
