@@ -15,13 +15,16 @@ import (
 // KnowledgeBase integrates embedder, search, retrieve, and vector database
 // to provide a complete knowledge management solution.
 type KnowledgeBase struct {
-	handler   KnowledgeHandler
-	embedder  embedder.Embedder
-	searcher  search.Engine
-	retriever retrieve.StrategyRetriever
-	detector  DocumentTypeDetector
-	chunkers  map[DocumentType]Chunker
-	namespace string // Default namespace for queries
+	handler      KnowledgeHandler
+	embedder     embedder.Embedder
+	searcher     search.Engine
+	retriever    retrieve.StrategyRetriever
+	detector     DocumentTypeDetector
+	chunkers     map[DocumentType]Chunker
+	namespace    string // Default namespace for queries
+	queryCache   *QueryCache
+	vectorCache  *VectorCache
+	enableCache  bool
 }
 
 // KnowledgeBaseConfig configuration for KnowledgeBase
@@ -46,6 +49,15 @@ type KnowledgeBaseConfig struct {
 
 	// Default namespace for queries (optional)
 	Namespace string
+
+	// Enable query result caching (optional, default: true)
+	EnableCache bool
+
+	// Query cache size (optional, default: 1000)
+	QueryCacheSize int
+
+	// Vector cache size (optional, default: 10000)
+	VectorCacheSize int
 }
 
 // NewKnowledgeBase creates a new knowledge base instance
@@ -54,14 +66,32 @@ func NewKnowledgeBase(cfg KnowledgeBaseConfig) (*KnowledgeBase, error) {
 		return nil, fmt.Errorf("Handler is required")
 	}
 
+	// Default cache settings
+	enableCache := cfg.EnableCache
+	queryCacheSize := cfg.QueryCacheSize
+	if queryCacheSize <= 0 {
+		queryCacheSize = 1000
+	}
+	vectorCacheSize := cfg.VectorCacheSize
+	if vectorCacheSize <= 0 {
+		vectorCacheSize = 10000
+	}
+
 	kb := &KnowledgeBase{
-		handler:   cfg.Handler,
-		embedder:  cfg.Embedder,
-		searcher:  cfg.Searcher,
-		retriever: cfg.Retriever,
-		detector:  cfg.Detector,
-		chunkers:  cfg.Chunkers,
-		namespace: cfg.Namespace,
+		handler:     cfg.Handler,
+		embedder:    cfg.Embedder,
+		searcher:    cfg.Searcher,
+		retriever:   cfg.Retriever,
+		detector:    cfg.Detector,
+		chunkers:    cfg.Chunkers,
+		namespace:   cfg.Namespace,
+		enableCache: enableCache,
+	}
+
+	// Initialize caches if enabled
+	if enableCache {
+		kb.queryCache = NewQueryCache(queryCacheSize, 0)
+		kb.vectorCache = NewVectorCache(vectorCacheSize)
 	}
 
 	if kb.chunkers == nil {
@@ -178,6 +208,13 @@ func (kb *KnowledgeBase) Query(ctx context.Context, query string, topK int) ([]Q
 		topK = 10
 	}
 
+	// Check query cache first
+	if kb.enableCache && kb.queryCache != nil {
+		if results, ok := kb.queryCache.Get(ctx, query); ok {
+			return results, nil
+		}
+	}
+
 	// Use vector database for semantic search (primary method)
 	if kb.handler != nil {
 		results, err := kb.handler.Query(ctx, query, &QueryOptions{
@@ -191,6 +228,10 @@ func (kb *KnowledgeBase) Query(ctx context.Context, query string, topK int) ([]Q
 				return nil, err
 			}
 		} else if len(results) > 0 {
+			// Cache the results
+			if kb.enableCache && kb.queryCache != nil {
+				kb.queryCache.Set(ctx, query, results)
+			}
 			return results, nil
 		}
 	}
@@ -305,6 +346,14 @@ func (kb *KnowledgeBase) Health(ctx context.Context) error {
 
 // Close closes all resources
 func (kb *KnowledgeBase) Close() error {
+	// Clear caches
+	if kb.queryCache != nil {
+		kb.queryCache.Clear()
+	}
+	if kb.vectorCache != nil {
+		kb.vectorCache.Clear()
+	}
+
 	if kb.embedder != nil {
 		if err := kb.embedder.Close(); err != nil {
 			return fmt.Errorf("failed to close embedder: %w", err)
@@ -318,4 +367,29 @@ func (kb *KnowledgeBase) Close() error {
 	}
 
 	return nil
+}
+
+// ClearCache clears all cached data
+func (kb *KnowledgeBase) ClearCache() {
+	if kb.queryCache != nil {
+		kb.queryCache.Clear()
+	}
+	if kb.vectorCache != nil {
+		kb.vectorCache.Clear()
+	}
+}
+
+// CacheStats returns cache statistics
+func (kb *KnowledgeBase) CacheStats() map[string]any {
+	stats := make(map[string]any)
+	if kb.queryCache != nil {
+		stats["query_cache"] = kb.queryCache.Stats()
+	}
+	if kb.vectorCache != nil {
+		stats["vector_cache"] = map[string]any{
+			"size":     kb.vectorCache.Size(),
+			"max_size": 10000,
+		}
+	}
+	return stats
 }
