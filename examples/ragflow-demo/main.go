@@ -15,30 +15,46 @@ import (
 func main() {
 	reader := bufio.NewReader(os.Stdin)
 
-	// Step 1: Get configuration
+	// Step 1: Get configuration (hardcoded for now)
 	fmt.Println("📋 Step 1: Configuration")
 	fmt.Println("─────────────────────────")
 
-	ragflowConfig := getRagflowConfig(reader)
-	openaiConfig := getOpenAIConfig(reader)
+	// Hardcoded configuration for quick testing
+	ragflowConfig := RagflowConfig{
+		BaseURL:   "http://3.230.3.163",
+		APIKey:    "ragflow-pfQrfKWmOQAYXe_my6hRLrV8bTQON57Cg6f_YB9UFV4",
+		Namespace: "Default",
+	}
+
+	embdConfig := EmbedderConfig{
+		Provider: "openai",
+		APIKey:   "32QKNUANTPLLAW0OM5BE8URXDXVC1L8PCU82UIWW",
+		Model:    "Qwen3-Embedding-8B",
+		BaseURL:  "https://ai.gitee.com/v1",
+	}
+
+	fmt.Printf("RAGFlow BaseURL: %s\n", ragflowConfig.BaseURL)
+	fmt.Printf("Dataset: %s\n", ragflowConfig.Namespace)
+	fmt.Printf("Embedder: %s (%s)\n", embdConfig.Provider, embdConfig.Model)
+	fmt.Printf("Embedder BaseURL: %s\n", embdConfig.BaseURL)
 
 	// Step 2: Initialize handlers
 	fmt.Println("\n🔧 Step 2: Initializing handlers...")
 	ctx := context.Background()
 
-	// Create OpenAI embedder
-	embdConfig := &embedder.Config{
-		Provider: "openai",
-		APIKey:   openaiConfig.APIKey,
-		Model:    openaiConfig.Model,
+	// Create embedder
+	cfg := &embedder.Config{
+		Provider: embdConfig.Provider,
+		APIKey:   embdConfig.APIKey,
+		Model:    embdConfig.Model,
 	}
 	
 	// Set custom BaseURL if provided
-	if openaiConfig.BaseURL != "" {
-		embdConfig.BaseURL = openaiConfig.BaseURL
+	if embdConfig.BaseURL != "" {
+		cfg.BaseURL = embdConfig.BaseURL
 	}
 	
-	embdr, err := embedder.Create(ctx, embdConfig)
+	embdr, err := embedder.Create(ctx, cfg)
 	if err != nil {
 		fmt.Printf("Failed to create embedder: %v\n", err)
 		return
@@ -107,15 +123,60 @@ func main() {
 	fmt.Println("──────────────────────────────────────────")
 
 	startInsert := time.Now()
+	fmt.Printf("Inserting into dataset: %s\n", ragflowConfig.Namespace)
+	fmt.Println("Uploading documents...")
+	
+	// Debug: print first record info
+	if len(records) > 0 {
+		fmt.Printf("First document: ID=%s, Title=%s, Content length=%d\n", 
+			records[0].ID, records[0].Title, len(records[0].Content))
+	}
+	
 	err = ragflowHandler.Upsert(ctx, records, &knowledge.UpsertOptions{
 		Namespace: ragflowConfig.Namespace,
 	})
 	if err != nil {
 		fmt.Printf("Failed to insert documents: %v\n", err)
+		fmt.Println("\nNote: Make sure the dataset exists in RAGFlow and is accessible with the provided API key.")
+		fmt.Println("You may need to create the dataset manually in RAGFlow first.")
+		fmt.Println("\nDebug info:")
+		fmt.Printf("- RAGFlow BaseURL: %s\n", ragflowConfig.BaseURL)
+		fmt.Printf("- Dataset name: %s\n", ragflowConfig.Namespace)
 		return
 	}
 	insertTime := time.Since(startInsert)
 	fmt.Printf("✓ Inserted %d documents in %.2fs\n", len(records), insertTime.Seconds())
+	
+	// Wait a moment for RAGFlow to process
+	fmt.Println("Waiting for RAGFlow to process documents...")
+	time.Sleep(2 * time.Second)
+
+	// Step 5.5: Verify dataset
+	fmt.Println("\nVerifying dataset...")
+	namespaces, err := ragflowHandler.ListNamespaces(ctx)
+	if err != nil {
+		fmt.Printf("Warning: Could not list namespaces: %v\n", err)
+	} else {
+		fmt.Printf("Available datasets: %v\n", namespaces)
+		found := false
+		for _, ns := range namespaces {
+			if strings.EqualFold(ns, ragflowConfig.Namespace) {
+				found = true
+				fmt.Printf("✓ Dataset '%s' found\n", ns)
+				break
+			}
+		}
+		if !found {
+			fmt.Printf("Warning: Dataset '%s' not found in RAGFlow\n", ragflowConfig.Namespace)
+			fmt.Println("Available datasets:", namespaces)
+		}
+	}
+	
+	fmt.Println("\n📌 Important:")
+	fmt.Printf("- If documents are not found in queries, please check RAGFlow Web UI:\n")
+	fmt.Printf("  http://%s/\n", strings.TrimPrefix(ragflowConfig.BaseURL, "http://"))
+	fmt.Printf("- Make sure documents are visible in the '%s' dataset\n", ragflowConfig.Namespace)
+	fmt.Println("- Documents may need to be indexed/processed by RAGFlow before they appear in search results")
 
 	// Step 6: Query
 	fmt.Println("\nStep 6: Query Documents")
@@ -144,6 +205,7 @@ func main() {
 			fmt.Printf("Failed to embed query: %v\n", err)
 			continue
 		}
+		fmt.Printf("Query vector dimension: %d\n", len(queryVector))
 
 		results, err := ragflowHandler.Query(ctx, query, &knowledge.QueryOptions{
 			Namespace: ragflowConfig.Namespace,
@@ -154,14 +216,14 @@ func main() {
 
 		if err != nil {
 			fmt.Printf("Query failed: %v\n", err)
+			fmt.Println("Tip: Make sure documents were successfully inserted into the dataset.")
 			continue
 		}
-		
-		// Log query vector info for debugging
-		_ = queryVector // Use the vector to avoid unused variable warning
 
 		if len(results) == 0 {
-			fmt.Printf("No results found (took %.2fms)\n\n", queryTime.Seconds()*1000)
+			fmt.Printf("No results found (took %.2fms)\n", queryTime.Seconds()*1000)
+			fmt.Println("Tip: Try a different query or check if documents were inserted correctly.")
+			fmt.Println()
 			continue
 		}
 
@@ -183,10 +245,11 @@ type RagflowConfig struct {
 	Namespace string
 }
 
-type OpenAIConfig struct {
-	APIKey  string
-	Model   string
-	BaseURL string
+type EmbedderConfig struct {
+	Provider string
+	APIKey   string
+	Model    string
+	BaseURL  string
 }
 
 // Helper functions
@@ -213,26 +276,44 @@ func getRagflowConfig(reader *bufio.Reader) RagflowConfig {
 	}
 }
 
-func getOpenAIConfig(reader *bufio.Reader) OpenAIConfig {
-	fmt.Print("Enter OpenAI API Key: ")
+func getEmbedderConfig(reader *bufio.Reader) EmbedderConfig {
+	fmt.Print("Enter Embedder Provider (openai/dashscope/ollama, default: 'openai'): ")
+	provider, _ := reader.ReadString('\n')
+	provider = strings.TrimSpace(provider)
+	if provider == "" {
+		provider = "openai"
+	}
+
+	fmt.Print("Enter Embedder API Key: ")
 	apiKey, _ := reader.ReadString('\n')
 	apiKey = strings.TrimSpace(apiKey)
 
-	fmt.Print("Enter OpenAI Model (default: 'text-embedding-3-small'): ")
+	var defaultModel string
+	switch provider {
+	case "dashscope":
+		defaultModel = "text-embedding-v2"
+	case "ollama":
+		defaultModel = "nomic-embed-text"
+	default:
+		defaultModel = "text-embedding-3-small"
+	}
+
+	fmt.Printf("Enter Embedder Model (default: '%s'): ", defaultModel)
 	model, _ := reader.ReadString('\n')
 	model = strings.TrimSpace(model)
 	if model == "" {
-		model = "text-embedding-3-small"
+		model = defaultModel
 	}
 
-	fmt.Print("Enter OpenAI BaseURL (optional, e.g., https://openai-api.nuwax.com/): ")
+	fmt.Print("Enter Embedder BaseURL (optional, e.g., https://ai.gitee.com/v1): ")
 	baseURL, _ := reader.ReadString('\n')
 	baseURL = strings.TrimSpace(baseURL)
 
-	return OpenAIConfig{
-		APIKey:  apiKey,
-		Model:   model,
-		BaseURL: baseURL,
+	return EmbedderConfig{
+		Provider: provider,
+		APIKey:   apiKey,
+		Model:    model,
+		BaseURL:  baseURL,
 	}
 }
 

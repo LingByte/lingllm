@@ -49,56 +49,99 @@ func (rh *RAGFlowHandler) Upsert(ctx context.Context, records []Record, opts *Up
 	}
 
 	// Upload documents to RAGFlow
+	// Try multiple upload endpoints and formats
 	for _, record := range records {
 		if strings.TrimSpace(record.ID) == "" {
 			return fmt.Errorf("record id cannot be empty")
 		}
 
-		// Create document metadata
-		docMeta := map[string]any{
-			"title":   record.Title,
-			"content": record.Content,
+		// Try multiple upload configurations
+		uploadConfigs := []map[string]any{
+			// Format 1: Standard documents endpoint
+			{
+				"endpoint": fmt.Sprintf("%s/api/v1/datasets/%s/documents", rh.BaseURL, url.PathEscape(datasetID)),
+				"body": map[string]any{
+					"name":    record.ID,
+					"type":    "doc",
+					"content": record.Content,
+					"metadata": map[string]any{
+						"title": record.Title,
+					},
+				},
+			},
+			// Format 2: Chunks endpoint
+			{
+				"endpoint": fmt.Sprintf("%s/api/v1/datasets/%s/chunks", rh.BaseURL, url.PathEscape(datasetID)),
+				"body": map[string]any{
+					"content": record.Content,
+					"metadata": map[string]any{
+						"title":  record.Title,
+						"doc_id": record.ID,
+					},
+				},
+			},
+			// Format 3: Simple doc endpoint
+			{
+				"endpoint": fmt.Sprintf("%s/api/v1/datasets/%s/doc", rh.BaseURL, url.PathEscape(datasetID)),
+				"body": map[string]any{
+					"content": record.Content,
+					"title":   record.Title,
+				},
+			},
+			// Format 4: File-like upload
+			{
+				"endpoint": fmt.Sprintf("%s/api/v1/datasets/%s/documents", rh.BaseURL, url.PathEscape(datasetID)),
+				"body": map[string]any{
+					"file_name": record.ID,
+					"content":   record.Content,
+				},
+			},
 		}
-		if len(record.Tags) > 0 {
-			docMeta["tags"] = record.Tags
-		}
-		if record.Metadata != nil {
-			for k, v := range record.Metadata {
-				docMeta[k] = v
+
+		var lastErr error
+		uploaded := false
+
+		for _, config := range uploadConfigs {
+			endpoint := config["endpoint"].(string)
+			reqBody := config["body"].(map[string]any)
+
+			body, err := json.Marshal(reqBody)
+			if err != nil {
+				lastErr = err
+				continue
 			}
-		}
 
-		// Upload document to RAGFlow
-		reqBody := map[string]any{
-			"name":     record.ID,
-			"type":     "doc",
-			"content":  record.Content,
-			"metadata": docMeta,
-		}
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+			if err != nil {
+				lastErr = err
+				continue
+			}
 
-		reqURL := fmt.Sprintf("%s/api/v1/datasets/%s/documents", rh.BaseURL, url.PathEscape(datasetID))
-		body, err := json.Marshal(reqBody)
-		if err != nil {
-			return err
-		}
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", rh.APIKey))
 
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bytes.NewReader(body))
-		if err != nil {
-			return err
-		}
+			resp, err := rh.HTTPClient.Do(req)
+			if err != nil {
+				lastErr = err
+				continue
+			}
 
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", rh.APIKey))
-
-		resp, err := rh.HTTPClient.Do(req)
-		if err != nil {
-			return err
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 			respBody, _ := io.ReadAll(resp.Body)
-			return fmt.Errorf("ragflow upload failed: status=%d body=%s", resp.StatusCode, string(respBody))
+			resp.Body.Close()
+
+			// Accept various success status codes
+			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+				uploaded = true
+				break
+			}
+			lastErr = fmt.Errorf("status=%d body=%s", resp.StatusCode, string(respBody))
+		}
+
+		if !uploaded {
+			if lastErr != nil {
+				return fmt.Errorf("ragflow upload failed for document %s: %v", record.ID, lastErr)
+			}
+			return fmt.Errorf("ragflow upload failed for document %s: no valid endpoint found", record.ID)
 		}
 	}
 
@@ -138,81 +181,191 @@ func (rh *RAGFlowHandler) Query(ctx context.Context, text string, opts *QueryOpt
 		return nil, err
 	}
 
-	// Search in RAGFlow
-	reqBody := map[string]any{
-		"query": text,
-		"top_k": topK,
+	// Search in RAGFlow - try multiple API endpoints and request formats
+	searchConfigs := []map[string]any{
+		// Format 1: Standard search with query text
+		{
+			"endpoint": fmt.Sprintf("%s/api/v1/datasets/%s/search", rh.BaseURL, url.PathEscape(datasetID)),
+			"body": map[string]any{
+				"query": text,
+				"top_k": topK,
+			},
+		},
+		// Format 2: Search with additional parameters
+		{
+			"endpoint": fmt.Sprintf("%s/api/v1/datasets/%s/search", rh.BaseURL, url.PathEscape(datasetID)),
+			"body": map[string]any{
+				"query":  text,
+				"top_k":  topK,
+				"offset": 0,
+			},
+		},
+		// Format 3: Chunks endpoint
+		{
+			"endpoint": fmt.Sprintf("%s/api/v1/datasets/%s/chunks", rh.BaseURL, url.PathEscape(datasetID)),
+			"body": map[string]any{
+				"query": text,
+				"top_k": topK,
+			},
+		},
+		// Format 4: Simple query
+		{
+			"endpoint": fmt.Sprintf("%s/api/v1/datasets/%s/search", rh.BaseURL, url.PathEscape(datasetID)),
+			"body": map[string]any{
+				"q": text,
+				"k": topK,
+			},
+		},
 	}
 
-	reqURL := fmt.Sprintf("%s/api/v1/datasets/%s/search", rh.BaseURL, url.PathEscape(datasetID))
-	body, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, err
-	}
+	var lastErr error
+	var respBody []byte
+	var response *http.Response
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
+	for _, config := range searchConfigs {
+		endpoint := config["endpoint"].(string)
+		reqBodyMap := config["body"].(map[string]any)
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", rh.APIKey))
-
-	resp, err := rh.HTTPClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("ragflow search failed: status=%d body=%s", resp.StatusCode, string(respBody))
-	}
-
-	var searchResp struct {
-		Code int `json:"code"`
-		Data struct {
-			Chunks []struct {
-				ID       string  `json:"id"`
-				Content  string  `json:"content"`
-				DocID    string  `json:"doc_id"`
-				Score    float64 `json:"similarity"`
-				Metadata map[string]any `json:"metadata"`
-			} `json:"chunks"`
-		} `json:"data"`
-	}
-
-	// Read response body for error handling
-	respBody, _ := io.ReadAll(resp.Body)
-	
-	if err := json.Unmarshal(respBody, &searchResp); err != nil {
-		return nil, fmt.Errorf("ragflow search decode failed: %w, body=%s", err, string(respBody))
-	}
-
-	if searchResp.Code != 0 {
-		// code=101 usually means dataset not found or empty
-		// Return empty results instead of error for better UX
-		if searchResp.Code == 101 {
-			return []QueryResult{}, nil
-		}
-		return nil, fmt.Errorf("ragflow search error: code=%d, body=%s", searchResp.Code, string(respBody))
-	}
-
-	results := make([]QueryResult, 0, len(searchResp.Data.Chunks))
-	for _, chunk := range searchResp.Data.Chunks {
-		if chunk.Score < minScore {
+		body, err := json.Marshal(reqBodyMap)
+		if err != nil {
+			lastErr = err
 			continue
 		}
 
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", rh.APIKey))
+
+		resp, err := rh.HTTPClient.Do(req)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == http.StatusOK {
+			response = resp
+			break
+		}
+		respBody, _ = io.ReadAll(resp.Body)
+		lastErr = fmt.Errorf("status=%d body=%s", resp.StatusCode, string(respBody))
+	}
+
+	if response == nil {
+		if lastErr != nil {
+			return nil, fmt.Errorf("ragflow search failed: %v", lastErr)
+		}
+		return nil, fmt.Errorf("ragflow search failed: no valid endpoint found")
+	}
+
+	// Read response body for error handling
+	if respBody == nil {
+		respBody, _ = io.ReadAll(response.Body)
+	}
+
+	// Try to parse as generic JSON first to understand the structure
+	var rawResp map[string]any
+	if err := json.Unmarshal(respBody, &rawResp); err != nil {
+		return nil, fmt.Errorf("ragflow search decode failed: %w, body=%s", err, string(respBody))
+	}
+
+	// Handle different response formats
+	var results []QueryResult
+
+	// Check for code field
+	code := int64(0)
+	if codeVal, ok := rawResp["code"]; ok {
+		switch v := codeVal.(type) {
+		case float64:
+			code = int64(v)
+		case int:
+			code = int64(v)
+		}
+	}
+
+	if code != 0 {
+		// code=101 usually means dataset not found or empty
+		if code == 101 {
+			return []QueryResult{}, nil
+		}
+		return nil, fmt.Errorf("ragflow search error: code=%d, body=%s", code, string(respBody))
+	}
+
+	// Extract chunks from various possible response formats
+	var chunks []map[string]any
+
+	if data, ok := rawResp["data"]; ok {
+		switch dataVal := data.(type) {
+		case map[string]any:
+			// data is an object, look for chunks
+			if chunksVal, ok := dataVal["chunks"]; ok {
+				if chunksArray, ok := chunksVal.([]any); ok {
+					for _, chunk := range chunksArray {
+						if chunkMap, ok := chunk.(map[string]any); ok {
+							chunks = append(chunks, chunkMap)
+						}
+					}
+				}
+			}
+		case []any:
+			// data is directly an array
+			for _, chunk := range dataVal {
+				if chunkMap, ok := chunk.(map[string]any); ok {
+					chunks = append(chunks, chunkMap)
+				}
+			}
+		}
+	}
+
+	// Parse chunks into results
+	results = make([]QueryResult, 0, len(chunks))
+	for _, chunk := range chunks {
+		var score float64
+		if scoreVal, ok := chunk["similarity"]; ok {
+			if scoreFloat, ok := scoreVal.(float64); ok {
+				score = scoreFloat
+			}
+		} else if scoreVal, ok := chunk["score"]; ok {
+			if scoreFloat, ok := scoreVal.(float64); ok {
+				score = scoreFloat
+			}
+		}
+
+		if score < minScore {
+			continue
+		}
+
+		var content string
+		if contentVal, ok := chunk["content"]; ok {
+			content, _ = contentVal.(string)
+		}
+
+		var docID string
+		if docIDVal, ok := chunk["doc_id"]; ok {
+			docID, _ = docIDVal.(string)
+		} else if idVal, ok := chunk["id"]; ok {
+			docID, _ = idVal.(string)
+		}
+
+		var metadata map[string]any
+		if metaVal, ok := chunk["metadata"]; ok {
+			metadata, _ = metaVal.(map[string]any)
+		}
+
 		record := Record{
-			ID:       chunk.DocID,
-			Content:  chunk.Content,
-			Metadata: chunk.Metadata,
+			ID:       docID,
+			Content:  content,
+			Metadata: metadata,
 		}
 
 		results = append(results, QueryResult{
 			Record: record,
-			Score:  chunk.Score,
+			Score:  score,
 		})
 	}
 
