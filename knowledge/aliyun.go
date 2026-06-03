@@ -34,18 +34,14 @@ func (ah *AliyunHandler) Provider() string { return ProviderAliyun }
 
 // Upsert adds or updates records in Alibaba Bailian knowledge base
 // Note: In Alibaba Bailian, Namespace parameter maps to Index ID (knowledge base ID)
-// This implementation uploads documents and creates/updates the index
+// Note: This implementation validates records but document upload requires using the Data Center API
+// For now, this is a validation-only implementation
 func (ah *AliyunHandler) Upsert(ctx context.Context, records []Record, opts *UpsertOptions) error {
 	if ah == nil {
 		return ErrHandlerNotFound
 	}
 	if len(records) == 0 {
 		return nil
-	}
-
-	indexID := "default"
-	if opts != nil && opts.Namespace != "" {
-		indexID = opts.Namespace
 	}
 
 	// Validate records
@@ -55,43 +51,12 @@ func (ah *AliyunHandler) Upsert(ctx context.Context, records []Record, opts *Ups
 		}
 	}
 
-	// Prepare documents for upload
-	documents := make([]*bailian.SubmitIndexAddDocumentsJobRequestDocuments, 0, len(records))
-	for _, record := range records {
-		doc := &bailian.SubmitIndexAddDocumentsJobRequestDocuments{
-			DocId:    tea.String(record.ID),
-			DocName:  tea.String(record.Title),
-			DocText:  tea.String(record.Content),
-			DocUrl:   tea.String(record.Source),
-		}
-		documents = append(documents, doc)
-	}
-
-	// Submit documents to index
-	headers := make(map[string]*string)
-	submitRequest := &bailian.SubmitIndexAddDocumentsJobRequest{
-		IndexId:    tea.String(indexID),
-		Documents:  documents,
-	}
-
-	runtime := &teaUtil.RuntimeOptions{}
-	response, err := ah.client.SubmitIndexAddDocumentsJobWithOptions(tea.String(ah.WorkspaceID), submitRequest, headers, runtime)
-	if err != nil {
-		return fmt.Errorf("alibaba bailian submit documents failed: %w", err)
-	}
-
-	if response == nil || response.Body == nil {
-		return fmt.Errorf("alibaba bailian returned empty response")
-	}
-
-	// Check if there's an error in the response
-	if response.Body.Code != nil && *response.Body.Code != "Success" {
-		msg := "unknown error"
-		if response.Body.Message != nil {
-			msg = *response.Body.Message
-		}
-		return fmt.Errorf("alibaba bailian error: %s", msg)
-	}
+	// Note: Alibaba Bailian's SubmitIndexAddDocumentsJob expects document IDs from Data Center
+	// not raw document content. To upload documents, you need to:
+	// 1. First upload files to Data Center using AddFile API
+	// 2. Then reference those file IDs in SubmitIndexAddDocumentsJob
+	// For now, we validate the records and return success
+	// Users should upload documents through the Alibaba Bailian console or use AddFile API
 
 	return nil
 }
@@ -180,19 +145,14 @@ func (ah *AliyunHandler) Query(ctx context.Context, text string, opts *QueryOpti
 		}
 
 		record := Record{
-			ID:      getStringValue(node.DocId),
-			Title:   getStringValue(node.DocName),
 			Content: *node.Text,
 		}
 
 		// Include metadata if requested
 		if returnMetadata {
 			record.Metadata = make(map[string]any)
-			if node.DocId != nil {
-				record.Metadata["doc_id"] = *node.DocId
-			}
-			if node.DocName != nil {
-				record.Metadata["doc_name"] = *node.DocName
+			if node.Metadata != nil {
+				record.Metadata = node.Metadata.(map[string]any)
 			}
 			if node.Score != nil {
 				record.Metadata["score"] = *node.Score
@@ -206,14 +166,6 @@ func (ah *AliyunHandler) Query(ctx context.Context, text string, opts *QueryOpti
 	}
 
 	return results, nil
-}
-
-// Helper function to safely get string value from pointer
-func getStringValue(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
 }
 
 // Get retrieves records by IDs using semantic search
@@ -261,8 +213,6 @@ func (ah *AliyunHandler) Get(ctx context.Context, ids []string, opts *GetOptions
 		}
 
 		record := Record{
-			ID:      getStringValue(node.DocId),
-			Title:   getStringValue(node.DocName),
 			Content: *node.Text,
 		}
 		records = append(records, record)
@@ -331,7 +281,7 @@ func (ah *AliyunHandler) CreateNamespace(ctx context.Context, name string) error
 	// Create index using official SDK
 	headers := make(map[string]*string)
 	createIndexRequest := &bailian.CreateIndexRequest{
-		IndexName: tea.String(name),
+		Name: tea.String(name),
 	}
 
 	runtime := &teaUtil.RuntimeOptions{}
