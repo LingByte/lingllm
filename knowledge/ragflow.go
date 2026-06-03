@@ -50,24 +50,32 @@ func (rh *RAGFlowHandler) Upsert(ctx context.Context, records []Record, opts *Up
 	}
 
 	// Upload documents to RAGFlow
-	// According to RAGFlow API docs, documents should be uploaded as multipart/form-data
-	// with type=empty to create empty virtual documents
+	// According to RAGFlow API docs, we need to upload actual file content
+	// We'll create temporary files with the document content and upload them
+	uploadedDocIDs := make([]string, 0, len(records))
+	
 	for _, record := range records {
 		if strings.TrimSpace(record.ID) == "" {
 			return fmt.Errorf("record id cannot be empty")
 		}
 
-		// Create empty document first, then we can add content via chunks API
-		// Using type=empty to create a virtual document
-		uploadURL := fmt.Sprintf("%s/api/v1/datasets/%s/documents?type=empty", rh.BaseURL, url.PathEscape(datasetID))
+		// Upload document with file content using multipart/form-data
+		uploadURL := fmt.Sprintf("%s/api/v1/datasets/%s/documents", rh.BaseURL, url.PathEscape(datasetID))
 
-		// Create multipart form
+		// Create multipart form with file content
 		body := &bytes.Buffer{}
 		writer := multipart.NewWriter(body)
 
-		// Add name field
-		if err := writer.WriteField("name", record.ID); err != nil {
-			return fmt.Errorf("failed to write name field: %w", err)
+		// Add file field with document content
+		// Use record.ID as filename with .txt extension
+		part, err := writer.CreateFormFile("file", record.ID+".txt")
+		if err != nil {
+			return fmt.Errorf("failed to create form file: %w", err)
+		}
+
+		// Write document content to the file part
+		if _, err := part.Write([]byte(record.Content)); err != nil {
+			return fmt.Errorf("failed to write document content: %w", err)
 		}
 
 		// Close the writer to finalize the form
@@ -94,6 +102,33 @@ func (rh *RAGFlowHandler) Upsert(ctx context.Context, records []Record, opts *Up
 		// Accept various success status codes
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			return fmt.Errorf("ragflow upload failed for document %s: status=%d, body=%s", record.ID, resp.StatusCode, string(respBody))
+		}
+		
+		uploadedDocIDs = append(uploadedDocIDs, record.ID)
+	}
+
+	// Parse uploaded documents to make them searchable
+	if len(uploadedDocIDs) > 0 {
+		parseURL := fmt.Sprintf("%s/api/v1/datasets/%s/documents/run", rh.BaseURL, url.PathEscape(datasetID))
+		
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, parseURL, bytes.NewReader([]byte("{}")))
+		if err != nil {
+			return fmt.Errorf("failed to create parse request: %w", err)
+		}
+		
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", rh.APIKey))
+		
+		resp, err := rh.HTTPClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("failed to parse documents: %w", err)
+		}
+		
+		respBody, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return fmt.Errorf("ragflow parse failed: status=%d, body=%s", resp.StatusCode, string(respBody))
 		}
 	}
 
@@ -133,79 +168,43 @@ func (rh *RAGFlowHandler) Query(ctx context.Context, text string, opts *QueryOpt
 		return nil, err
 	}
 
-	// Search in RAGFlow - try multiple API endpoints and request formats
-	searchConfigs := []map[string]any{
-		// Format 1: Standard search with query text
-		{
-			"endpoint": fmt.Sprintf("%s/api/v1/datasets/%s/search", rh.BaseURL, url.PathEscape(datasetID)),
-			"body": map[string]any{
-				"query": text,
-				"top_k": topK,
-			},
-		},
-		// Format 2: Search with additional parameters
-		{
-			"endpoint": fmt.Sprintf("%s/api/v1/datasets/%s/search", rh.BaseURL, url.PathEscape(datasetID)),
-			"body": map[string]any{
-				"query":  text,
-				"top_k":  topK,
-				"offset": 0,
-			},
-		},
-		// Format 3: Chunks endpoint
-		{
-			"endpoint": fmt.Sprintf("%s/api/v1/datasets/%s/chunks", rh.BaseURL, url.PathEscape(datasetID)),
-			"body": map[string]any{
-				"query": text,
-				"top_k": topK,
-			},
-		},
-		// Format 4: Simple query
-		{
-			"endpoint": fmt.Sprintf("%s/api/v1/datasets/%s/search", rh.BaseURL, url.PathEscape(datasetID)),
-			"body": map[string]any{
-				"q": text,
-				"k": topK,
-			},
-		},
+	// Search in RAGFlow using the search endpoint
+	// According to RAGFlow API docs, search uses POST with query and top_k parameters
+	endpoint := fmt.Sprintf("%s/api/v1/datasets/%s/search", rh.BaseURL, url.PathEscape(datasetID))
+
+	reqBody := map[string]any{
+		"query": text,
+		"top_k": topK,
 	}
 
-	var lastErr error
-	var respBody []byte
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal search request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create search request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", rh.APIKey))
+
+	resp, err := rh.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute search: %w", err)
+	}
+	defer resp.Body.Close()
+
 	var response *http.Response
+	var respBody []byte
+	var lastErr error
 
-	for _, config := range searchConfigs {
-		endpoint := config["endpoint"].(string)
-		reqBodyMap := config["body"].(map[string]any)
-
-		body, err := json.Marshal(reqBodyMap)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-		if err != nil {
-			lastErr = err
-			continue
-		}
-
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", rh.APIKey))
-
-		resp, err := rh.HTTPClient.Do(req)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode == http.StatusOK {
-			response = resp
-			break
-		}
+	if resp.StatusCode == http.StatusOK {
+		response = resp
+	} else {
 		respBody, _ = io.ReadAll(resp.Body)
-		lastErr = fmt.Errorf("status=%d body=%s", resp.StatusCode, string(respBody))
+		lastErr = fmt.Errorf("search failed: status=%d body=%s", resp.StatusCode, string(respBody))
 	}
 
 	if response == nil {
