@@ -20,26 +20,25 @@ var ErrClientClosed = errors.New("asr client closed")
 type Client struct {
 	config  *Config
 	seq     int
-	traceId string
+	traceID string
 
 	conn     *websocket.Conn
 	mu       sync.Mutex
 	isClosed bool
 
-	audioChan  chan *AudioFrame
-	resultChan chan *Response
-	closeChan  chan struct{}
+	// Channel management
+	audioQueue   chan *AudioFrame
+	resultQueue  chan *Response
+	stopSignal   chan struct{}
+	writeStopSig chan struct{}
+	readStopSig  chan struct{}
 
-	// Loop stop signal channels
-	writeLoopStopChan chan struct{}
-	readLoopStopChan  chan struct{}
+	// Timeout configuration
+	sendTimeout time.Duration
+	recvTimeout time.Duration
 
-	// Control parameters
-	writeTimeout time.Duration
-	readTimeout  time.Duration
-
-	// Error callback
-	errorCallback func(error)
+	// Error handler
+	errorHandler func(error)
 }
 
 type AudioFrame struct {
@@ -49,27 +48,27 @@ type AudioFrame struct {
 
 func NewClient(config *Config) *Client {
 	return &Client{
-		seq:               1,
-		config:            config,
-		audioChan:         make(chan *AudioFrame, 100),
-		resultChan:        make(chan *Response, 100),
-		closeChan:         make(chan struct{}),
-		writeLoopStopChan: make(chan struct{}, 1),
-		readLoopStopChan:  make(chan struct{}, 1),
-		writeTimeout:      10 * time.Second,
-		readTimeout:       30 * time.Second,
+		seq:          1,
+		config:       config,
+		audioQueue:   make(chan *AudioFrame, 100),
+		resultQueue:  make(chan *Response, 100),
+		stopSignal:   make(chan struct{}),
+		writeStopSig: make(chan struct{}, 1),
+		readStopSig:  make(chan struct{}, 1),
+		sendTimeout:  10 * time.Second,
+		recvTimeout:  30 * time.Second,
 	}
 }
 
-// SetTimeouts sets the timeouts for write and read operations
-func (c *Client) SetTimeouts(writeTimeout, readTimeout time.Duration) {
-	c.writeTimeout = writeTimeout
-	c.readTimeout = readTimeout
+// SetTimeouts sets the timeouts for send and receive operations
+func (c *Client) SetTimeouts(sendTimeout, recvTimeout time.Duration) {
+	c.sendTimeout = sendTimeout
+	c.recvTimeout = recvTimeout
 }
 
-// SetErrorCallback sets the error callback function
-func (c *Client) SetErrorCallback(callback func(error)) {
-	c.errorCallback = callback
+// SetErrorCallback sets the error handler function
+func (c *Client) SetErrorCallback(handler func(error)) {
+	c.errorHandler = handler
 }
 
 // isNormalCloseError checks if the error is a normal WebSocket close error
@@ -95,12 +94,12 @@ func (c *Client) isNormalCloseError(err error) bool {
 	return false
 }
 
-// logError logs error with operation and traceId
+// logError logs error with operation and traceID
 func (c *Client) logError(err error, operation string) {
 	logrus.WithFields(logrus.Fields{
 		"error":     err.Error(),
 		"operation": operation,
-		"traceId":   c.traceId,
+		"traceID":   c.traceID,
 	}).Error("connection error occurred")
 }
 
@@ -126,35 +125,35 @@ func (c *Client) Connect(ctx context.Context) error {
 		}
 		return fmt.Errorf("dial websocket err: %w", err)
 	}
-	c.traceId = resp.Header.Get("X-Tt-Logid")
+	c.traceID = resp.Header.Get("X-Tt-Logid")
 	c.conn = conn
 
 	// Send initial full client request
-	if err := c.sendFullClientRequest(); err != nil {
+	if err := c.sendInitialRequest(); err != nil {
 		_ = conn.Close()
-		return fmt.Errorf("send full client request err: %w", err)
+		return fmt.Errorf("send initial request err: %w", err)
 	}
 
-	go c.readLoop()
-	go c.writeLoop()
+	go c.handleWriteLoop()
+	go c.handleReadLoop()
 
 	return nil
 }
 
-// sendFullClientRequest sends the initial request (internal method)
-func (c *Client) sendFullClientRequest() error {
-	fullClientRequest := NewFullClientRequest(c.config)
+// sendInitialRequest sends the initial authentication request
+func (c *Client) sendInitialRequest() error {
+	initReq := NewFullClientRequest(c.config)
 	c.seq++
-	err := c.conn.WriteMessage(websocket.BinaryMessage, fullClientRequest)
+	err := c.conn.WriteMessage(websocket.BinaryMessage, initReq)
 	if err != nil {
 		return err
 	}
 
-	_, resp, err := c.conn.ReadMessage()
+	_, respData, err := c.conn.ReadMessage()
 	if err != nil {
 		return err
 	}
-	respStruct := ParseResponse(resp)
+	respStruct := ParseResponse(respData)
 
 	if respStruct.Code != 0 {
 		return fmt.Errorf("initialization error: code: %d, msg: %v", respStruct.Code, respStruct.PayloadMsg)
@@ -163,40 +162,38 @@ func (c *Client) sendFullClientRequest() error {
 	return nil
 }
 
-func (c *Client) writeLoop() {
+func (c *Client) handleWriteLoop() {
 	defer func() {
-		logrus.WithField("traceId", c.traceId).Info("asr client: writeLoop exited")
-		c.writeLoopStopChan <- struct{}{}
+		logrus.WithField("traceID", c.traceID).Info("asr client: write loop exited")
+		c.writeStopSig <- struct{}{}
 	}()
-	var err error
 
 	for {
 		select {
-		case <-c.closeChan:
+		case <-c.stopSignal:
 			return
-		case frame, ok := <-c.audioChan:
+		case frame, ok := <-c.audioQueue:
 			if !ok {
 				return
 			}
-			var seq int
-			seq = c.seq
+
+			seq := c.seq
 			if !frame.IsEnd {
 				c.seq++
 			} else {
 				seq = -seq
 				logrus.WithFields(logrus.Fields{
 					"seq":     seq,
-					"traceId": c.traceId,
+					"traceID": c.traceID,
 				}).Info("sending final audio frame")
 			}
 
 			message := NewAudioOnlyRequest(seq, frame.Data)
-			_ = c.conn.SetWriteDeadline(time.Now().Add(c.writeTimeout))
-			if err = c.conn.WriteMessage(websocket.BinaryMessage, message); err != nil {
-				// Only notify callback for non-normal close errors
-				if !c.isNormalCloseError(err) && c.errorCallback != nil {
-					c.logError(err, "writeLoop")
-					c.errorCallback(err)
+			_ = c.conn.SetWriteDeadline(time.Now().Add(c.sendTimeout))
+			if err := c.conn.WriteMessage(websocket.BinaryMessage, message); err != nil {
+				if !c.isNormalCloseError(err) && c.errorHandler != nil {
+					c.logError(err, "write")
+					c.errorHandler(err)
 				}
 				return
 			}
@@ -204,77 +201,65 @@ func (c *Client) writeLoop() {
 	}
 }
 
-// readLoop handles response reading
-func (c *Client) readLoop() {
+// handleReadLoop processes incoming responses
+func (c *Client) handleReadLoop() {
 	defer func() {
-		logrus.WithField("traceId", c.traceId).Info("asr client: readLoop exited")
-		c.readLoopStopChan <- struct{}{}
+		logrus.WithField("traceID", c.traceID).Info("asr client: read loop exited")
+		c.readStopSig <- struct{}{}
 	}()
 
-	var err error
-	var msg []byte
-
 	for {
-		_ = c.conn.SetReadDeadline(time.Now().Add(c.readTimeout))
-		if _, msg, err = c.conn.ReadMessage(); err != nil {
-			// Only notify callback for non-normal close errors
-			if !c.isNormalCloseError(err) && c.errorCallback != nil {
-				c.logError(err, "readLoop")
-				c.errorCallback(err)
+		_ = c.conn.SetReadDeadline(time.Now().Add(c.recvTimeout))
+		_, msgData, err := c.conn.ReadMessage()
+		if err != nil {
+			if !c.isNormalCloseError(err) && c.errorHandler != nil {
+				c.logError(err, "read")
+				c.errorHandler(err)
 			}
 			return
 		}
 
-		resp := ParseResponse(msg)
+		resp := ParseResponse(msgData)
 		logrus.WithFields(logrus.Fields{
-			"code":            resp.Code,
-			"event":           resp.Event,
-			"isLastPackage":   resp.IsLastPackage,
-			"payloadSequence": resp.PayloadSequence,
-			"payloadSize":     resp.PayloadSize,
-			"payloadMsg":      resp.PayloadMsg,
-			"err":             resp.Err,
-			"traceId":         c.traceId,
-		}).Info("asr client: response received")
+			"code":      resp.Code,
+			"event":     resp.Event,
+			"isFinal":   resp.IsLastPackage,
+			"traceID":   c.traceID,
+		}).Debug("asr response received")
 
 		// Send result to upper layer
 		select {
-		case <-c.closeChan:
+		case <-c.stopSignal:
 			return
-		case c.resultChan <- resp:
+		case c.resultQueue <- resp:
 		default:
-			logrus.WithField("traceId", c.traceId).Warn("resultChan is full, dropping response")
+			logrus.WithField("traceID", c.traceID).Warn("result queue full, dropping response")
 		}
 
 		// If it's the last frame, exit loop
 		if resp.IsLastPackage {
-			logrus.WithField("traceId", c.traceId).Info("asr client: received last package")
+			logrus.WithField("traceID", c.traceID).Info("asr client: received final response")
 			return
 		}
 	}
 }
 
 func (c *Client) ReceiveResult() (*Response, error) {
-	var (
-		err  error
-		resp *Response
-	)
 	select {
-	case resp = <-c.resultChan:
-	case <-c.closeChan:
-		err = ErrClientClosed
+	case resp := <-c.resultQueue:
+		return resp, nil
+	case <-c.stopSignal:
+		return nil, ErrClientClosed
 	}
-	return resp, err
 }
 
 func (c *Client) SendAudioFrame(frame *AudioFrame) error {
-	var err error
 	select {
-	case c.audioChan <- frame:
-	case <-c.closeChan:
-		err = ErrClientClosed
+	case c.audioQueue <- frame:
+		return nil
+	case <-c.stopSignal:
+		return ErrClientClosed
 	}
-	return err
 }
 
 // IsClosed returns true if the client is closed
@@ -286,10 +271,10 @@ func (c *Client) IsClosed() bool {
 
 // GetTraceID returns the trace ID from the connection
 func (c *Client) GetTraceID() string {
-	return c.traceId
+	return c.traceID
 }
 
-// Close closes the connection
+// Close gracefully closes the connection
 func (c *Client) Close() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -299,22 +284,18 @@ func (c *Client) Close() {
 	}
 
 	c.isClosed = true
+	close(c.stopSignal)
 
-	// Close main close channel to notify all loops to stop
-	close(c.closeChan)
-
-	// Wait for loop stop signals, set timeout to prevent blocking
+	// Wait for loops to stop with timeout
 	timeout := time.After(1 * time.Second)
 
-	// Wait for writeLoop to stop
 	select {
-	case <-c.writeLoopStopChan:
+	case <-c.writeStopSig:
 	case <-timeout:
 	}
 
-	// Wait for readLoop to stop
 	select {
-	case <-c.readLoopStopChan:
+	case <-c.readStopSig:
 	case <-timeout:
 	}
 
@@ -322,6 +303,6 @@ func (c *Client) Close() {
 	if c.conn != nil {
 		_ = c.conn.Close()
 	}
-	close(c.audioChan)
-	close(c.resultChan)
+	close(c.audioQueue)
+	close(c.resultQueue)
 }

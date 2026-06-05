@@ -11,7 +11,7 @@ import (
 	"cloud.google.com/go/speech/apiv1/speechpb"
 )
 
-// ConfigReader 配置读取器 - 简化配置读取逻辑
+// ConfigReader 配置读取器
 type ConfigReader struct {
 	config map[string]interface{}
 }

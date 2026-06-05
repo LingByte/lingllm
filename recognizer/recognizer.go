@@ -21,29 +21,36 @@ type Result struct {
 // ResultCallback defines the callback interface for handling recognition results
 type ResultCallback func(*Result)
 
+// TimeoutConfig holds timeout settings
+type TimeoutConfig struct {
+	Send time.Duration
+	Read time.Duration
+}
+
+// onResultFunc is the result callback type
+type onResultFunc func(*Result)
+
+// onErrorFunc is the error callback type
+type onErrorFunc func(error)
+
 type Recognizer struct {
 	client *Client
 	ctx    context.Context
 	cancel context.CancelFunc
 	mu     sync.Mutex
 
-	// Audio buffer
-	audioBuffer   []byte
-	bufferSize    int // Target buffer size (bytes)
-	sampleRate    int
-	bitsPerSample int
-	channels      int
+	// Audio buffer and configuration
+	pendingAudio      []byte
+	targetBufferSize  int
+	audioConfig       AudioConfig
+	timeoutConfig     TimeoutConfig
 
 	// Callback functions
-	resultCallback ResultCallback
-	errorCallback  func(error)
+	onResult onResultFunc
+	onError  onErrorFunc
 
-	// Control parameters
-	sendTimeout time.Duration
-	readTimeout time.Duration
-
-	// Status flags
-	hasSentEndFrame bool
+	// State management
+	isEndFrameSent bool
 }
 
 func NewRecognizer(config *Config) *Recognizer {
@@ -57,25 +64,29 @@ func NewRecognizer(config *Config) *Recognizer {
 	bufferSize := config.Audio.Rate * config.Audio.Bits / 8 * config.Audio.Channel * bufferDurationMs / 1000
 
 	return &Recognizer{
-		client:        NewClient(config),
-		audioBuffer:   make([]byte, 0, bufferSize),
-		bufferSize:    bufferSize,
-		sampleRate:    config.Audio.Rate,
-		bitsPerSample: config.Audio.Bits,
-		channels:      config.Audio.Channel,
-		sendTimeout:   10 * time.Second,
-		readTimeout:   30 * time.Second,
+		client:           NewClient(config),
+		pendingAudio:     make([]byte, 0, bufferSize),
+		targetBufferSize: bufferSize,
+		audioConfig: AudioConfig{
+			Rate:   config.Audio.Rate,
+			Bits:   config.Audio.Bits,
+			Channel: config.Audio.Channel,
+		},
+		timeoutConfig: TimeoutConfig{
+			Send: 10 * time.Second,
+			Read: 30 * time.Second,
+		},
 	}
 }
 
-// SetResultCallback sets the callback function for handling recognition results
-func (r *Recognizer) SetResultCallback(callback ResultCallback) {
-	r.resultCallback = callback
+// OnResult registers the callback for recognition results
+func (r *Recognizer) OnResult(callback onResultFunc) {
+	r.onResult = callback
 }
 
-// SetErrorCallback sets the callback function for handling errors
-func (r *Recognizer) SetErrorCallback(callback func(error)) {
-	r.errorCallback = callback
+// OnError registers the callback for error handling
+func (r *Recognizer) OnError(callback onErrorFunc) {
+	r.onError = callback
 }
 
 func (r *Recognizer) Start() error {
@@ -83,17 +94,17 @@ func (r *Recognizer) Start() error {
 
 	// Set client error callback to forward underlying errors to recognizer
 	r.client.SetErrorCallback(func(err error) {
-		if r.errorCallback != nil {
-			r.errorCallback(err)
+		if r.onError != nil {
+			r.onError(err)
 		}
 	})
 
-	r.client.SetTimeouts(r.sendTimeout, r.readTimeout)
+	r.client.SetTimeouts(r.timeoutConfig.Send, r.timeoutConfig.Read)
 	if err := r.client.Connect(r.ctx); err != nil {
 		return err
 	}
 
-	go r.resultReceiver()
+	go r.receiveResults()
 
 	return nil
 }
@@ -103,55 +114,41 @@ func (r *Recognizer) SendAudioFrame(frame []byte, end bool) error {
 	defer r.mu.Unlock()
 
 	// If end frame has been sent, discard all subsequent frames
-	if r.hasSentEndFrame {
+	if r.isEndFrameSent {
 		return nil
 	}
 
 	// If it's an end frame, send all buffered data immediately
 	if end {
-		if len(r.audioBuffer) > 0 {
-			if err := r.sendAudioDataLocked(r.audioBuffer); err != nil {
+		if len(r.pendingAudio) > 0 {
+			if err := r.flushPendingAudioLocked(); err != nil {
 				return err
 			}
-			r.audioBuffer = r.audioBuffer[:0]
 		}
 
-		audioPacket := &AudioFrame{
-			Data:  nil,
-			IsEnd: true,
-		}
-		r.hasSentEndFrame = true
-		return r.client.SendAudioFrame(audioPacket)
+		r.isEndFrameSent = true
+		return r.client.SendAudioFrame(&AudioFrame{IsEnd: true})
 	}
 
-	r.audioBuffer = append(r.audioBuffer, frame...)
-	if len(r.audioBuffer) >= r.bufferSize {
-		return r.flushBufferLocked()
+	r.pendingAudio = append(r.pendingAudio, frame...)
+	if len(r.pendingAudio) >= r.targetBufferSize {
+		return r.flushPendingAudioLocked()
 	}
 
 	return nil
 }
 
-// flushBufferLocked sends the current buffer content
-func (r *Recognizer) flushBufferLocked() error {
-	if len(r.audioBuffer) == 0 {
+// flushPendingAudioLocked sends the current buffer content
+func (r *Recognizer) flushPendingAudioLocked() error {
+	if len(r.pendingAudio) == 0 {
 		return nil
 	}
 
-	toSend := make([]byte, len(r.audioBuffer))
-	copy(toSend, r.audioBuffer)
-	r.audioBuffer = r.audioBuffer[:0]
+	toSend := make([]byte, len(r.pendingAudio))
+	copy(toSend, r.pendingAudio)
+	r.pendingAudio = r.pendingAudio[:0]
 
-	return r.sendAudioDataLocked(toSend)
-}
-
-// sendAudioDataLocked sends audio data to client
-func (r *Recognizer) sendAudioDataLocked(data []byte) error {
-	audioPacket := &AudioFrame{
-		Data:  data,
-		IsEnd: false,
-	}
-	return r.client.SendAudioFrame(audioPacket)
+	return r.client.SendAudioFrame(&AudioFrame{Data: toSend})
 }
 
 func (r *Recognizer) Stop() {
@@ -161,8 +158,8 @@ func (r *Recognizer) Stop() {
 	r.client.Close()
 }
 
-// resultReceiver handles response reading and conversion
-func (r *Recognizer) resultReceiver() {
+// receiveResults handles response reading and conversion
+func (r *Recognizer) receiveResults() {
 	for {
 		select {
 		case <-r.ctx.Done():
@@ -173,27 +170,39 @@ func (r *Recognizer) resultReceiver() {
 				return
 			}
 
-			if resp.Code != 0 && r.errorCallback != nil {
-				resp.Err = fmt.Errorf("code: %d , msg: %v", resp.Code, resp.PayloadMsg)
-				r.errorCallback(resp.Err)
+			result := r.convertResponseToResult(resp)
+
+			if result.Error != nil && r.onError != nil {
+				r.onError(result.Error)
 			}
 
-			result := &Result{
-				Text:      "",
-				IsFinal:   resp.IsLastPackage,
-				Timestamp: time.Now(),
-				Error:     resp.Err,
-			}
-
-			if resp.PayloadMsg != nil && resp.PayloadMsg.Result.Text != "" {
-				result.Text = resp.PayloadMsg.Result.Text
-			}
-
-			if r.resultCallback != nil {
-				r.resultCallback(result)
+			if r.onResult != nil {
+				r.onResult(result)
 			}
 		}
 	}
+}
+
+// convertResponseToResult converts ASR response to Result
+func (r *Recognizer) convertResponseToResult(resp *Response) *Result {
+	result := &Result{
+		IsFinal:   resp.IsLastPackage,
+		Timestamp: time.Now(),
+	}
+
+	if resp.Code != 0 {
+		result.Error = fmt.Errorf("asr error code: %d, msg: %v", resp.Code, resp.PayloadMsg)
+	}
+
+	if resp.PayloadMsg != nil && resp.PayloadMsg.Result.Text != "" {
+		result.Text = resp.PayloadMsg.Result.Text
+	}
+
+	if resp.Err != nil {
+		result.Error = resp.Err
+	}
+
+	return result
 }
 
 func (r *Recognizer) GetTraceID() string {

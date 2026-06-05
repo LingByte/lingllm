@@ -105,11 +105,11 @@ func (v *VolcengineLLMASR) ConnAndReceive(dialogID string) error {
 		return err
 	}
 
-	v.recognizer.SetResultCallback(func(result *Result) {
+	v.recognizer.OnResult(func(result *Result) {
 		v.handleRecognitionResult(result)
 	})
 
-	v.recognizer.SetErrorCallback(func(err error) {
+	v.recognizer.OnError(func(err error) {
 		v.er(fmt.Errorf("recognizer error: %s", err), true)
 	})
 
