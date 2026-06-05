@@ -1,6 +1,6 @@
 module github.com/LingByte/lingllm
 
-go 1.25.8
+go 1.26
 
 require (
 	cloud.google.com/go/speech v1.35.0
