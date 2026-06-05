@@ -8,7 +8,11 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
+
+var log = logrus.StandardLogger()
 
 // EventType represents the type of event
 type EventType string
