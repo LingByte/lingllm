@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/zap"
+	"github.com/sirupsen/logrus"
 )
 
 // Detector performs energy-based (RMS) gating suitable for barge-in while downlink synthesis plays.
@@ -16,7 +16,7 @@ type Detector struct {
 	adaptiveThreshold       float64
 	consecutiveFramesNeeded int
 	frameCounter            int
-	logger                  *zap.Logger
+	logger                  *logrus.Logger
 	lastLogTime             time.Time
 	noiseLevel              float64
 	noiseSamples            []float64
@@ -38,8 +38,8 @@ func NewDetector() *Detector {
 	}
 }
 
-// SetLogger attaches an optional zap logger (debug/info).
-func (v *Detector) SetLogger(logger *zap.Logger) {
+// SetLogger attaches an optional logrus logger (debug/info).
+func (v *Detector) SetLogger(logger *logrus.Logger) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	v.logger = logger
@@ -102,21 +102,21 @@ func (v *Detector) CheckBargeIn(pcmData []byte, synthPlaying bool) bool {
 		v.frameCounter++
 		if shouldLog {
 			v.lastLogTime = now
-			v.logger.Debug("sip vad: energy above threshold",
-				zap.Float64("rms", rms),
-				zap.Float64("effectiveThreshold", effectiveThreshold),
-				zap.Float64("noiseLevel", v.noiseLevel),
-				zap.Int("frameCounter", v.frameCounter),
-				zap.Int("framesNeeded", v.consecutiveFramesNeeded),
-			)
+			v.logger.WithFields(map[string]interface{}{
+				"rms": rms,
+				"effectiveThreshold": effectiveThreshold,
+				"noiseLevel": v.noiseLevel,
+				"frameCounter": v.frameCounter,
+				"framesNeeded": v.consecutiveFramesNeeded,
+			}).Debug("sip vad: energy above threshold")
 		}
 		if v.frameCounter >= v.consecutiveFramesNeeded {
 			if v.logger != nil {
-				v.logger.Info("sip vad: barge-in",
-					zap.Float64("rms", rms),
-					zap.Float64("effectiveThreshold", effectiveThreshold),
-					zap.Float64("noiseLevel", v.noiseLevel),
-				)
+				v.logger.WithFields(map[string]interface{}{
+					"rms": rms,
+					"effectiveThreshold": effectiveThreshold,
+					"noiseLevel": v.noiseLevel,
+				}).Info("sip vad: barge-in")
 			}
 			v.frameCounter = 0
 			return true
@@ -124,10 +124,10 @@ func (v *Detector) CheckBargeIn(pcmData []byte, synthPlaying bool) bool {
 	} else {
 		if v.frameCounter > 0 && shouldLog {
 			v.lastLogTime = now
-			v.logger.Debug("sip vad: energy below threshold, reset",
-				zap.Float64("rms", rms),
-				zap.Int("previousFrames", v.frameCounter),
-			)
+			v.logger.WithFields(map[string]interface{}{
+				"rms": rms,
+				"previousFrames": v.frameCounter,
+			}).Debug("sip vad: energy below threshold, reset")
 		}
 		v.frameCounter = 0
 	}

@@ -11,7 +11,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/LingByte/LingVoice/pkg/media"
+	"github.com/LingByte/lingllm/media"
 	"github.com/hraban/opus"
 )
 

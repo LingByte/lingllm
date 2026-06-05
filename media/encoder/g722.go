@@ -4,7 +4,7 @@ package encoder
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-	"github.com/LingByte/LingVoice/pkg/media"
+	"github.com/LingByte/lingllm/media"
 )
 
 // G.722 constants

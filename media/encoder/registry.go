@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LingByte/LingVoice/pkg/media"
+	"github.com/LingByte/lingllm/media"
 )
 
 const (
@@ -22,7 +22,7 @@ func init() {
 	RegisterCodec(CodecPCMU, createPCMUEncode, createPCMUDecode)
 	RegisterCodec(CodecPCMA, createPCMAEncode, createPCMADecode)
 	RegisterCodec(CodecPCM, PcmToPcm, PcmToPcm)
-	RegisterCodec(CodecOPUS, createOPUSEncode, createOPUSDecode)
+	// OPUS codec registration is handled by registry_opus.go (requires build tag)
 	RegisterCodec(CodecG722, createG722Encode, createG722Decode)
 }
 

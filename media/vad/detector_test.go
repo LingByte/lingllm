@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"go.uber.org/zap"
+	"github.com/sirupsen/logrus"
 )
 
 func loudPCMFrame() []byte {
@@ -45,7 +45,7 @@ func TestDetector_CheckBargeIn_Triggers(t *testing.T) {
 	d := NewDetector()
 	d.SetThreshold(500)
 	d.SetConsecutiveFrames(1)
-	d.SetLogger(zap.NewNop())
+	d.SetLogger(logrus.New())
 	if !d.CheckBargeIn(loudPCMFrame(), true) {
 		t.Fatal("expected barge-in")
 	}
