@@ -117,7 +117,7 @@ func (c *Client) Connect(ctx context.Context) error {
 	}
 
 	// Connect and authenticate
-	header := NewAuthHeader(c.config.Auth)
+	header := BuildAuthHeader(c.config.Auth)
 	conn, resp, err := websocket.DefaultDialer.DialContext(ctx, c.config.URL, header)
 	if err != nil {
 		if ctx.Err() == context.Canceled || strings.Contains(err.Error(), "operation was canceled") {

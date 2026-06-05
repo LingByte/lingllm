@@ -50,7 +50,9 @@ type RequestPayload struct {
 // NewFullClientRequest creates a full client request payload
 func NewFullClientRequest(config *Config) []byte {
 	var request bytes.Buffer
-	request.Write(DefaultHeader().WithMessageTypeSpecificFlags(FlagPosSequence).toBytes())
+	header := NewDefaultHeader().SetMessageTypeFlags(FlagPosSequence)
+	request.Write(header.Serialize())
+
 	payload := RequestPayload{
 		User: UserMeta{
 			UID:        config.User.UID,
@@ -80,34 +82,39 @@ func NewFullClientRequest(config *Config) []byte {
 			},
 		},
 	}
-	payloadArr, _ := json.Marshal(payload)
-	payloadArr = GzipCompress(payloadArr)
-	payloadSize := len(payloadArr)
-	payloadSizeArr := make([]byte, 4)
-	binary.BigEndian.PutUint32(payloadSizeArr, uint32(payloadSize))
+
+	payloadData, _ := json.Marshal(payload)
+	payloadData = GzipCompress(payloadData)
+	payloadSize := len(payloadData)
+	payloadSizeBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(payloadSizeBytes, uint32(payloadSize))
+
 	_ = binary.Write(&request, binary.BigEndian, int32(1))
-	request.Write(payloadSizeArr)
-	request.Write(payloadArr)
+	request.Write(payloadSizeBytes)
+	request.Write(payloadData)
 	return request.Bytes()
 }
 
+// NewAudioOnlyRequest creates an audio-only request payload
 func NewAudioOnlyRequest(seq int, segment []byte) []byte {
 	var request bytes.Buffer
-	header := DefaultHeader()
-	if seq < 0 {
-		header.WithMessageTypeSpecificFlags(FlagNegWithSequence)
-	} else {
-		header.WithMessageTypeSpecificFlags(FlagPosSequence)
-	}
-	header.WithMessageType(MessageTypeClientAudioOnlyRequest)
-	request.Write(header.toBytes())
+	header := NewDefaultHeader()
 
-	// write seq
+	if seq < 0 {
+		header.SetMessageTypeFlags(FlagNegWithSequence)
+	} else {
+		header.SetMessageTypeFlags(FlagPosSequence)
+	}
+	header.SetMessageType(MessageTypeClientAudioOnlyRequest)
+	request.Write(header.Serialize())
+
+	// Write sequence number
 	_ = binary.Write(&request, binary.BigEndian, int32(seq))
-	// write payload size
+
+	// Write payload
 	payload := GzipCompress(segment)
 	_ = binary.Write(&request, binary.BigEndian, int32(len(payload)))
-	// write payload
 	request.Write(payload)
+
 	return request.Bytes()
 }
