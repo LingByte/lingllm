@@ -10,8 +10,8 @@ import (
 
 // DocumentHash represents a document's hash for change detection
 type DocumentHash struct {
-	ID       string
-	Hash     string
+	ID        string
+	Hash      string
 	UpdatedAt time.Time
 }
 

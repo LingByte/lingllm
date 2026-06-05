@@ -13,17 +13,17 @@ import (
 type ExportFormat string
 
 const (
-	ExportFormatJSON ExportFormat = "json"
+	ExportFormatJSON  ExportFormat = "json"
 	ExportFormatJSONL ExportFormat = "jsonl"
 )
 
 // ExportMetadata contains metadata about the export
 type ExportMetadata struct {
-	ExportedAt  time.Time `json:"exported_at"`
+	ExportedAt   time.Time `json:"exported_at"`
 	TotalRecords int       `json:"total_records"`
-	Handler     string    `json:"handler"`
-	Namespace   string    `json:"namespace"`
-	Version     string    `json:"version"`
+	Handler      string    `json:"handler"`
+	Namespace    string    `json:"namespace"`
+	Version      string    `json:"version"`
 }
 
 // ExportData represents the complete export data

@@ -43,12 +43,12 @@ const (
 )
 
 type AudioPacket struct {
-	PlayID        string `json:"id,omitempty"`
-	Sequence      int    `json:"sequence"`
-	Payload       []byte `json:"payload"`
+	PlayID   string `json:"id,omitempty"`
+	Sequence int    `json:"sequence"`
+	Payload  []byte `json:"payload"`
 	// RTPSamples, when > 0, is the RTP clock increment for this frame (RFC 3550 timestamp delta).
 	// Encoders with variable frame sizes (e.g. OPUS) should set this so the RTP layer does not guess from duration.
-	RTPSamples uint32 `json:"rtpSamples,omitempty"`
+	RTPSamples    uint32 `json:"rtpSamples,omitempty"`
 	IsFirstPacket bool   `json:"isFirstPacket,omitempty"`
 	IsEndPacket   bool   `json:"isEndPacket,omitempty"`
 	IsSynthesized bool   `json:"isSynthesized,omitempty"`

@@ -15,16 +15,16 @@ import (
 // KnowledgeBase integrates embedder, search, retrieve, and vector database
 // to provide a complete knowledge management solution.
 type KnowledgeBase struct {
-	handler      KnowledgeHandler
-	embedder     embedder.Embedder
-	searcher     search.Engine
-	retriever    retrieve.StrategyRetriever
-	detector     DocumentTypeDetector
-	chunkers     map[DocumentType]Chunker
-	namespace    string // Default namespace for queries
-	queryCache   *QueryCache
-	vectorCache  *VectorCache
-	enableCache  bool
+	handler     KnowledgeHandler
+	embedder    embedder.Embedder
+	searcher    search.Engine
+	retriever   retrieve.StrategyRetriever
+	detector    DocumentTypeDetector
+	chunkers    map[DocumentType]Chunker
+	namespace   string // Default namespace for queries
+	queryCache  *QueryCache
+	vectorCache *VectorCache
+	enableCache bool
 }
 
 // KnowledgeBaseConfig configuration for KnowledgeBase

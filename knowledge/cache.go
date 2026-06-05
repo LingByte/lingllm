@@ -10,11 +10,11 @@ import (
 
 // QueryCache provides caching for query results to improve performance
 type QueryCache struct {
-	mu       sync.RWMutex
-	cache    map[string]*CacheEntry
-	maxSize  int
-	ttl      time.Duration
-	hitCount int64
+	mu        sync.RWMutex
+	cache     map[string]*CacheEntry
+	maxSize   int
+	ttl       time.Duration
+	hitCount  int64
 	missCount int64
 }
 

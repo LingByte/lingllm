@@ -103,19 +103,19 @@ func (v *Detector) CheckBargeIn(pcmData []byte, synthPlaying bool) bool {
 		if shouldLog {
 			v.lastLogTime = now
 			v.logger.WithFields(map[string]interface{}{
-				"rms": rms,
+				"rms":                rms,
 				"effectiveThreshold": effectiveThreshold,
-				"noiseLevel": v.noiseLevel,
-				"frameCounter": v.frameCounter,
-				"framesNeeded": v.consecutiveFramesNeeded,
+				"noiseLevel":         v.noiseLevel,
+				"frameCounter":       v.frameCounter,
+				"framesNeeded":       v.consecutiveFramesNeeded,
 			}).Debug("sip vad: energy above threshold")
 		}
 		if v.frameCounter >= v.consecutiveFramesNeeded {
 			if v.logger != nil {
 				v.logger.WithFields(map[string]interface{}{
-					"rms": rms,
+					"rms":                rms,
 					"effectiveThreshold": effectiveThreshold,
-					"noiseLevel": v.noiseLevel,
+					"noiseLevel":         v.noiseLevel,
 				}).Info("sip vad: barge-in")
 			}
 			v.frameCounter = 0
@@ -125,7 +125,7 @@ func (v *Detector) CheckBargeIn(pcmData []byte, synthPlaying bool) bool {
 		if v.frameCounter > 0 && shouldLog {
 			v.lastLogTime = now
 			v.logger.WithFields(map[string]interface{}{
-				"rms": rms,
+				"rms":            rms,
 				"previousFrames": v.frameCounter,
 			}).Debug("sip vad: energy below threshold, reset")
 		}

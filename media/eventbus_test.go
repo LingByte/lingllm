@@ -79,7 +79,7 @@ func TestEventBusClose(t *testing.T) {
 	defer cancel()
 
 	eb := NewEventBus(ctx, 10, 2)
-	
+
 	// Close should not panic
 	eb.Close()
 }
