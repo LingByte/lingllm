@@ -33,6 +33,11 @@ type QCloudTTSConfig struct {
 	Speed int64 `json:"speed" yaml:"speed" default:"0"`
 }
 
+// GetProvider returns the TTS provider type
+func (c *QCloudTTSConfig) GetProvider() TTSProvider {
+	return ProviderTencent
+}
+
 type QCloudService struct {
 	opt QCloudTTSConfig
 	mu  sync.Mutex // 保护 opt 的并发访问

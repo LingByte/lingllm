@@ -23,6 +23,11 @@ type GoogleTTSOption struct {
 	FrameDuration string                         `json:"frameDuration" yaml:"frame_duration" default:"20ms"`
 }
 
+// GetProvider returns the TTS provider type
+func (c *GoogleTTSOption) GetProvider() TTSProvider {
+	return ProviderGoogle
+}
+
 func (opt *GoogleTTSOption) String() string {
 	return fmt.Sprintf("GoogleTTSOption{LanguageCode: %s, SsmlGender: %d, AudioEncoding: %d, SampleRate: %d, Channels: %d, BitDepth: %d}",
 		opt.LanguageCode, opt.SsmlGender, opt.AudioEncoding, opt.SampleRate, opt.Channels, opt.BitDepth)

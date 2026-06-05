@@ -31,6 +31,11 @@ type AzureConfig struct {
 	BaseURL         string `json:"base_url" yaml:"base_url"`
 }
 
+// GetProvider returns the TTS provider type
+func (c *AzureConfig) GetProvider() TTSProvider {
+	return ProviderAzure
+}
+
 type AzureService struct {
 	opt    AzureConfig
 	mu     sync.Mutex // 保护 opt 的并发访问

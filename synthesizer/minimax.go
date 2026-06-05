@@ -108,6 +108,11 @@ type MinimaxOption struct {
 	FrameDuration string `json:"frameDuration" yaml:"frame_duration" default:"20ms"`
 }
 
+// GetProvider returns the TTS provider type
+func (c *MinimaxOption) GetProvider() TTSProvider {
+	return ProviderMinimax
+}
+
 func (opt *MinimaxOption) String() string {
 	return fmt.Sprintf("MinimaxOption{Model: %s, APIKey: %s, VoiceID: %s, Speed: %.2f, Volume: %.2f, Pitch: %.2f, Emotion: %s, SampleRate: %d, Bitrate: %d, Format: %s, Channels: %d}",
 		opt.Model, opt.APIKey, opt.VoiceID, opt.SpeedRatio, opt.Volume, opt.Pitch, opt.Emotion, opt.SampleRate, opt.Bitrate, opt.Format, opt.Channels)

@@ -35,6 +35,11 @@ type FishAudioConfig struct {
 	Timeout     int     `json:"timeout" yaml:"timeout" default:"30"`
 }
 
+// GetProvider returns the TTS provider type
+func (c *FishAudioConfig) GetProvider() TTSProvider {
+	return ProviderFishAudio
+}
+
 type FishAudioService struct {
 	opt FishAudioConfig
 	mu  sync.Mutex

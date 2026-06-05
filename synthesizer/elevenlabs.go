@@ -35,6 +35,11 @@ type ElevenLabsConfig struct {
 	UseSpeakerBoost bool    `json:"use_speaker_boost" yaml:"use_speaker_boost" default:"true"`
 }
 
+// GetProvider returns the TTS provider type
+func (c *ElevenLabsConfig) GetProvider() TTSProvider {
+	return ProviderElevenLabs
+}
+
 type ElevenLabsService struct {
 	opt    ElevenLabsConfig
 	mu     sync.Mutex // 保护 opt 的并发访问

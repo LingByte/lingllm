@@ -32,6 +32,11 @@ type XunfeiTTSConfig struct {
 	Timeout       int    `json:"timeout" yaml:"timeout" default:"30"`
 }
 
+// GetProvider returns the TTS provider type
+func (c *XunfeiTTSConfig) GetProvider() TTSProvider {
+	return ProviderXunfei
+}
+
 type XunfeiService struct {
 	opt XunfeiTTSConfig
 	mu  sync.Mutex // 保护 opt 的并发访问

@@ -27,6 +27,11 @@ type LocalTTSConfig struct {
 	OutputDir     string `json:"output_dir" yaml:"output_dir" default:"/tmp"` // 输出目录
 }
 
+// GetProvider returns the TTS provider type
+func (c *LocalTTSConfig) GetProvider() TTSProvider {
+	return ProviderLocal
+}
+
 type LocalService struct {
 	opt LocalTTSConfig
 	mu  sync.Mutex // 保护 opt 的并发访问

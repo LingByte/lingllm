@@ -44,6 +44,11 @@ type LocalGoSpeechConfig struct {
 	OutputDir   string                `json:"outputDir"`   // 输出目录
 }
 
+// GetProvider returns the TTS provider type
+func (c *LocalGoSpeechConfig) GetProvider() TTSProvider {
+	return ProviderLocalGoSpeech
+}
+
 // NewLocalGoSpeechConfig 创建默认本地TTS配置
 func NewLocalGoSpeechConfig(provider LocalGoSpeechProvider, modelPath string) *LocalGoSpeechConfig {
 	return &LocalGoSpeechConfig{

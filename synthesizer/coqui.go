@@ -24,6 +24,11 @@ type CoquiTTSOption struct {
 	FrameDuration string `json:"frameDuration" yaml:"frame_duration" default:"20ms"`
 }
 
+// GetProvider returns the TTS provider type
+func (c *CoquiTTSOption) GetProvider() TTSProvider {
+	return ProviderCoqui
+}
+
 type CoquiResponse struct {
 	Audio string `json:"audio"`
 }

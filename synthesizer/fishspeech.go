@@ -34,6 +34,11 @@ type FishSpeechConfig struct {
 	Version       string `json:"version" yaml:"version" default:"s1"`
 }
 
+// GetProvider returns the TTS provider type
+func (c *FishSpeechConfig) GetProvider() TTSProvider {
+	return ProviderFishSpeech
+}
+
 type FishSpeechService struct {
 	opt FishSpeechConfig
 	mu  sync.Mutex // 保护 opt 的并发访问

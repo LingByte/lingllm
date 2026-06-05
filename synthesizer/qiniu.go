@@ -34,6 +34,11 @@ type QiniuTTSConfig struct {
 	Retries       int    `json:"retries" yaml:"retries" default:"0"`
 }
 
+// GetProvider returns the TTS provider type
+func (c *QiniuTTSConfig) GetProvider() TTSProvider {
+	return ProviderQiniu
+}
+
 type QiniuService struct {
 	opt QiniuTTSConfig
 	mu  sync.Mutex // 保护 opt 的并发访问

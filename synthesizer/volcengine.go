@@ -72,6 +72,11 @@ type VolcengineTTSOption struct {
 	Ssml          bool    `json:"ssml"`          // 是否使用 SSML
 }
 
+// GetProvider returns the TTS provider type
+func (c *VolcengineTTSOption) GetProvider() TTSProvider {
+	return ProviderVolcengine
+}
+
 // VolcengineService 火山引擎标准TTS服务
 type VolcengineService struct {
 	opt VolcengineTTSOption

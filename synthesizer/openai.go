@@ -31,6 +31,11 @@ type OpenAIConfig struct {
 	BaseURL       string  `json:"base_url" yaml:"base_url" default:"https://api.openai.com"`
 }
 
+// GetProvider returns the TTS provider type
+func (c *OpenAIConfig) GetProvider() TTSProvider {
+	return ProviderOpenAI
+}
+
 type OpenAIService struct {
 	opt    OpenAIConfig
 	mu     sync.Mutex // 保护 opt 的并发访问

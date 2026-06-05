@@ -26,6 +26,11 @@ type AmazonTTSConfig struct {
 	FrameDuration string             `json:"frameDuration" env:"frame_duration" default:"20ms"`
 }
 
+// GetProvider returns the TTS provider type
+func (c *AmazonTTSConfig) GetProvider() TTSProvider {
+	return ProviderAWS
+}
+
 func (opt *AmazonTTSConfig) String() string {
 	return fmt.Sprintf("AmazonTTSOption{SampleRate: %d, Region: %s, Channel: %d, BitDepth: %d}",
 		opt.SampleRate, opt.Region, opt.Channels, opt.BitDepth)

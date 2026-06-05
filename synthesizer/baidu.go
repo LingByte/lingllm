@@ -29,6 +29,11 @@ type BaiduTTSConfig struct {
 	FrameDuration string `json:"frameDuration" env:"frame_duration" default:"20ms"`
 }
 
+// GetProvider returns the TTS provider type
+func (c *BaiduTTSConfig) GetProvider() TTSProvider {
+	return ProviderBaidu
+}
+
 func (opt *BaiduTTSConfig) String() string {
 	return fmt.Sprintf("BaiduTTSOption{Cuid: %s, Ctp: %s, Lan: %s, Spd: %s, Pit: %s, Vol: %s, Aue: %s, Channel: %d, SampleRate: %d, BitDepth: %d}",
 		opt.Cuid, opt.Ctp, opt.Lan, opt.Spd, opt.Pit, opt.Vol, opt.Aue, opt.Channels, opt.SampleRate, opt.BitDepth)
