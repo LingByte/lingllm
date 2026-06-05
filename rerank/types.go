@@ -56,11 +56,11 @@ const (
 
 // Common errors
 var (
-	ErrNilClient     = "client is nil"
-	ErrEmptyBaseURL  = "BaseURL is required"
-	ErrEmptyAPIKey   = "APIKey is required"
-	ErrEmptyModel    = "Model is required"
-	ErrEmptyQuery    = "query is empty"
+	ErrNilClient      = "client is nil"
+	ErrEmptyBaseURL   = "BaseURL is required"
+	ErrEmptyAPIKey    = "APIKey is required"
+	ErrEmptyModel     = "Model is required"
+	ErrEmptyQuery     = "query is empty"
 	ErrEmptyDocuments = "documents is empty"
-	ErrInvalidTopN   = "topN must be greater than 0"
+	ErrInvalidTopN    = "topN must be greater than 0"
 )

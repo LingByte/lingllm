@@ -100,32 +100,32 @@ func TestLocalRerankClient_DefaultTopN(t *testing.T) {
 
 func TestCalculateSimilarity(t *testing.T) {
 	tests := []struct {
-		name      string
-		query     string
+		name       string
+		query      string
 		queryWords []string
-		doc       string
-		minScore  float64
+		doc        string
+		minScore   float64
 	}{
 		{
-			name:      "exact match",
-			query:     "machine learning",
+			name:       "exact match",
+			query:      "machine learning",
 			queryWords: []string{"machine", "learning"},
-			doc:       "machine learning algorithms",
-			minScore:  0.5,
+			doc:        "machine learning algorithms",
+			minScore:   0.5,
 		},
 		{
-			name:      "partial match",
-			query:     "deep learning",
+			name:       "partial match",
+			query:      "deep learning",
 			queryWords: []string{"deep", "learning"},
-			doc:       "machine learning",
-			minScore:  0.1,
+			doc:        "machine learning",
+			minScore:   0.1,
 		},
 		{
-			name:      "no match",
-			query:     "python",
+			name:       "no match",
+			query:      "python",
 			queryWords: []string{"python"},
-			doc:       "java programming",
-			minScore:  0.0,
+			doc:        "java programming",
+			minScore:   0.0,
 		},
 	}
 
