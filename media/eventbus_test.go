@@ -2,6 +2,7 @@ package media
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 )
@@ -13,9 +14,12 @@ func TestEventBusPublish(t *testing.T) {
 	eb := NewEventBus(ctx, 10, 2)
 	defer eb.Close()
 
+	var mu sync.Mutex
 	received := false
 	eb.Subscribe(EventTypePacket, func(ctx context.Context, event *MediaEvent) error {
+		mu.Lock()
 		received = true
+		mu.Unlock()
 		return nil
 	})
 
@@ -24,6 +28,8 @@ func TestEventBusPublish(t *testing.T) {
 	// Give handler time to process
 	time.Sleep(100 * time.Millisecond)
 
+	mu.Lock()
+	defer mu.Unlock()
 	if !received {
 		t.Error("Event handler was not called")
 	}
@@ -36,9 +42,12 @@ func TestEventBusSubscribe(t *testing.T) {
 	eb := NewEventBus(ctx, 10, 2)
 	defer eb.Close()
 
+	var mu sync.Mutex
 	count := 0
 	eb.Subscribe(EventTypeState, func(ctx context.Context, event *MediaEvent) error {
+		mu.Lock()
 		count++
+		mu.Unlock()
 		return nil
 	})
 
@@ -47,6 +56,8 @@ func TestEventBusSubscribe(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
+	mu.Lock()
+	defer mu.Unlock()
 	if count != 2 {
 		t.Errorf("Expected 2 events, got %d", count)
 	}
@@ -59,9 +70,12 @@ func TestEventBusError(t *testing.T) {
 	eb := NewEventBus(ctx, 10, 2)
 	defer eb.Close()
 
+	var mu sync.Mutex
 	errorReceived := false
 	eb.Subscribe(EventTypeError, func(ctx context.Context, event *MediaEvent) error {
+		mu.Lock()
 		errorReceived = true
+		mu.Unlock()
 		return nil
 	})
 
@@ -69,6 +83,8 @@ func TestEventBusError(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
+	mu.Lock()
+	defer mu.Unlock()
 	if !errorReceived {
 		t.Error("Error event handler was not called")
 	}
