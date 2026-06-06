@@ -266,7 +266,7 @@ func TestTTSPipelineWithTextProcessors(t *testing.T) {
 	}
 
 	config := TTSPipelineConfig{
-		TTSService: mockService,
+		TTSService:     mockService,
 		TextProcessors: []TTSPipelineComponent{textProcessor},
 		SendCallback: func(data []byte) error {
 			return nil

@@ -221,10 +221,10 @@ func (c *Client) handleReadLoop() {
 
 		resp := ParseResponse(msgData)
 		logrus.WithFields(logrus.Fields{
-			"code":      resp.Code,
-			"event":     resp.Event,
-			"isFinal":   resp.IsLastPackage,
-			"traceID":   c.traceID,
+			"code":    resp.Code,
+			"event":   resp.Event,
+			"isFinal": resp.IsLastPackage,
+			"traceID": c.traceID,
 		}).Debug("asr response received")
 
 		// Send result to upper layer

@@ -49,7 +49,7 @@ func TestBuildStartSessionJSON(t *testing.T) {
 	p := startSessionPayload{
 		ASR: asrPayload{Format: "pcm", Rate: 16000, Bits: 16, Channel: 1},
 		TTS: ttsPayload{
-			Speaker: "zh_female_vv_jupiter_bigtts",
+			Speaker:     "zh_female_vv_jupiter_bigtts",
 			AudioConfig: audioConfig{Channel: 1, Format: "pcm_s16le", SampleRate: 24000},
 		},
 		Dialog: dialogPayload{

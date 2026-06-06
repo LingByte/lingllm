@@ -3,16 +3,14 @@ package asr
 import (
 	"context"
 	"fmt"
-	"math"
 	"sync"
 	"time"
+
+	"github.com/LingByte/lingllm/media/dsp"
 )
 
-// VADComponent is a voice activity detection component for the ASR pipeline.
-// It detects speech based on energy (RMS) analysis and supports:
-// - Adaptive noise threshold tracking
-// - Consecutive frame counting for barge-in detection
-// - Barge-in callback when speech is detected during TTS playback
+// VADComponent performs energy-based barge-in detection during downlink playback.
+// It must sit before EchoFilterComponent so it analyzes raw microphone PCM.
 type VADComponent struct {
 	mu                      sync.RWMutex
 	enabled                 bool
@@ -25,25 +23,23 @@ type VADComponent struct {
 	noiseSamples            []float64
 	maxNoiseSamples         int
 
-	// Callbacks
-	isTTSPlaying   func() bool // Check if TTS is playing
-	bargeInCallback func()      // Called when barge-in is detected
-	logger         func(string) // Logging callback
+	gate            *PlaybackGate
+	bargeInCallback func()
+	logger          func(string)
+
+	// armed prevents repeated barge-in fires until playback window closes.
+	armed bool
 }
 
 // VADConfig contains configuration for VAD component.
 type VADConfig struct {
-	// Enabled: whether VAD is enabled (default: true)
-	Enabled bool
-	// Threshold: RMS energy threshold for speech detection (default: 1500.0)
-	Threshold float64
-	// ConsecutiveFramesNeeded: how many consecutive frames above threshold trigger barge-in (default: 1)
+	Enabled                 bool
+	Threshold               float64
 	ConsecutiveFramesNeeded int
-	// MaxNoiseSamples: maximum number of noise samples to track (default: 20)
-	MaxNoiseSamples int
+	MaxNoiseSamples         int
 }
 
-// DefaultVADConfig returns the default VAD configuration.
+// DefaultVADConfig returns general-purpose VAD settings (not barge-in tuned).
 func DefaultVADConfig() VADConfig {
 	return VADConfig{
 		Enabled:                 true,
@@ -53,8 +49,19 @@ func DefaultVADConfig() VADConfig {
 	}
 }
 
-// NewVADComponent creates a new VAD component with the given configuration.
-func NewVADComponent(config VADConfig) *VADComponent {
+// DefaultBargeInVADConfig returns thresholds calibrated for interrupting TTS
+// on uncancelled speakers.
+func DefaultBargeInVADConfig() VADConfig {
+	return VADConfig{
+		Enabled:                 true,
+		Threshold:               4500.0,
+		ConsecutiveFramesNeeded: 5,
+		MaxNoiseSamples:         20,
+	}
+}
+
+// NewVADComponent creates a VAD stage. gate may be nil (detection disabled).
+func NewVADComponent(config VADConfig, gate *PlaybackGate) *VADComponent {
 	if config.Threshold == 0 {
 		config.Threshold = 1500.0
 	}
@@ -64,33 +71,26 @@ func NewVADComponent(config VADConfig) *VADComponent {
 	if config.MaxNoiseSamples == 0 {
 		config.MaxNoiseSamples = 20
 	}
-
 	return &VADComponent{
 		enabled:                 config.Enabled,
 		threshold:               config.Threshold,
-		adaptiveThreshold:       0,
 		consecutiveFramesNeeded: config.ConsecutiveFramesNeeded,
-		frameCounter:            0,
-		lastLogTime:             time.Now(),
-		noiseLevel:              0,
-		noiseSamples:            make([]float64, 0),
+		noiseSamples:            make([]float64, 0, config.MaxNoiseSamples),
 		maxNoiseSamples:         config.MaxNoiseSamples,
+		lastLogTime:             time.Now(),
+		gate:                    gate,
 	}
 }
 
 // Name returns the component name.
-func (v *VADComponent) Name() string {
-	return "vad"
-}
+func (v *VADComponent) Name() string { return "vad" }
 
-// Process processes one audio frame for voice activity detection.
-// Returns (pcmData, shouldContinue, error)
+// Process analyzes PCM for barge-in; audio passes through unchanged.
 func (v *VADComponent) Process(ctx context.Context, data interface{}) (interface{}, bool, error) {
 	pcmData, ok := data.([]byte)
 	if !ok {
 		return nil, false, fmt.Errorf("%w: expected []byte, got %T", ErrInvalidDataType, data)
 	}
-
 	if len(pcmData) < 2 {
 		return pcmData, true, nil
 	}
@@ -98,124 +98,83 @@ func (v *VADComponent) Process(ctx context.Context, data interface{}) (interface
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
-	if !v.enabled {
+	if !v.enabled || v.gate == nil {
 		return pcmData, true, nil
 	}
 
-	// Check if TTS is playing
-	isTTSPlaying := false
-	if v.isTTSPlaying != nil {
-		isTTSPlaying = v.isTTSPlaying()
+	inWindow := v.gate.IsBargeInWindow()
+	if !inWindow {
+		v.frameCounter = 0
+		v.armed = false
+		return pcmData, true, nil
 	}
 
-	// Calculate RMS energy
-	rms := v.calculateRMS(pcmData)
+	rms := dsp.RMSPCM16LE(pcmData)
+	v.updateNoiseFloor(rms)
+	effective := v.effectiveThreshold()
 
-	// Update adaptive threshold based on noise level
-	if rms < 350 {
-		v.noiseSamples = append(v.noiseSamples, rms)
-		if len(v.noiseSamples) > v.maxNoiseSamples {
-			v.noiseSamples = v.noiseSamples[1:]
-		}
-
-		var sum float64
-		for _, sample := range v.noiseSamples {
-			sum += sample
-		}
-
-		if len(v.noiseSamples) > 0 {
-			v.noiseLevel = sum / float64(len(v.noiseSamples))
-			v.adaptiveThreshold = v.noiseLevel * 4.0
-			if v.adaptiveThreshold < 180 {
-				v.adaptiveThreshold = 180
-			}
-			if v.adaptiveThreshold > v.threshold {
-				v.adaptiveThreshold = v.threshold
-			}
-		}
-	}
-
-	// Determine effective threshold
-	effectiveThreshold := v.threshold
-	if v.adaptiveThreshold > 0 {
-		minAdaptiveFloor := v.threshold * 0.65
-		if minAdaptiveFloor < 300 {
-			minAdaptiveFloor = 300
-		}
-		effectiveThreshold = v.adaptiveThreshold
-		if effectiveThreshold < minAdaptiveFloor {
-			effectiveThreshold = minAdaptiveFloor
-		}
-	}
-
-	// Check for speech
-	if rms > effectiveThreshold {
+	if rms > effective {
 		v.frameCounter++
-
-		// Log if needed
-		if v.logger != nil && time.Since(v.lastLogTime) >= time.Second {
-			v.lastLogTime = time.Now()
-			v.logger(fmt.Sprintf("[VAD] energy above threshold: rms=%.0f, threshold=%.0f, frames=%d/%d",
-				rms, effectiveThreshold, v.frameCounter, v.consecutiveFramesNeeded))
-		}
-
-		// Check if we have enough consecutive frames
-		if v.frameCounter >= v.consecutiveFramesNeeded {
-			if v.logger != nil {
-				v.logger(fmt.Sprintf("[VAD] barge-in detected: rms=%.0f, threshold=%.0f", rms, effectiveThreshold))
-			}
-
-			// Call barge-in callback if TTS is playing
-			if isTTSPlaying && v.bargeInCallback != nil {
-				v.bargeInCallback()
-			}
-
+		if v.frameCounter >= v.consecutiveFramesNeeded && !v.armed {
+			v.armed = true
 			v.frameCounter = 0
+			if v.logger != nil {
+				v.logger(fmt.Sprintf("[VAD] barge-in: rms=%.0f threshold=%.0f", rms, effective))
+			}
+			if v.bargeInCallback != nil {
+				// Fire without holding the lock.
+				cb := v.bargeInCallback
+				go cb()
+			}
 		}
 	} else {
-		// Energy below threshold - reset frame counter
-		if v.frameCounter > 0 && v.logger != nil && time.Since(v.lastLogTime) >= time.Second {
-			v.lastLogTime = time.Now()
-			v.logger(fmt.Sprintf("[VAD] energy below threshold: rms=%.0f, reset frames=%d", rms, v.frameCounter))
-		}
 		v.frameCounter = 0
 	}
 
 	return pcmData, true, nil
 }
 
-// SetEnabled enables or disables VAD detection.
-func (v *VADComponent) SetEnabled(enabled bool) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	v.enabled = enabled
-	if !enabled {
-		v.frameCounter = 0
+func (v *VADComponent) updateNoiseFloor(rms float64) {
+	if rms >= 350 {
+		return
+	}
+	v.noiseSamples = append(v.noiseSamples, rms)
+	if len(v.noiseSamples) > v.maxNoiseSamples {
+		v.noiseSamples = v.noiseSamples[1:]
+	}
+	var sum float64
+	for _, s := range v.noiseSamples {
+		sum += s
+	}
+	if len(v.noiseSamples) == 0 {
+		return
+	}
+	v.noiseLevel = sum / float64(len(v.noiseSamples))
+	v.adaptiveThreshold = v.noiseLevel * 4.0
+	if v.adaptiveThreshold < 180 {
+		v.adaptiveThreshold = 180
+	}
+	if v.adaptiveThreshold > v.threshold {
+		v.adaptiveThreshold = v.threshold
 	}
 }
 
-// SetThreshold sets the RMS energy threshold for speech detection.
-func (v *VADComponent) SetThreshold(threshold float64) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	v.threshold = threshold
+func (v *VADComponent) effectiveThreshold() float64 {
+	effective := v.threshold
+	if v.adaptiveThreshold > 0 {
+		floor := v.threshold * 0.65
+		if floor < 300 {
+			floor = 300
+		}
+		effective = v.adaptiveThreshold
+		if effective < floor {
+			effective = floor
+		}
+	}
+	return effective
 }
 
-// SetConsecutiveFrames sets how many consecutive frames above threshold trigger barge-in.
-func (v *VADComponent) SetConsecutiveFrames(frames int) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	v.consecutiveFramesNeeded = frames
-}
-
-// SetTTSPlayingCallback sets the callback to check if TTS is playing.
-func (v *VADComponent) SetTTSPlayingCallback(callback func() bool) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	v.isTTSPlaying = callback
-}
-
-// SetBargeInCallback sets the callback for barge-in detection.
+// SetBargeInCallback sets the callback invoked on barge-in (edge-triggered per window).
 func (v *VADComponent) SetBargeInCallback(callback func()) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
@@ -229,25 +188,35 @@ func (v *VADComponent) SetLogger(callback func(string)) {
 	v.logger = callback
 }
 
-// calculateRMS calculates the RMS (Root Mean Square) energy of PCM16 audio data.
-func (v *VADComponent) calculateRMS(pcmData []byte) float64 {
-	if len(pcmData) < 2 {
-		return 0
+// SetEnabled enables or disables VAD.
+func (v *VADComponent) SetEnabled(enabled bool) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.enabled = enabled
+	if !enabled {
+		v.frameCounter = 0
+		v.armed = false
 	}
+}
 
-	var sumSquares float64
-	sampleCount := len(pcmData) / 2
-	if sampleCount == 0 {
-		return 0
-	}
+// SetThreshold sets the RMS energy threshold.
+func (v *VADComponent) SetThreshold(threshold float64) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.threshold = threshold
+}
 
-	// Process 16-bit little-endian PCM samples
-	for i := 0; i < len(pcmData)-1; i += 2 {
-		// Combine two bytes into a 16-bit signed integer (little-endian)
-		sample := int16(pcmData[i]) | int16(pcmData[i+1])<<8
-		absSample := math.Abs(float64(sample))
-		sumSquares += absSample * absSample
-	}
+// SetConsecutiveFrames sets frames required before barge-in fires.
+func (v *VADComponent) SetConsecutiveFrames(frames int) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.consecutiveFramesNeeded = frames
+}
 
-	return math.Sqrt(sumSquares / float64(sampleCount))
+// Reset clears internal state between turns.
+func (v *VADComponent) Reset() {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.frameCounter = 0
+	v.armed = false
 }

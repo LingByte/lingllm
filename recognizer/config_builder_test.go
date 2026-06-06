@@ -27,9 +27,9 @@ func TestConfigReaderString(t *testing.T) {
 
 func TestConfigReaderInt(t *testing.T) {
 	config := map[string]interface{}{
-		"port":   8080,
-		"count":  int64(42),
-		"ratio":  3.14,
+		"port":  8080,
+		"count": int64(42),
+		"ratio": 3.14,
 	}
 
 	reader := NewConfigReader(config)

@@ -38,16 +38,16 @@ func TestNormalizeFramePeriod(t *testing.T) {
 		{"20ms", true},
 		{"50ms", true},
 		{"100ms", true},
-		{"5ms", false},  // Too small, should default to 20ms
-		{"500ms", false}, // Too large, should default to 20ms
+		{"5ms", false},     // Too small, should default to 20ms
+		{"500ms", false},   // Too large, should default to 20ms
 		{"invalid", false}, // Invalid, should default to 20ms
-		{"", false}, // Empty, should default to 20ms
+		{"", false},        // Empty, should default to 20ms
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			got := NormalizeFramePeriod(tt.input)
-			
+
 			if tt.valid {
 				// For valid inputs, check they're in reasonable range
 				if got < 10*time.Millisecond || got > 300*time.Millisecond {

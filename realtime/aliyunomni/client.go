@@ -229,14 +229,16 @@ func (a *agent) doStart(ctx context.Context) error {
 func (a *agent) buildSession() map[string]any {
 	mods := a.opts.Modalities
 	if len(mods) == 0 {
-		mods = []string{"audio", "text"}
+		mods = []string{"text", "audio"}
 	}
 	session := map[string]any{
 		"voice":               a.cfg.Voice,
 		"modalities":          mods,
-		"output_modalities":   mods,
-		"input_audio_format":  "pcm16",
-		"output_audio_format": "pcm16",
+		"input_audio_format":  "pcm",
+		"output_audio_format": "pcm",
+		"input_audio_transcription": map[string]any{
+			"model": "gummy-realtime-v1",
+		},
 	}
 	if tools := realtime.ToolsForSession(a.opts.Tools); len(tools) > 0 {
 		session["tools"] = tools
@@ -244,7 +246,12 @@ func (a *agent) buildSession() map[string]any {
 	if !a.opts.DisableServerVAD {
 		// Vendor default is server VAD on; we set it explicitly so future
 		// schema changes don't silently flip behaviour.
-		session["turn_detection"] = map[string]any{"type": "server_vad"}
+		session["turn_detection"] = map[string]any{
+			"type":                "server_vad",
+			"threshold":           0.5,
+			"prefix_padding_ms":   500,
+			"silence_duration_ms": 800,
+		}
 	} else {
 		session["turn_detection"] = nil
 	}
@@ -499,7 +506,7 @@ func (a *agent) dispatch(raw []byte) {
 			Final:  true,
 		})
 
-	case "response.audio.delta":
+	case "response.audio.delta", "response.output_audio.delta":
 		var msg wireDelta
 		_ = json.Unmarshal(raw, &msg)
 		if msg.Delta == "" {

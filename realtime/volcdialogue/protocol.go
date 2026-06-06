@@ -59,14 +59,14 @@ const (
 
 // frame is a parsed server or client binary message.
 type frame struct {
-	msgType      byte
-	flags        byte
+	msgType       byte
+	flags         byte
 	serialization byte
-	compression  byte
-	event        int32
-	sessionID    string
-	payload      []byte
-	errorCode    uint32
+	compression   byte
+	event         int32
+	sessionID     string
+	payload       []byte
+	errorCode     uint32
 }
 
 func (f *frame) isAudioServer() bool {
@@ -252,8 +252,8 @@ type asrPayload struct {
 }
 
 type ttsPayload struct {
-	Speaker     string       `json:"speaker"`
-	AudioConfig audioConfig  `json:"audio_config"`
+	Speaker     string         `json:"speaker"`
+	AudioConfig audioConfig    `json:"audio_config"`
 	Extra       map[string]any `json:"extra,omitempty"`
 }
 

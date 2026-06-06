@@ -53,7 +53,7 @@ func TestNormalizeFramePeriodValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := NormalizeFramePeriod(tt.input)
-			
+
 			// Check if result is within valid range
 			if result < tt.min || result > tt.max {
 				t.Errorf("NormalizeFramePeriod(%s) = %v, outside range [%v, %v]",
@@ -65,7 +65,7 @@ func TestNormalizeFramePeriodValidation(t *testing.T) {
 
 func TestNormalizeFramePeriodDefaults(t *testing.T) {
 	defaultDuration := 20 * time.Millisecond
-	
+
 	tests := []string{
 		"invalid",
 		"",

@@ -64,12 +64,12 @@ func TestClientClose(t *testing.T) {
 	}
 
 	client := NewClient(config)
-	
+
 	// Mark as closed before calling Close to avoid waiting for loops
 	client.mu.Lock()
 	client.isClosed = true
 	client.mu.Unlock()
-	
+
 	client.Close()
 
 	if !client.IsClosed() {

@@ -6,9 +6,9 @@ import (
 
 func TestEventType(t *testing.T) {
 	tests := []struct {
-		name     string
+		name      string
 		eventType EventType
-		expected string
+		expected  string
 	}{
 		{"SessionOpen", EventSessionOpen, "session.open"},
 		{"SessionClose", EventSessionClose, "session.close"},

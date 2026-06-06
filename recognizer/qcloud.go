@@ -288,6 +288,7 @@ func (asq *QCloudASR) ConnAndReceive(dialogID string) error {
 	err := recognizer.Start()
 	if err != nil {
 		logrus.WithError(err).Error("qcloud: recognizer.Start")
+		return err
 	}
 	asq.recognizer = recognizer
 	now := time.Now()

@@ -336,15 +336,15 @@ func TestFactoryCreateServiceFromJSONWithAllOptions(t *testing.T) {
 	config := Config{
 		Provider: ProviderXunfei,
 		Options: map[string]interface{}{
-			"app_id":           "test_app",
-			"api_key":          "test_key",
-			"base_url":         "http://custom.url",
-			"timeout":          60,
-			"engine_version":   "omni_v1",
-			"vcn":              "x6_clone",
-			"ws_app_id":        "ws_app",
-			"ws_api_key":       "ws_key",
-			"ws_api_secret":    "ws_secret",
+			"app_id":         "test_app",
+			"api_key":        "test_key",
+			"base_url":       "http://custom.url",
+			"timeout":        60,
+			"engine_version": "omni_v1",
+			"vcn":            "x6_clone",
+			"ws_app_id":      "ws_app",
+			"ws_api_key":     "ws_key",
+			"ws_api_secret":  "ws_secret",
 		},
 	}
 

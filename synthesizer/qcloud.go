@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/LingByte/lingllm/media"
+	"github.com/LingByte/lingllm/utils"
 	"github.com/sirupsen/logrus"
 	"github.com/tencentcloud/tencentcloud-speech-sdk-go/common"
 	"github.com/tencentcloud/tencentcloud-speech-sdk-go/tts"
@@ -103,6 +104,11 @@ func (qs *QCloudService) CacheKey(text string) string {
 }
 
 func (qs *QCloudService) Synthesize(ctx context.Context, handler AudioSynthesisHandler, text string) error {
+	text = utils.SanitizeForSpeech(text)
+	if text == "" || !utils.HasSpeakableContent(text) {
+		return nil
+	}
+
 	qs.mu.Lock()
 	opt := qs.opt
 	qs.mu.Unlock()

@@ -42,14 +42,14 @@ type TextSegment struct {
 
 // CreateTaskRequest 创建训练任务请求
 type CreateTaskRequest struct {
-	TaskName       string  `json:"task_name"`        // 任务名称
-	Sex            int     `json:"sex"`              // 性别 1:男 2:女
-	AgeGroup       int     `json:"age_group"`        // 年龄段 1:儿童 2:青年 3:中年 4:中老年
-	Language       string  `json:"language"`         // 语言代码，如 zh, en
-	ResourceType   int     `json:"resource_type"`    // 12=一句话复刻
-	EngineVersion  string  `json:"engine_version"`   // 多风格版传 omni_v1；标准版不传
-	Denoise        int     `json:"denoise"`          // 0关 1开
-	MosRatio       float64 `json:"mos_ratio"`        // 音频检测阈值，0 表示关闭
+	TaskName      string  `json:"task_name"`      // 任务名称
+	Sex           int     `json:"sex"`            // 性别 1:男 2:女
+	AgeGroup      int     `json:"age_group"`      // 年龄段 1:儿童 2:青年 3:中年 4:中老年
+	Language      string  `json:"language"`       // 语言代码，如 zh, en
+	ResourceType  int     `json:"resource_type"`  // 12=一句话复刻
+	EngineVersion string  `json:"engine_version"` // 多风格版传 omni_v1；标准版不传
+	Denoise       int     `json:"denoise"`        // 0关 1开
+	MosRatio      float64 `json:"mos_ratio"`      // 音频检测阈值，0 表示关闭
 }
 
 // CreateTaskResponse 创建训练任务响应

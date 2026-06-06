@@ -18,18 +18,18 @@ type TTSWorkerConfig struct {
 
 // TTSWorkerPool manages multiple TTS worker goroutines.
 type TTSWorkerPool struct {
-	mu              sync.RWMutex
-	config          TTSWorkerConfig
-	ttsService      TTSService
-	inputCh         <-chan TextSegment
-	outputCh        chan<- AudioFrame
-	ctx             context.Context
-	cancel          context.CancelFunc
-	wg              sync.WaitGroup
-	logger          func(string)
-	sequenceMu      sync.Mutex
-	globalSeq       uint32
-	ttsServiceMu    sync.RWMutex
+	mu           sync.RWMutex
+	config       TTSWorkerConfig
+	ttsService   TTSService
+	inputCh      <-chan TextSegment
+	outputCh     chan<- AudioFrame
+	ctx          context.Context
+	cancel       context.CancelFunc
+	wg           sync.WaitGroup
+	logger       func(string)
+	sequenceMu   sync.Mutex
+	globalSeq    uint32
+	ttsServiceMu sync.RWMutex
 }
 
 // NewTTSWorkerPool creates a new TTS worker pool.

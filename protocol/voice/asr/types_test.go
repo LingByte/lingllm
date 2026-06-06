@@ -223,8 +223,8 @@ func TestPCMInputComponentEmptyData(t *testing.T) {
 }
 
 func TestEchoFilterComponent(t *testing.T) {
-	isTTSPlaying := func() bool { return false }
-	comp := NewEchoFilterComponent(isTTSPlaying)
+	gate := NewPlaybackGate(func() bool { return false }, func() int { return 0 }, 0)
+	comp := NewEchoFilterComponent(gate)
 
 	if comp.Name() != "echo_filter" {
 		t.Errorf("Name = %s, want 'echo_filter'", comp.Name())
@@ -253,8 +253,8 @@ func TestEchoFilterComponent(t *testing.T) {
 }
 
 func TestEchoFilterComponentWithTTS(t *testing.T) {
-	isTTSPlaying := func() bool { return true }
-	comp := NewEchoFilterComponent(isTTSPlaying)
+	gate := NewPlaybackGate(func() bool { return true }, func() int { return 0 }, 0)
+	comp := NewEchoFilterComponent(gate)
 
 	data := []byte{0x00, 0x01, 0x02}
 	result, shouldContinue, err := comp.Process(context.Background(), data)

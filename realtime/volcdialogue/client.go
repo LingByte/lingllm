@@ -23,15 +23,15 @@ import (
 )
 
 const (
-	ProviderSlug       = "volcengine_dialogue"
-	defaultWSURL       = "wss://openspeech.bytedance.com/api/v3/realtime/dialogue"
-	defaultResourceID  = "volc.speech.dialog"
-	defaultAppKey      = "PlgvMymc7f3tQnJ6"
-	defaultModelO      = "1.2.1.1" // O2.0
-	defaultModelSC     = "2.2.0.0" // SC2.0
-	defaultSpeaker     = "zh_female_vv_jupiter_bigtts"
-	defaultDialMs      = 15000
-	defaultSendBuf     = 32
+	ProviderSlug      = "volcengine_dialogue"
+	defaultWSURL      = "wss://openspeech.bytedance.com/api/v3/realtime/dialogue"
+	defaultResourceID = "volc.speech.dialog"
+	defaultAppKey     = "PlgvMymc7f3tQnJ6"
+	defaultModelO     = "1.2.1.1" // O2.0
+	defaultModelSC    = "2.2.0.0" // SC2.0
+	defaultSpeaker    = "zh_female_vv_jupiter_bigtts"
+	defaultDialMs     = 15000
+	defaultSendBuf    = 32
 )
 
 func init() {
@@ -40,18 +40,18 @@ func init() {
 
 // Config is the tenant credential JSON for this provider.
 type Config struct {
-	AppID       string
-	AccessKey   string
-	AppKey      string
-	ResourceID  string
-	BaseURL     string
-	Model       string // 1.2.1.1 (O) or 2.2.0.0 (SC)
-	Speaker     string
-	BotName     string
-	SystemRole  string
-	SpeakingStyle string
+	AppID             string
+	AccessKey         string
+	AppKey            string
+	ResourceID        string
+	BaseURL           string
+	Model             string // 1.2.1.1 (O) or 2.2.0.0 (SC)
+	Speaker           string
+	BotName           string
+	SystemRole        string
+	SpeakingStyle     string
 	CharacterManifest string
-	DialTimeoutMs int
+	DialTimeoutMs     int
 }
 
 // New is the realtime.Provider entry point.
@@ -61,18 +61,18 @@ type Config struct {
 //	characterManifest, baseUrl, dialTimeoutMs
 func New(cfg map[string]any, opts realtime.Options) (realtime.Agent, error) {
 	c := Config{
-		AppID:         firstString(cfg, "appId", "app_id"),
-		AccessKey:     firstString(cfg, "accessKey", "access_key", "access_token", "token"),
-		AppKey:        firstString(cfg, "appKey", "app_key"),
-		ResourceID:    firstString(cfg, "resourceId", "resource_id"),
-		BaseURL:       firstString(cfg, "baseUrl", "base_url"),
-		Model:         firstString(cfg, "model"),
-		Speaker:       firstString(cfg, "speaker", "voice"),
-		BotName:       firstString(cfg, "botName", "bot_name"),
-		SystemRole:    firstString(cfg, "systemRole", "system_role", "instructions"),
-		SpeakingStyle: firstString(cfg, "speakingStyle", "speaking_style"),
+		AppID:             firstString(cfg, "appId", "app_id"),
+		AccessKey:         firstString(cfg, "accessKey", "access_key", "access_token", "token"),
+		AppKey:            firstString(cfg, "appKey", "app_key"),
+		ResourceID:        firstString(cfg, "resourceId", "resource_id"),
+		BaseURL:           firstString(cfg, "baseUrl", "base_url"),
+		Model:             firstString(cfg, "model"),
+		Speaker:           firstString(cfg, "speaker", "voice"),
+		BotName:           firstString(cfg, "botName", "bot_name"),
+		SystemRole:        firstString(cfg, "systemRole", "system_role", "instructions"),
+		SpeakingStyle:     firstString(cfg, "speakingStyle", "speaking_style"),
 		CharacterManifest: firstString(cfg, "characterManifest", "character_manifest"),
-		DialTimeoutMs: firstInt(cfg, "dialTimeoutMs", "dial_timeout_ms"),
+		DialTimeoutMs:     firstInt(cfg, "dialTimeoutMs", "dial_timeout_ms"),
 	}
 	if c.AppID == "" || c.AccessKey == "" {
 		return nil, fmt.Errorf("volcdialogue: appId and accessKey are required")
@@ -108,10 +108,10 @@ func New(cfg map[string]any, opts realtime.Options) (realtime.Agent, error) {
 	c.SystemRole = sys
 
 	return &agent{
-		cfg:      c,
-		opts:     opts,
+		cfg:       c,
+		opts:      opts,
 		sessionID: uuid.New().String(),
-		sendCh:   make(chan []byte, defaultSendBuf),
+		sendCh:    make(chan []byte, defaultSendBuf),
 	}, nil
 }
 
@@ -380,9 +380,9 @@ func (a *agent) writeLoop() {
 			}
 			if err := a.conn.WriteMessage(websocket.BinaryMessage, frame); err != nil {
 				a.emit(realtime.Event{
-					Type:  realtime.EventError,
-					Err:   fmt.Errorf("volcdialogue: write: %w", err),
-					Fatal: true,
+					Type:   realtime.EventError,
+					Err:    fmt.Errorf("volcdialogue: write: %w", err),
+					Fatal:  true,
 					Vendor: ProviderSlug,
 				})
 				return
@@ -406,9 +406,9 @@ func (a *agent) readLoop() {
 		if err != nil {
 			if !a.closed.Load() {
 				a.emit(realtime.Event{
-					Type:  realtime.EventError,
-					Err:   fmt.Errorf("volcdialogue: read: %w", err),
-					Fatal: true,
+					Type:   realtime.EventError,
+					Err:    fmt.Errorf("volcdialogue: read: %w", err),
+					Fatal:  true,
 					Vendor: ProviderSlug,
 				})
 			}
@@ -417,9 +417,9 @@ func (a *agent) readLoop() {
 		f, err := parseFrame(data)
 		if err != nil {
 			a.emit(realtime.Event{
-				Type:  realtime.EventError,
-				Err:   err,
-				Fatal: false,
+				Type:   realtime.EventError,
+				Err:    err,
+				Fatal:  false,
 				Vendor: ProviderSlug,
 			})
 			continue
@@ -431,9 +431,9 @@ func (a *agent) readLoop() {
 func (a *agent) dispatch(f *frame) {
 	if f.msgType == msgTypeError {
 		a.emit(realtime.Event{
-			Type:  realtime.EventError,
-			Err:   fmt.Errorf("volcdialogue: server error %d: %s", f.errorCode, string(f.payload)),
-			Fatal: true,
+			Type:   realtime.EventError,
+			Err:    fmt.Errorf("volcdialogue: server error %d: %s", f.errorCode, string(f.payload)),
+			Fatal:  true,
 			Vendor: ProviderSlug,
 		})
 		return
@@ -502,9 +502,9 @@ func (a *agent) dispatch(f *frame) {
 			msg = de.Message
 		}
 		a.emit(realtime.Event{
-			Type:  realtime.EventError,
-			Err:   fmt.Errorf("volcdialogue: event %d: %s", f.event, msg),
-			Fatal: true,
+			Type:   realtime.EventError,
+			Err:    fmt.Errorf("volcdialogue: event %d: %s", f.event, msg),
+			Fatal:  true,
 			Vendor: ProviderSlug,
 		})
 

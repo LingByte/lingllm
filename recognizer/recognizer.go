@@ -40,10 +40,10 @@ type Recognizer struct {
 	mu     sync.Mutex
 
 	// Audio buffer and configuration
-	pendingAudio      []byte
-	targetBufferSize  int
-	audioConfig       AudioConfig
-	timeoutConfig     TimeoutConfig
+	pendingAudio     []byte
+	targetBufferSize int
+	audioConfig      AudioConfig
+	timeoutConfig    TimeoutConfig
 
 	// Callback functions
 	onResult onResultFunc
@@ -68,8 +68,8 @@ func NewRecognizer(config *Config) *Recognizer {
 		pendingAudio:     make([]byte, 0, bufferSize),
 		targetBufferSize: bufferSize,
 		audioConfig: AudioConfig{
-			Rate:   config.Audio.Rate,
-			Bits:   config.Audio.Bits,
+			Rate:    config.Audio.Rate,
+			Bits:    config.Audio.Bits,
 			Channel: config.Audio.Channel,
 		},
 		timeoutConfig: TimeoutConfig{

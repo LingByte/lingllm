@@ -70,7 +70,63 @@ var (
 	reBlockQuote = regexp.MustCompile("(?m)^>\\s+")
 	reListMarker = regexp.MustCompile("(?m)^\\s*([-*+]\\s+|\\d+\\.\\s+)")
 	reEmphasis   = regexp.MustCompile("(\\*\\*|__|\\*|_)")
+	reEmoji      = regexp.MustCompile(`[\x{00A9}\x{00AE}\x{203C}\x{2049}\x{2122}\x{2139}\x{2194}-\x{2199}\x{21A9}-\x{21AA}\x{231A}-\x{231B}\x{2328}\x{23CF}\x{23E9}-\x{23F3}\x{23F8}-\x{23FA}\x{24C2}\x{25AA}-\x{25AB}\x{25B6}\x{25C0}\x{25FB}-\x{25FE}\x{2600}-\x{26FF}\x{2700}-\x{27BF}\x{2B05}-\x{2B07}\x{2B1B}-\x{2B1C}\x{2B50}\x{2B55}\x{3030}\x{303D}\x{3297}\x{3299}\x{1F004}\x{1F0CF}\x{1F170}-\x{1F251}\x{1F300}-\x{1F5FF}\x{1F600}-\x{1F64F}\x{1F680}-\x{1F6FF}\x{1F910}-\x{1F93E}\x{1F940}-\x{1F94C}\x{1F950}-\x{1F96B}\x{1F980}-\x{1F997}\x{1F9C0}-\x{1F9E6}\x{1FA70}-\x{1FA74}\x{1FA78}-\x{1FA7A}\x{1FA80}-\x{1FA86}\x{1FA90}-\x{1FAA8}\x{1FAB0}-\x{1FAB6}\x{1FAC0}-\x{1FAC2}\x{1FAD0}-\x{1FAD6}\x{1F1E6}-\x{1F1FF}\x{200D}\x{FE0F}]`)
+	reSSMLUnsafe = regexp.MustCompile(`[<>&]`)
 )
+
+// SanitizeForSpeech prepares LLM or ASR text for cloud TTS (strip markdown/emoji, etc.).
+func SanitizeForSpeech(s string) string {
+	s = CleanText(s, &Options{StripMarkdown: true})
+	s = reEmoji.ReplaceAllString(s, "")
+	s = replaceSmartQuotes(s)
+	s = reSSMLUnsafe.ReplaceAllString(s, " ")
+	s = normalizeWhitespace(s)
+	s = strings.TrimSpace(s)
+	if !HasSpeakableContent(s) {
+		return ""
+	}
+	return s
+}
+
+// HasSpeakableContent reports whether text contains letters, digits, or CJK characters.
+func HasSpeakableContent(s string) bool {
+	for _, r := range s {
+		if isSpeakableRune(r) {
+			return true
+		}
+	}
+	return false
+}
+
+func isSpeakableRune(r rune) bool {
+	if unicode.IsLetter(r) || unicode.IsNumber(r) {
+		return true
+	}
+	switch {
+	case r >= 0x4E00 && r <= 0x9FFF:
+		return true
+	case r >= 0x3400 && r <= 0x4DBF:
+		return true
+	case r >= 0x3040 && r <= 0x30FF: // Japanese kana
+		return true
+	case r >= 0xAC00 && r <= 0xD7AF: // Korean hangul syllables
+		return true
+	}
+	return false
+}
+
+func replaceSmartQuotes(s string) string {
+	return strings.NewReplacer(
+		"\u2018", "'",
+		"\u2019", "'",
+		"\u201C", "\"",
+		"\u201D", "\"",
+		"\u2026", "...",
+		"\u200B", "",
+		"\u200C", "",
+		"\u200D", "",
+	).Replace(s)
+}
 
 func stripMarkdown(s string) string {
 	s = reCodeFence.ReplaceAllString(s, " ")

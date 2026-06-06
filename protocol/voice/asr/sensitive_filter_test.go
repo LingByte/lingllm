@@ -106,7 +106,7 @@ func TestSensitiveFilterComponentBlacklist(t *testing.T) {
 
 func TestSensitiveFilterComponentWhitelist(t *testing.T) {
 	config := SensitiveFilterConfig{
-		Blacklist:   []string{"\\btest\\b"},  // Word boundary to match only "test" not "test123"
+		Blacklist:   []string{"\\btest\\b"}, // Word boundary to match only "test" not "test123"
 		Whitelist:   []string{"test123"},
 		FilterEmoji: false,
 	}
@@ -245,7 +245,7 @@ func TestSensitiveFilterComponentSetBlacklistInvalidPattern(t *testing.T) {
 
 func TestSensitiveFilterComponentSetWhitelist(t *testing.T) {
 	config := SensitiveFilterConfig{
-		Blacklist:   []string{"\\btest\\b"},  // Word boundary to match only "test" not "test123"
+		Blacklist:   []string{"\\btest\\b"}, // Word boundary to match only "test" not "test123"
 		FilterEmoji: false,
 	}
 	filter, _ := NewSensitiveFilterComponent(config)
@@ -317,7 +317,7 @@ func TestSensitiveFilterComponentSetReplaceWith(t *testing.T) {
 
 func TestSensitiveFilterComponentRegexPattern(t *testing.T) {
 	config := SensitiveFilterConfig{
-		Blacklist:   []string{"\\d{3}-\\d{4}"},  // Phone number pattern
+		Blacklist:   []string{"\\d{3}-\\d{4}"}, // Phone number pattern
 		FilterEmoji: false,
 	}
 	filter, _ := NewSensitiveFilterComponent(config)

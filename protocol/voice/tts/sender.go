@@ -36,15 +36,15 @@ type AudioSenderConfig struct {
 
 // AudioSender handles audio encoding and sending.
 type AudioSender struct {
-	mu                  sync.RWMutex
-	config              AudioSenderConfig
-	encoder             media.EncoderFunc
-	buffer              []EncodedFrame
-	bufferMu            sync.Mutex
-	ctx                 context.Context
-	cancel              context.CancelFunc
-	logger              func(string)
-	notifyCh            chan struct{}
+	mu       sync.RWMutex
+	config   AudioSenderConfig
+	encoder  media.EncoderFunc
+	buffer   []EncodedFrame
+	bufferMu sync.Mutex
+	ctx      context.Context
+	cancel   context.CancelFunc
+	logger   func(string)
+	notifyCh chan struct{}
 }
 
 // NewAudioSender creates a new audio sender.
@@ -92,11 +92,11 @@ func NewAudioSender(config AudioSenderConfig) (*AudioSender, error) {
 	}
 
 	return &AudioSender{
-		config:     config,
-		encoder:    encoderFunc,
-		buffer:     make([]EncodedFrame, 0, 100),
-		logger:     config.Logger,
-		notifyCh:   make(chan struct{}, 1),
+		config:   config,
+		encoder:  encoderFunc,
+		buffer:   make([]EncodedFrame, 0, 100),
+		logger:   config.Logger,
+		notifyCh: make(chan struct{}, 1),
 	}, nil
 }
 

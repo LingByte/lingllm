@@ -34,6 +34,8 @@ type PipelineComponent interface {
 type Pipeline interface {
 	// Process processes one audio frame through the entire pipeline.
 	Process(ctx context.Context, data interface{}) (interface{}, error)
+	// ProcessOutput runs recognized text through output stages and fires callbacks.
+	ProcessOutput(ctx context.Context, text string, isFinal bool)
 	// SetOutputCallback sets the callback for final output.
 	SetOutputCallback(callback func(text string, isFinal bool))
 	// SetPCMAudioCallback sets the callback for PCM audio recording.
@@ -196,9 +198,25 @@ func (p *StandardPipeline) SetPCMAudioCallback(callback func(data []byte) error)
 	p.onPCMAudio = callback
 }
 
-// SetBargeInCallback sets the callback for barge-in detection.
+// SetBargeInCallback sets the callback for barge-in detection on all VAD stages.
 func (p *StandardPipeline) SetBargeInCallback(callback func()) {
-	// TODO: Implement barge-in callback for VAD component
+	for _, stage := range p.inputStages {
+		if vad, ok := stage.(*VADComponent); ok {
+			vad.SetBargeInCallback(callback)
+		}
+	}
+}
+
+// WirePlaybackGate attaches a shared gate to VAD and echo-filter stages.
+func (p *StandardPipeline) WirePlaybackGate(gate *PlaybackGate) {
+	for _, stage := range p.inputStages {
+		switch s := stage.(type) {
+		case *VADComponent:
+			s.gate = gate
+		case *EchoFilterComponent:
+			s.gate = gate
+		}
+	}
 }
 
 // SetTTSPlaying sets the TTS playing state.

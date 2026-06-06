@@ -142,6 +142,9 @@ func buildQCloudConfig(config map[string]interface{}) (*QCloudASROption, error) 
 	}
 
 	opt := NewQcloudASROption(appID, secretID, secretKey)
+	if mt := cfg.String("modelType", "model_type"); mt != "" {
+		opt.ModelType = mt
+	}
 	return &opt, nil
 }
 

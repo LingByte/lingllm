@@ -41,10 +41,10 @@ func DefaultDecoderConfig() DecoderConfig {
 // DecoderComponent decodes compressed audio (e.g., Opus) to PCM.
 // It uses the media/encoder package to handle codec-specific decoding.
 type DecoderComponent struct {
-	mu              sync.RWMutex
-	config          DecoderConfig
-	decoderFunc     media.EncoderFunc
-	logger          func(string)
+	mu          sync.RWMutex
+	config      DecoderConfig
+	decoderFunc media.EncoderFunc
+	logger      func(string)
 }
 
 // NewDecoderComponent creates a new decoder component with the given configuration.
@@ -71,9 +71,9 @@ func NewDecoderComponent(config DecoderConfig) (*DecoderComponent, error) {
 
 	// Create source and target codec configs
 	srcConfig := media.CodecConfig{
-		Codec:      config.SourceCodec,
-		SampleRate: config.SourceSampleRate,
-		Channels:   config.SourceChannels,
+		Codec:         config.SourceCodec,
+		SampleRate:    config.SourceSampleRate,
+		Channels:      config.SourceChannels,
 		FrameDuration: config.FrameDuration,
 	}
 

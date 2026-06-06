@@ -156,3 +156,12 @@ func TestCleanText_Combined(t *testing.T) {
 	assert.NotContains(t, out, "#")
 	assert.NotContains(t, out, "**")
 }
+
+func TestSanitizeForSpeech(t *testing.T) {
+	out := SanitizeForSpeech("**Sure**, I can hear you! 😊")
+	assert.Equal(t, "Sure, I can hear you!", out)
+	assert.Empty(t, SanitizeForSpeech("---"))
+	assert.Empty(t, SanitizeForSpeech("😊"))
+	assert.True(t, HasSpeakableContent("What's your name?"))
+	assert.False(t, HasSpeakableContent("..."))
+}

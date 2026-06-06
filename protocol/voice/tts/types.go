@@ -2,7 +2,9 @@ package tts
 
 import (
 	"context"
+	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -62,6 +64,8 @@ type TTSPipelineConfig struct {
 	RecordCallback func(data []byte) error
 	// Logger: optional logging callback
 	Logger func(string)
+	// PaceRealtime sleeps between frames so playback matches wall-clock (required for RTP/VoIP).
+	PaceRealtime bool
 }
 
 // DefaultTTSPipelineConfig returns default TTS pipeline configuration.
@@ -78,21 +82,30 @@ func DefaultTTSPipelineConfig(ttsService TTSService) TTSPipelineConfig {
 
 // TTSPipeline manages text-to-speech synthesis with pluggable components.
 type TTSPipeline struct {
-	mu                sync.RWMutex
-	config            TTSPipelineConfig
-	ttsService        TTSService
-	textProcessors    []TTSPipelineComponent
-	audioProcessors   []TTSPipelineComponent
-	currentPlayID     string
-	globalSeq         uint32
-	seqMu             sync.Mutex
-	ctx               context.Context
-	cancel            context.CancelFunc
-	logger            func(string)
-	onCompleteFunc    func()
-	completeMu        sync.Mutex
-	completionCancel  context.CancelFunc
+	mu                 sync.RWMutex
+	config             TTSPipelineConfig
+	ttsService         TTSService
+	textProcessors     []TTSPipelineComponent
+	audioProcessors    []TTSPipelineComponent
+	currentPlayID      string
+	globalSeq          uint32
+	seqMu              sync.Mutex
+	ctx                context.Context
+	cancel             context.CancelFunc
+	logger             func(string)
+	onCompleteFunc     func()
+	completeMu         sync.Mutex
+	completionCancel   context.CancelFunc
 	completionCancelMu sync.Mutex
+
+	speakMu        sync.Mutex
+	speakCtx       context.Context
+	speakCancel    context.CancelFunc
+	playing        atomic.Bool
+	firstFrameHook atomic.Pointer[func()]
+
+	paceMu      sync.Mutex
+	nextFrameAt time.Time
 }
 
 // NewTTSPipeline creates a new TTS pipeline with the given configuration.
@@ -118,11 +131,11 @@ func NewTTSPipeline(config TTSPipelineConfig) (*TTSPipeline, error) {
 	}
 
 	return &TTSPipeline{
-		config:         config,
-		ttsService:     config.TTSService,
-		textProcessors: config.TextProcessors,
+		config:          config,
+		ttsService:      config.TTSService,
+		textProcessors:  config.TextProcessors,
 		audioProcessors: config.AudioProcessors,
-		logger:         config.Logger,
+		logger:          config.Logger,
 	}, nil
 }
 
@@ -142,6 +155,7 @@ func (p *TTSPipeline) Start(ctx context.Context) error {
 
 // Stop stops the TTS pipeline.
 func (p *TTSPipeline) Stop() error {
+	p.Interrupt()
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -162,156 +176,15 @@ func (p *TTSPipeline) Stop() error {
 	return nil
 }
 
-// Synthesize synthesizes text to audio.
+// Synthesize synthesizes text to audio using the provided context.
 func (p *TTSPipeline) Synthesize(ctx context.Context, text string) error {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	if p.ctx == nil {
-		return ErrPipelineNotStarted
+	if p == nil {
+		return errors.New("tts: nil pipeline")
 	}
-
-	// Process text through text processors
-	processedText := text
-	for _, processor := range p.textProcessors {
-		result, shouldContinue, err := processor.Process(ctx, processedText)
-		if err != nil {
-			if p.logger != nil {
-				p.logger("[TTS Pipeline] Text processing error: " + err.Error())
-			}
-			return err
-		}
-
-		if !shouldContinue {
-			return nil
-		}
-
-		if resultStr, ok := result.(string); ok {
-			processedText = resultStr
-		}
-	}
-
 	if p.logger != nil {
-		p.logger("[TTS Pipeline] Synthesizing: " + processedText)
+		p.logger("[TTS Pipeline] Synthesizing: " + text)
 	}
-
-	// Synthesize the processed text
-	const frameSizeBytes = 1920 // 60ms @ 16kHz, 16bit, mono
-	estimatedSize := len(processedText) * 100
-	if estimatedSize < frameSizeBytes*2 {
-		estimatedSize = frameSizeBytes * 2
-	}
-	buffer := make([]byte, 0, estimatedSize)
-
-	err := p.ttsService.Synthesize(p.ctx, processedText, func(pcmData []byte) error {
-		buffer = append(buffer, pcmData...)
-
-		for len(buffer) >= frameSizeBytes {
-			frameData := make([]byte, frameSizeBytes)
-			copy(frameData, buffer[:frameSizeBytes])
-			buffer = buffer[frameSizeBytes:]
-
-			// Process audio through audio processors
-			audioData := interface{}(frameData)
-			for _, processor := range p.audioProcessors {
-				result, shouldContinue, err := processor.Process(ctx, audioData)
-				if err != nil {
-					if p.logger != nil {
-						p.logger("[TTS Pipeline] Audio processing error: " + err.Error())
-					}
-					return err
-				}
-
-				if !shouldContinue {
-					return nil
-				}
-
-				audioData = result
-			}
-
-			// Convert back to bytes for sending
-			var audioBytes []byte
-			if resultBytes, ok := audioData.([]byte); ok {
-				audioBytes = resultBytes
-			} else {
-				audioBytes = frameData
-			}
-
-			// Record audio if callback is set
-			if p.config.RecordCallback != nil {
-				if err := p.config.RecordCallback(audioBytes); err != nil {
-					if p.logger != nil {
-						p.logger("[TTS Pipeline] Recording error: " + err.Error())
-					}
-				}
-			}
-
-			// Send audio
-			if err := p.config.SendCallback(audioBytes); err != nil {
-				if p.logger != nil {
-					p.logger("[TTS Pipeline] Send error: " + err.Error())
-				}
-				return err
-			}
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		if p.logger != nil {
-			p.logger("[TTS Pipeline] Synthesis error: " + err.Error())
-		}
-		return err
-	}
-
-	// Handle remaining data
-	if len(buffer) > 0 {
-		// Process audio through audio processors
-		audioData := interface{}(buffer)
-		for _, processor := range p.audioProcessors {
-			result, shouldContinue, err := processor.Process(ctx, audioData)
-			if err != nil {
-				if p.logger != nil {
-					p.logger("[TTS Pipeline] Audio processing error: " + err.Error())
-				}
-				return err
-			}
-
-			if !shouldContinue {
-				return nil
-			}
-
-			audioData = result
-		}
-
-		// Convert back to bytes for sending
-		var audioBytes []byte
-		if resultBytes, ok := audioData.([]byte); ok {
-			audioBytes = resultBytes
-		} else {
-			audioBytes = buffer
-		}
-
-		// Record audio if callback is set
-		if p.config.RecordCallback != nil {
-			if err := p.config.RecordCallback(audioBytes); err != nil {
-				if p.logger != nil {
-					p.logger("[TTS Pipeline] Recording error: " + err.Error())
-				}
-			}
-		}
-
-		// Send audio
-		if err := p.config.SendCallback(audioBytes); err != nil {
-			if p.logger != nil {
-				p.logger("[TTS Pipeline] Send error: " + err.Error())
-			}
-			return err
-		}
-	}
-
-	return nil
+	return p.synthesize(ctx, text)
 }
 
 // SetOnCompleteFunc sets the completion callback.

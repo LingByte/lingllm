@@ -8,12 +8,12 @@ import (
 
 // MockVoiceCloneService is a mock implementation of VoiceCloneService for testing.
 type MockVoiceCloneService struct {
-	providerFunc        func() Provider
+	providerFunc         func() Provider
 	getTrainingTextsFunc func(ctx context.Context, textID int64) (*TrainingText, error)
-	createTaskFunc      func(ctx context.Context, req *CreateTaskRequest) (*CreateTaskResponse, error)
-	submitAudioFunc     func(ctx context.Context, req *SubmitAudioRequest) error
+	createTaskFunc       func(ctx context.Context, req *CreateTaskRequest) (*CreateTaskResponse, error)
+	submitAudioFunc      func(ctx context.Context, req *SubmitAudioRequest) error
 	queryTaskStatusFunc  func(ctx context.Context, taskID string) (*TaskStatus, error)
-	synthesizeFunc      func(ctx context.Context, req *SynthesizeRequest) (*SynthesizeResponse, error)
+	synthesizeFunc       func(ctx context.Context, req *SynthesizeRequest) (*SynthesizeResponse, error)
 	synthesizeStreamFunc func(ctx context.Context, req *SynthesizeRequest, handler SynthesisHandler) error
 }
 
