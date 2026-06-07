@@ -34,6 +34,8 @@ type VolcengineCloneConfig struct {
 	AppID         string  `json:"app_id"`
 	Token         string  `json:"token"`          // WebSocket认证token（必需）
 	Cluster       string  `json:"cluster"`        // 集群名称，默认 "volcano_icl"
+	ResourceID    string  `json:"resource_id"`    // API Resource-Id: seed-icl-1.0 / seed-icl-2.0
+	ModelType     int     `json:"model_type"`     // 训练模型: 1=ICL1.0, 4=ICL2.0, 5=ICL3.0
 	VoiceType     string  `json:"voice_type"`     // 音色类型（训练好的音色ID）
 	Encoding      string  `json:"encoding"`       // 编码格式，默认 "pcm"
 	SampleRate    int     `json:"sample_rate"`    // 采样率，默认 8000
@@ -91,6 +93,12 @@ func NewVolcengineCloneService(config VolcengineCloneConfig) *VolcengineCloneSer
 	if config.Cluster == "" {
 		config.Cluster = VolcengineCloneCluster
 	}
+	if config.ResourceID == "" {
+		config.ResourceID = "seed-icl-2.0"
+	}
+	if config.ModelType == 0 {
+		config.ModelType = 4
+	}
 	if config.Encoding == "" {
 		config.Encoding = "pcm"
 	}
@@ -145,6 +153,22 @@ func (s *VolcengineCloneService) CreateTask(ctx context.Context, req *CreateTask
 	return nil, fmt.Errorf("volcengine training requires speaker_id from console, please use SubmitAudio directly with speaker_id")
 }
 
+// parseSpeakerID extracts speaker id from task id forms:
+// S_xxx, speaker_id:S_xxx, speaker_id:S_xxx:wav
+func parseSpeakerID(taskID string) string {
+	id := strings.TrimSpace(taskID)
+	if strings.HasPrefix(id, "speaker_id:") {
+		parts := strings.Split(strings.TrimPrefix(id, "speaker_id:"), ":")
+		if len(parts) > 0 && parts[0] != "" {
+			return parts[0]
+		}
+	}
+	if i := strings.Index(id, ":"); i >= 0 {
+		return id[:i]
+	}
+	return id
+}
+
 // SubmitAudio 提交音频文件进行训练
 // speaker_id 需要从控制台获取，或通过 TaskID 参数传入（格式：speaker_id:xxx）
 func (s *VolcengineCloneService) SubmitAudio(ctx context.Context, req *SubmitAudioRequest) error {
@@ -152,11 +176,7 @@ func (s *VolcengineCloneService) SubmitAudio(ctx context.Context, req *SubmitAud
 		return fmt.Errorf("token is required for training")
 	}
 
-	// 从 TaskID 中提取 speaker_id，格式：speaker_id:xxx 或直接是 speaker_id
-	speakerID := req.TaskID
-	if strings.HasPrefix(speakerID, "speaker_id:") {
-		speakerID = strings.TrimPrefix(speakerID, "speaker_id:")
-	}
+	speakerID := parseSpeakerID(req.TaskID)
 
 	url := "https://openspeech.bytedance.com/api/v1/mega_tts/audio/upload"
 
@@ -194,19 +214,22 @@ func (s *VolcengineCloneService) SubmitAudio(ctx context.Context, req *SubmitAud
 	// 实际使用时，建议在调用 SubmitAudio 前根据文件扩展名判断格式
 	// 并通过 TaskID 参数传入格式信息，或修改 SubmitAudioRequest 添加格式字段
 
+	audioItem := map[string]interface{}{
+		"audio_bytes":  audioBase64,
+		"audio_format": audioFormat,
+	}
+	if strings.TrimSpace(req.TrainText) != "" {
+		audioItem["text"] = strings.TrimSpace(req.TrainText)
+	}
+
 	// 构建请求体
 	requestBody := map[string]interface{}{
 		"appid":      s.config.AppID,
 		"speaker_id": speakerID,
-		"audios": []map[string]interface{}{
-			{
-				"audio_bytes":  audioBase64,
-				"audio_format": audioFormat,
-			},
-		},
+		"audios":     []map[string]interface{}{audioItem},
 		"source":     2, // 固定值
 		"language":   0, // 0=中文，1=英文，2=日语等
-		"model_type": 1, // 1=声音复刻ICL1.0效果
+		"model_type": s.config.ModelType,
 	}
 
 	// 额外参数（可选）
@@ -227,7 +250,7 @@ func (s *VolcengineCloneService) SubmitAudio(ctx context.Context, req *SubmitAud
 	// 设置请求头
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", fmt.Sprintf("Bearer;%s", s.config.Token))
-	httpReq.Header.Set("Resource-Id", "volc.megatts.voiceclone")
+	httpReq.Header.Set("Resource-Id", s.config.ResourceID)
 
 	resp, err := s.httpClient.Do(httpReq)
 	if err != nil {
@@ -235,8 +258,8 @@ func (s *VolcengineCloneService) SubmitAudio(ctx context.Context, req *SubmitAud
 	}
 	defer resp.Body.Close()
 
+	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("training failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -248,7 +271,7 @@ func (s *VolcengineCloneService) SubmitAudio(ctx context.Context, req *SubmitAud
 		SpeakerID string `json:"speaker_id"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+	if err := json.Unmarshal(body, &apiResp); err != nil {
 		return fmt.Errorf("failed to decode response: %w", err)
 	}
 
@@ -257,9 +280,14 @@ func (s *VolcengineCloneService) SubmitAudio(ctx context.Context, req *SubmitAud
 		if apiResp.BaseResp.StatusCode == 1123 {
 			return fmt.Errorf("training failed: 已达上传次数限制（同一音色最多支持10次上传），错误信息: %s", apiResp.BaseResp.StatusMessage)
 		}
-		return fmt.Errorf("training failed: %s", apiResp.BaseResp.StatusMessage)
+		return fmt.Errorf("training failed: code=%d msg=%s", apiResp.BaseResp.StatusCode, apiResp.BaseResp.StatusMessage)
 	}
 
+	logrus.WithFields(logrus.Fields{
+		"speaker_id":  apiResp.SpeakerID,
+		"resource_id": s.config.ResourceID,
+		"model_type":  s.config.ModelType,
+	}).Info("volcengine_clone: audio upload accepted")
 	return nil
 }
 
@@ -270,11 +298,7 @@ func (s *VolcengineCloneService) QueryTaskStatus(ctx context.Context, taskID str
 		return nil, fmt.Errorf("token is required for querying status")
 	}
 
-	// 从 TaskID 中提取 speaker_id
-	speakerID := taskID
-	if strings.HasPrefix(speakerID, "speaker_id:") {
-		speakerID = strings.TrimPrefix(speakerID, "speaker_id:")
-	}
+	speakerID := parseSpeakerID(taskID)
 
 	url := "https://openspeech.bytedance.com/api/v1/mega_tts/status"
 
@@ -296,7 +320,7 @@ func (s *VolcengineCloneService) QueryTaskStatus(ctx context.Context, taskID str
 	// 设置请求头
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", fmt.Sprintf("Bearer;%s", s.config.Token))
-	httpReq.Header.Set("Resource-Id", "volc.megatts.voiceclone")
+	httpReq.Header.Set("Resource-Id", s.config.ResourceID)
 
 	resp, err := s.httpClient.Do(httpReq)
 	if err != nil {
@@ -304,8 +328,8 @@ func (s *VolcengineCloneService) QueryTaskStatus(ctx context.Context, taskID str
 	}
 	defer resp.Body.Close()
 
+	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("query status failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -321,12 +345,12 @@ func (s *VolcengineCloneService) QueryTaskStatus(ctx context.Context, taskID str
 		DemoAudio  string `json:"demo_audio"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+	if err := json.Unmarshal(body, &apiResp); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
 	if apiResp.BaseResp.StatusCode != 0 {
-		return nil, fmt.Errorf("query status failed: %s", apiResp.BaseResp.StatusMessage)
+		return nil, fmt.Errorf("query status failed: code=%d msg=%s", apiResp.BaseResp.StatusCode, apiResp.BaseResp.StatusMessage)
 	}
 
 	// 转换状态
@@ -537,7 +561,7 @@ func (s *VolcengineCloneService) synthesizeWithWebSocket(ctx context.Context, re
 	wsURL := "wss://openspeech.bytedance.com/api/v1/tts/ws_binary"
 	headers := http.Header{
 		"Authorization": []string{fmt.Sprintf("Bearer;%s", s.config.Token)},
-		"Resource-Id":   []string{"volc.megatts.voiceclone"}, // 声音复刻资源ID
+		"Resource-Id":   []string{s.config.ResourceID},
 	}
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, headers)
 	if err != nil {
@@ -625,7 +649,7 @@ func (s *VolcengineCloneService) synthesizeStreamWithWebSocket(ctx context.Conte
 		"app_id":     s.config.AppID,
 		"voice_type": req.AssetID,
 		"cluster":    s.config.Cluster,
-	}).Debug("volcengine: synthesizing with WebSocket (stream mode)")
+	}).Info("volcengine_clone: synthesizing with WebSocket (stream mode)")
 
 	// 压缩请求
 	compressed := gzipCompress(input)
@@ -644,7 +668,7 @@ func (s *VolcengineCloneService) synthesizeStreamWithWebSocket(ctx context.Conte
 	wsURL := "wss://openspeech.bytedance.com/api/v1/tts/ws_binary"
 	headers := http.Header{
 		"Authorization": []string{fmt.Sprintf("Bearer;%s", s.config.Token)},
-		"Resource-Id":   []string{"volc.megatts.voiceclone"}, // 声音复刻资源ID
+		"Resource-Id":   []string{s.config.ResourceID},
 	}
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, headers)
 	if err != nil {
@@ -721,6 +745,9 @@ func (s *VolcengineCloneService) synthesizeStreamWithWebSocket(ctx context.Conte
 		}
 	}
 
+	if firstAudio {
+		return fmt.Errorf("volcengine_clone: no audio received for text=%q voice=%s", req.Text, req.AssetID)
+	}
 	return nil
 }
 
@@ -731,7 +758,7 @@ func (s *VolcengineCloneService) buildWebSocketRequestParams(text, voiceType str
 
 	params["app"] = make(map[string]interface{})
 	params["app"]["appid"] = s.config.AppID
-	params["app"]["token"] = s.config.Token
+	params["app"]["token"] = "access_token" // 固定值，鉴权在 Authorization header
 	params["app"]["cluster"] = s.config.Cluster
 
 	params["user"] = make(map[string]interface{})

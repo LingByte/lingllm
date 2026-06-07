@@ -63,6 +63,8 @@ const (
 	ProviderCoqui TTSProvider = "coqui"
 	// ProviderVolcengine 火山引擎标准TTS
 	ProviderVolcengine TTSProvider = "volcengine"
+	// ProviderVolcengineClone 火山引擎声音复刻TTS
+	ProviderVolcengineClone TTSProvider = "volcengine_clone"
 	// ProviderMinimax Minimax TTS
 	ProviderMinimax TTSProvider = "minimax"
 )

@@ -106,6 +106,9 @@ func (v *volcengineSpeechSynthesisListener) sendStreamRequest(ctx context.Contex
 			break
 		}
 	}
+	if !ttfbLogged {
+		return ts, fmt.Errorf("volcengine tts ws: no audio for text=%q voice=%s", text, opt.VoiceType)
+	}
 	return ts, nil
 }
 

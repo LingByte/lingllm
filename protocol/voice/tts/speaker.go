@@ -3,6 +3,7 @@ package tts
 import (
 	"context"
 	"errors"
+	"log"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -391,6 +392,9 @@ playback:
 
 	dur := time.Since(start)
 	ok := playErr == nil
+	if playErr != nil && !errors.Is(playErr, ErrInterrupted) {
+		log.Printf("[voice] tts segment failed utter=%s text=%q err=%v", job.utteranceID, job.text, playErr)
+	}
 
 	ttsFirstMs := 0
 	e2eFirstMs := 0

@@ -222,6 +222,14 @@ func (f *DefaultSynthesisFactory) registerDefaultCreators() {
 		return NewVolcengineService(*volcengineConfig), nil
 	})
 
+	f.RegisterCreator(ProviderVolcengineClone, func(config SynthesisConfig) (AudioSynthesisEngine, error) {
+		cloneConfig, ok := config.(*VolcengineCloneOption)
+		if !ok {
+			return nil, fmt.Errorf("invalid config type for volcengine_clone, expected *VolcengineCloneOption")
+		}
+		return NewVolcengineCloneEngine(*cloneConfig)
+	})
+
 	// 注册Minimax
 	f.RegisterCreator(ProviderMinimax, func(config SynthesisConfig) (AudioSynthesisEngine, error) {
 		minimaxConfig, ok := config.(*MinimaxOption)

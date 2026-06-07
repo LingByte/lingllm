@@ -66,6 +66,8 @@ func (f *Factory) createVolcengineService(options map[string]interface{}) (Voice
 	appID, _ := options["app_id"].(string)
 	token, _ := options["token"].(string)
 	cluster, _ := options["cluster"].(string)
+	resourceID, _ := options["resource_id"].(string)
+	modelType, _ := options["model_type"].(int)
 
 	// Token 对于 HTTP API（训练和查询状态）和 WebSocket API（合成）都是必需的
 	if token == "" {
@@ -90,6 +92,8 @@ func (f *Factory) createVolcengineService(options map[string]interface{}) (Voice
 		AppID:         appID,
 		Token:         token,
 		Cluster:       cluster,
+		ResourceID:    resourceID,
+		ModelType:     modelType,
 		VoiceType:     voiceType,
 		Encoding:      encoding,
 		SampleRate:    sampleRate,

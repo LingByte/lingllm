@@ -533,6 +533,9 @@ func NewAudioSynthesisEngine(name string, options map[string]any) (AudioSynthesi
 	case TTS_VOLCENGINE:
 		opt := media.CastOption[VolcengineTTSOption](options)
 		return NewVolcengineService(opt), nil
+	case TTS_VOLCENGINE_CLONE:
+		opt := media.CastOption[VolcengineCloneOption](options)
+		return NewVolcengineCloneEngine(opt)
 	case TTS_MINIMAX:
 		opt := media.CastOption[MinimaxOption](options)
 		return NewMinimaxService(opt), nil
@@ -966,6 +969,99 @@ func NewAudioSynthesisEngineFromCredential(config TTSCredentialConfig) (AudioSyn
 		options = make(map[string]any)
 		if err := json.Unmarshal(configBytes, &options); err != nil {
 			return nil, fmt.Errorf("反序列化火山引擎配置失败: %w", err)
+		}
+
+	case "volcengine_clone":
+		appID := config.getString("appId")
+		if appID == "" {
+			appID = config.getString("app_id")
+		}
+		accessToken := config.getString("accessToken")
+		if accessToken == "" {
+			accessToken = config.getString("access_token")
+		}
+		if accessToken == "" {
+			accessToken = config.getString("token")
+		}
+		assetID := config.getString("assetId")
+		if assetID == "" {
+			assetID = config.getString("asset_id")
+		}
+		if assetID == "" {
+			assetID = config.getString("voiceType")
+		}
+		if assetID == "" {
+			assetID = config.getString("voice_type")
+		}
+		if appID == "" || accessToken == "" {
+			return nil, fmt.Errorf("火山引擎克隆TTS配置不完整：缺少appId或accessToken")
+		}
+		if assetID == "" {
+			return nil, fmt.Errorf("火山引擎克隆TTS配置不完整：缺少assetId")
+		}
+		providerName = TTS_VOLCENGINE_CLONE
+		cluster := config.getString("cluster")
+		if cluster == "" || cluster == "volcano_tts" {
+			cluster = VolcengineCloneCluster
+		}
+		encoding := config.getString("encoding")
+		if encoding == "" {
+			encoding = "pcm"
+		}
+		rate := int(config.getInt64("rate"))
+		if rate == 0 {
+			rate = int(config.getInt64("sampleRate"))
+		}
+		if rate == 0 {
+			rate = int(config.getInt64("sample_rate"))
+		}
+		if rate == 0 {
+			rate = 16000
+		}
+		sourceRate := int(config.getInt64("sourceRate"))
+		if sourceRate == 0 {
+			sourceRate = int(config.getInt64("source_rate"))
+		}
+		speedRatio := 1.0
+		if speedStr := config.getString("speedRatio"); speedStr != "" {
+			if f, err := strconv.ParseFloat(speedStr, 64); err == nil {
+				speedRatio = f
+			}
+		}
+		resourceID := config.getString("resourceId")
+		if resourceID == "" {
+			resourceID = config.getString("resource_id")
+		}
+		if resourceID == "" {
+			resourceID = "seed-icl-2.0"
+		}
+		modelType := int(config.getInt64("modelType"))
+		if modelType == 0 {
+			modelType = int(config.getInt64("model_type"))
+		}
+		if modelType == 0 {
+			modelType = 4
+		}
+		cloneOpt := VolcengineCloneOption{
+			AppID:       appID,
+			AccessToken: accessToken,
+			Cluster:     cluster,
+			ResourceID:  resourceID,
+			ModelType:   modelType,
+			AssetID:     assetID,
+			Encoding:    encoding,
+			Rate:        rate,
+			SourceRate:  sourceRate,
+			SpeedRatio:  speedRatio,
+			Streaming:   config.getBool("streaming", true),
+		}
+		configBytes, err := json.Marshal(cloneOpt)
+		if err != nil {
+			return nil, fmt.Errorf("序列化火山引擎克隆配置失败: %w", err)
+		}
+		options = make(map[string]any)
+		if err := json.Unmarshal(configBytes, &options); err != nil {
+			return nil, fmt.Errorf("反序列化火山引擎克隆配置失败: %w", err)
 		}
 
 	case "minimax":

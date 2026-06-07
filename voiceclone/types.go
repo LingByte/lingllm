@@ -64,6 +64,7 @@ type SubmitAudioRequest struct {
 	TextSegID int64     `json:"text_seg_id"` // 文本段落ID
 	AudioFile io.Reader `json:"-"`           // 音频文件
 	Language  string    `json:"language"`    // 语言代码
+	TrainText string    `json:"-"`           // 音频对应念诵文本（火山 mega_tts 用于 WER 校验）
 	MosRatio  float64   `json:"mos_ratio"`   // 可选，>0 开启音频检测
 }
 
