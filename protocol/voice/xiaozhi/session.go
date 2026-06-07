@@ -56,6 +56,9 @@ type wsSession struct {
 	
 	// Custom message handlers for extensibility
 	customHandlers map[string]MessageHandler
+	
+	// Audio processing optimization
+	audioProcessChan chan []byte
 }
 
 func newSession(cfg ServerConfig, conn *websocket.Conn, callID, deviceID string) *wsSession {
@@ -83,6 +86,13 @@ func (s *wsSession) run(parentCtx context.Context) {
 	defer cancel()
 	defer s.teardown("loop-exit")
 
+	// Initialize audio processing channel
+	s.audioProcessChan = make(chan []byte, 32) // Buffer up to 32 frames
+	defer close(s.audioProcessChan)
+	
+	// Start audio processing goroutine
+	go s.audioProcessWorker(ctx)
+
 	for {
 		if s.closed.Load() {
 			return
@@ -96,7 +106,12 @@ func (s *wsSession) run(parentCtx context.Context) {
 		case websocket.TextMessage:
 			s.handleText(ctx, raw)
 		case websocket.BinaryMessage:
-			s.handleAudio(ctx, raw)
+			// Non-blocking send to audio processing channel
+			select {
+			case s.audioProcessChan <- raw:
+			default:
+				// Channel full, drop frame to avoid blocking
+			}
 		}
 	}
 }
@@ -296,14 +311,31 @@ func (s *wsSession) handleAbort() {
 	s.writeText(MakeAbortConfirm(s.sessionID))
 }
 
+// audioProcessWorker processes audio frames asynchronously to avoid blocking the message loop
+func (s *wsSession) audioProcessWorker(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case frame, ok := <-s.audioProcessChan:
+			if !ok {
+				return
+			}
+			s.handleAudio(ctx, frame)
+		}
+	}
+}
+
 func (s *wsSession) handleAudio(ctx context.Context, frame []byte) {
 	if s.mode == ModeRealtime {
 		s.handleAudioRealtime(ctx, frame)
 		return
 	}
-	if s.voiceSess == nil || !s.listening.Load() || s.ttsActive.Load() {
+	if s.voiceSess == nil || !s.listening.Load() {
 		return
 	}
+	// Don't skip audio if TTS is active - buffer it for processing
+	// This improves latency by not losing audio during TTS playback
 	var pcm []byte
 	if s.opusDec != nil {
 		out, err := s.opusDec(&media.AudioPacket{Payload: frame})
