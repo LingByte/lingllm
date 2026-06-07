@@ -167,7 +167,12 @@ func (s *wsSession) handleHello(ctx context.Context, raw []byte) {
 
 	if s.inFormat == AudioFormatOpus {
 		dec, err := encoder.CreateDecode(
-			media.CodecConfig{Codec: "opus", SampleRate: s.inSR, Channels: 1, FrameDuration: fmt.Sprintf("%dms", s.inFrameMs)},
+			media.CodecConfig{
+				Codec:         "opus",
+				SampleRate:    s.inSR,
+				Channels:      1,
+				FrameDuration: fmt.Sprintf("%dms", s.inFrameMs),
+			},
 			media.CodecConfig{Codec: "pcm", SampleRate: s.inSR, Channels: 1},
 		)
 		if err != nil {
@@ -178,7 +183,12 @@ func (s *wsSession) handleHello(ctx context.Context, raw []byte) {
 	}
 	if s.outFormat == AudioFormatOpus {
 		enc, err := encoder.CreateEncode(
-			media.CodecConfig{Codec: "opus", SampleRate: s.outSR, Channels: 1, FrameDuration: fmt.Sprintf("%dms", s.ttsWireFrameMs)},
+			media.CodecConfig{
+				Codec:         "opus",
+				SampleRate:    s.outSR,
+				Channels:      1,
+				FrameDuration: fmt.Sprintf("%dms", s.ttsWireFrameMs),
+			},
 			media.CodecConfig{Codec: "pcm", SampleRate: s.outSR, Channels: 1},
 		)
 		if err != nil {

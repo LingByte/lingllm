@@ -467,7 +467,7 @@
                 
                 // Add a gain node for volume control
                 const gainNode = audioContext.createGain();
-                gainNode.gain.value = 0.8; // 80% volume to prevent clipping
+                gainNode.gain.value = 1.0; // Full volume (audio is already normalized)
                 
                 source.connect(gainNode);
                 gainNode.connect(audioContext.destination);
