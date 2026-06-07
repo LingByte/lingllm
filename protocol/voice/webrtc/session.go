@@ -271,18 +271,29 @@ func (s *session) startVoice(ctx context.Context) error {
 		s.cfg.ConfigureClient(&gwCfg)
 	}
 
+	paceRealtime := true
 	voiceSess, gw, err := transport.NewCall(ctx, transport.CallConfig{
-		CallID:        s.callID,
-		DialogURL:     s.dialogDialURL,
-		Meta:          meta,
-		Factory:       s.cfg.SessionFactory,
-		OnAudioOut:    s.ttsSink,
-		InputCodec:    "pcm",
-		OutputCodec:   "pcm",
-		PCMSampleRate: s.bridgeSR,
-		Denoiser:      dn,
-		Gateway:       gwCfg,
-		OnHangup:      func(reason string) { s.teardown("dialog-hangup:" + reason) },
+		CallID:           s.callID,
+		DialogURL:        s.dialogDialURL,
+		Meta:             meta,
+		Factory:          s.cfg.SessionFactory,
+		OnAudioOut:       s.ttsSink,
+		InputCodec:       "pcm",
+		OutputCodec:      "pcm",
+		PCMSampleRate:    s.bridgeSR,
+		PaceRealtime:     &paceRealtime,
+		TTSFrameDuration: 20 * time.Millisecond,
+		Denoiser:         dn,
+		Gateway:          gwCfg,
+		OnHangup: func(reason string) { s.teardown("dialog-hangup:" + reason) },
+		OnFirstAudio: func(ev dialog.FirstAudioEvent) {
+			log.Printf("[voice] call=%s first_audio utter=%s tts_first=%dms e2e_first=%dms",
+				s.callID, ev.UtteranceID, ev.TTSFirstByteMs, ev.E2EFirstByteMs)
+		},
+		OnTurn: func(ev dialog.TurnEvent) {
+			log.Printf("[voice] call=%s utter=%s tts_first=%dms e2e_first=%dms play=%dms ok=%v text_len=%d",
+				s.callID, ev.UtteranceID, ev.TTSFirstByteMs, ev.E2EFirstByteMs, ev.DurationMs, ev.OK, len(ev.LLMText))
+		},
 	})
 	if err != nil {
 		return err

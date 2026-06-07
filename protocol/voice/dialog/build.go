@@ -27,7 +27,8 @@ type Config struct {
 
 	OnEvent  EventHandler
 	OnHangup func(reason string)
-	OnTurn   func(TurnEvent)
+	OnTurn       func(TurnEvent)
+	OnFirstAudio func(FirstAudioEvent)
 
 	// EnableVAD enables barge-in during downlink playback (default true).
 	EnableVAD *bool

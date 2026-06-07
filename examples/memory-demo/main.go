@@ -5,8 +5,10 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/LingByte/lingllm/chain"
+	"github.com/LingByte/lingllm/examples/exutil"
 	"github.com/LingByte/lingllm/memory"
 	"github.com/LingByte/lingllm/protocol"
 	_ "github.com/LingByte/lingllm/protocol/openai"
@@ -89,11 +91,13 @@ func demoMultiTurnConversation(ctx context.Context, c *chain.NodeChain, model st
 				MaxTokens: 200,
 			}
 
+			e2eStart := time.Now()
 			resp, err := c.Invoke(ctx, req)
 			if err != nil {
 				log.Printf("Error: %v", err)
 				return
 			}
+			exutil.LogChat("multi-turn", resp, e2eStart)
 
 			response := resp.FirstContent()
 			fmt.Printf("[Assistant]: %s\n", response)
@@ -151,11 +155,13 @@ Based on this context, answer the user's latest question.`, wm.ToPrompt())
 		MaxTokens: 300,
 	}
 
+	e2eStart := time.Now()
 	resp, err := c.Invoke(ctx, req)
 	if err != nil {
 		log.Printf("Error: %v", err)
 		return
 	}
+	exutil.LogChat("memory-context", resp, e2eStart)
 
 	fmt.Printf("Response: %s\n", resp.FirstContent())
 }

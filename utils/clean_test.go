@@ -164,4 +164,7 @@ func TestSanitizeForSpeech(t *testing.T) {
 	assert.Empty(t, SanitizeForSpeech("😊"))
 	assert.True(t, HasSpeakableContent("What's your name?"))
 	assert.False(t, HasSpeakableContent("..."))
+	assert.False(t, IsCloudTTSAcceptable("，"))
+	assert.True(t, IsCloudTTSAcceptable("你好。"))
+	assert.Empty(t, SanitizeForSpeech("<speak></speak>"))
 }

@@ -2,8 +2,8 @@ package tts
 
 import (
 	"context"
+	"strings"
 	"testing"
-	"time"
 )
 
 func TestTextSegmenterComponentCreation(t *testing.T) {
@@ -22,95 +22,123 @@ func TestTextSegmenterComponentCreation(t *testing.T) {
 func TestTextSegmenterComponentDefaultConfig(t *testing.T) {
 	config := DefaultTextSegmenterConfig()
 
-	if config.DelayTimeout != 50*time.Millisecond {
-		t.Errorf("DelayTimeout = %v, want 50ms", config.DelayTimeout)
+	if config.FirstMinChars != 2 {
+		t.Errorf("FirstMinChars = %d, want 2", config.FirstMinChars)
 	}
-
-	if config.MinChars != 15 {
-		t.Errorf("MinChars = %d, want 15", config.MinChars)
+	if config.FirstMaxChars != 18 {
+		t.Errorf("FirstMaxChars = %d, want 18", config.FirstMaxChars)
 	}
-
-	if config.MaxChars != 35 {
-		t.Errorf("MaxChars = %d, want 35", config.MaxChars)
+	if config.RestForceMaxChars != 120 {
+		t.Errorf("RestForceMaxChars = %d, want 120", config.RestForceMaxChars)
 	}
 }
 
 func TestTextSegmenterComponentEmptyText(t *testing.T) {
-	config := DefaultTextSegmenterConfig()
-	segmenter := NewTextSegmenterComponent(config, func(segment TextSegment) {})
+	segmenter := NewTextSegmenterComponent(DefaultTextSegmenterConfig(), func(TextSegment) {})
 
 	result, shouldContinue, err := segmenter.Process(context.Background(), "")
-
 	if err != nil {
 		t.Errorf("Process failed: %v", err)
 	}
-
 	if !shouldContinue {
 		t.Error("shouldContinue should be true")
 	}
-
 	if result != "" {
 		t.Errorf("Result = %q, want empty string", result)
 	}
 }
 
 func TestTextSegmenterComponentSentenceEnding(t *testing.T) {
-	config := DefaultTextSegmenterConfig()
 	segmentCount := 0
-	lastSegment := ""
+	var lastSegment string
 
-	segmenter := NewTextSegmenterComponent(config, func(segment TextSegment) {
+	segmenter := NewTextSegmenterComponent(DefaultTextSegmenterConfig(), func(segment TextSegment) {
 		segmentCount++
 		lastSegment = segment.Text
 	})
 
-	// Process text with sentence ending
 	segmenter.Process(context.Background(), "这是一个句子。")
 
 	if segmentCount != 1 {
 		t.Errorf("Segment count = %d, want 1", segmentCount)
 	}
-
 	if lastSegment != "这是一个句子。" {
 		t.Errorf("Last segment = %q, want '这是一个句子。'", lastSegment)
 	}
 }
 
-func TestTextSegmenterComponentMaxChars(t *testing.T) {
-	config := TextSegmenterConfig{
-		DelayTimeout: 50 * time.Millisecond,
-		MinChars:     5,
-		MaxChars:     10,
-	}
-
-	segmentCount := 0
-	segmenter := NewTextSegmenterComponent(config, func(segment TextSegment) {
-		segmentCount++
+func TestTextSegmenterFirstSegmentCommaEarly(t *testing.T) {
+	var segments []string
+	segmenter := NewTextSegmenterComponent(DefaultTextSegmenterConfig(), func(segment TextSegment) {
+		segments = append(segments, segment.Text)
 	})
 
-	// Process text that exceeds max chars
-	segmenter.Process(context.Background(), "这是一个很长的句子需要分段")
+	segmenter.Process(context.Background(), "你好，")
+	segmenter.Process(context.Background(), "我是小智。")
 
-	if segmentCount < 1 {
-		t.Error("Should have created at least one segment")
+	if len(segments) < 2 {
+		t.Fatalf("expected 2 segments, got %d: %v", len(segments), segments)
+	}
+	if segments[0] != "你好，" {
+		t.Errorf("first segment = %q, want '你好，'", segments[0])
+	}
+	if segments[1] != "我是小智。" {
+		t.Errorf("second segment = %q, want '我是小智。'", segments[1])
+	}
+}
+
+func TestTextSegmenterRestSegmentCommaHold(t *testing.T) {
+	var segments []string
+	segmenter := NewTextSegmenterComponent(DefaultTextSegmenterConfig(), func(segment TextSegment) {
+		segments = append(segments, segment.Text)
+	})
+
+	segmenter.Process(context.Background(), "你好，")
+	if len(segments) != 1 {
+		t.Fatalf("first segment count = %d, want 1", len(segments))
+	}
+
+	segmenter.Process(context.Background(), "今天天气不错，明天也好。")
+	segmenter.OnComplete()
+
+	full := strings.Join(segments, "")
+	if !strings.Contains(full, "今天天气不错，明天也好。") {
+		t.Errorf("unexpected segments: %v", segments)
+	}
+	// Comma in the middle of rest buffer must not create an extra early segment.
+	for i, seg := range segments {
+		if i == 0 {
+			continue
+		}
+		if strings.HasSuffix(seg, "，") && !strings.ContainsAny(seg, "。！？") {
+			t.Errorf("rest segment should not end at comma only: %q", seg)
+		}
+	}
+}
+
+func TestTextSegmenterRestOnlySentenceSplit(t *testing.T) {
+	var segments []string
+	segmenter := NewTextSegmenterComponent(DefaultTextSegmenterConfig(), func(segment TextSegment) {
+		segments = append(segments, segment.Text)
+	})
+
+	segmenter.Process(context.Background(), "第一句。")
+	segmenter.Process(context.Background(), "第二句。")
+	segmenter.OnComplete()
+
+	if len(segments) != 2 {
+		t.Errorf("segment count = %d, want 2 (%v)", len(segments), segments)
 	}
 }
 
 func TestTextSegmenterComponentOnComplete(t *testing.T) {
-	config := DefaultTextSegmenterConfig()
 	segmentCount := 0
-
-	segmenter := NewTextSegmenterComponent(config, func(segment TextSegment) {
+	segmenter := NewTextSegmenterComponent(DefaultTextSegmenterConfig(), func(segment TextSegment) {
 		segmentCount++
 	})
 
-	// Process text without ending punctuation
 	segmenter.Process(context.Background(), "这是一个句子")
-
-	// No segment should be created yet (waiting for more text or timeout)
 	initialCount := segmentCount
-
-	// Call OnComplete to flush remaining text
 	segmenter.OnComplete()
 
 	if segmentCount <= initialCount {
@@ -119,10 +147,8 @@ func TestTextSegmenterComponentOnComplete(t *testing.T) {
 }
 
 func TestTextSegmenterComponentSetPlayID(t *testing.T) {
-	config := DefaultTextSegmenterConfig()
 	var capturedPlayID string
-
-	segmenter := NewTextSegmenterComponent(config, func(segment TextSegment) {
+	segmenter := NewTextSegmenterComponent(DefaultTextSegmenterConfig(), func(segment TextSegment) {
 		capturedPlayID = segment.PlayID
 	})
 
@@ -135,16 +161,9 @@ func TestTextSegmenterComponentSetPlayID(t *testing.T) {
 }
 
 func TestTextSegmenterComponentSetLogger(t *testing.T) {
-	config := DefaultTextSegmenterConfig()
 	logCalled := false
-
-	segmenter := NewTextSegmenterComponent(config, func(segment TextSegment) {})
-
-	segmenter.SetLogger(func(msg string) {
-		logCalled = true
-	})
-
-	// Trigger a flush to generate a log message
+	segmenter := NewTextSegmenterComponent(DefaultTextSegmenterConfig(), func(TextSegment) {})
+	segmenter.SetLogger(func(string) { logCalled = true })
 	segmenter.Process(context.Background(), "测试。")
 
 	if !logCalled {
@@ -153,98 +172,55 @@ func TestTextSegmenterComponentSetLogger(t *testing.T) {
 }
 
 func TestTextSegmenterComponentReset(t *testing.T) {
-	config := DefaultTextSegmenterConfig()
-	segmenter := NewTextSegmenterComponent(config, func(segment TextSegment) {})
-
-	// Add some text
+	segmenter := NewTextSegmenterComponent(DefaultTextSegmenterConfig(), func(TextSegment) {})
 	segmenter.Process(context.Background(), "测试文本")
-
-	// Reset
 	segmenter.Reset()
 
-	// Buffer should be empty
 	if segmenter.buffer != "" {
 		t.Errorf("Buffer should be empty after reset, got %q", segmenter.buffer)
 	}
-}
-
-func TestTextSegmenterComponentCommaSegmentation(t *testing.T) {
-	config := TextSegmenterConfig{
-		DelayTimeout: 50 * time.Millisecond,
-		MinChars:     5,
-		MaxChars:     50,
-	}
-
-	segmentCount := 0
-	segmenter := NewTextSegmenterComponent(config, func(segment TextSegment) {
-		segmentCount++
-	})
-
-	// Process text with comma
-	segmenter.Process(context.Background(), "这是第一部分，")
-
-	if segmentCount < 1 {
-		t.Error("Should have created a segment at comma")
+	if segmenter.firstFlushed {
+		t.Error("firstFlushed should reset")
 	}
 }
 
 func TestTextSegmenterComponentEnglishPunctuation(t *testing.T) {
-	config := DefaultTextSegmenterConfig()
 	segmentCount := 0
-	lastSegment := ""
-
-	segmenter := NewTextSegmenterComponent(config, func(segment TextSegment) {
+	var lastSegment string
+	segmenter := NewTextSegmenterComponent(DefaultTextSegmenterConfig(), func(segment TextSegment) {
 		segmentCount++
 		lastSegment = segment.Text
 	})
 
-	// Process English text with period
 	segmenter.Process(context.Background(), "This is a sentence.")
-
 	if segmentCount != 1 {
 		t.Errorf("Segment count = %d, want 1", segmentCount)
 	}
-
 	if lastSegment != "This is a sentence." {
 		t.Errorf("Last segment = %q, want 'This is a sentence.'", lastSegment)
 	}
 }
 
-func TestTextSegmenterComponentMultipleSegments(t *testing.T) {
-	config := DefaultTextSegmenterConfig()
-	segments := []string{}
-
-	segmenter := NewTextSegmenterComponent(config, func(segment TextSegment) {
-		segments = append(segments, segment.Text)
-	})
-
-	// Process multiple sentences
-	segmenter.Process(context.Background(), "第一句。")
-	segmenter.Process(context.Background(), "第二句。")
-	segmenter.Process(context.Background(), "第三句。")
-
-	if len(segments) != 3 {
-		t.Errorf("Segment count = %d, want 3", len(segments))
-	}
-}
-
 func TestTextSegmenterComponentFinalSegment(t *testing.T) {
-	config := DefaultTextSegmenterConfig()
 	var finalSegment TextSegment
-
-	segmenter := NewTextSegmenterComponent(config, func(segment TextSegment) {
+	segmenter := NewTextSegmenterComponent(DefaultTextSegmenterConfig(), func(segment TextSegment) {
 		finalSegment = segment
 	})
 
-	// Process text and complete
 	segmenter.Process(context.Background(), "这是最后一句")
 	segmenter.OnComplete()
 
 	if !finalSegment.IsFinal {
 		t.Error("Final segment should have IsFinal=true")
 	}
-
 	if finalSegment.Text != "这是最后一句" {
 		t.Errorf("Final segment text = %q, want '这是最后一句'", finalSegment.Text)
+	}
+}
+
+func TestSplitAtPunctuationBoundary(t *testing.T) {
+	head, tail, ok := splitAtPunctuationBoundary("你好我是AI助手今天天气", 6, true)
+	if !ok || head == "" || tail == "" {
+		t.Fatalf("expected split, got head=%q tail=%q ok=%v", head, tail, ok)
 	}
 }

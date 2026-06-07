@@ -13,7 +13,9 @@ import (
 	"io"
 	"log"
 	"os"
+	"time"
 
+	"github.com/LingByte/lingllm/examples/exutil"
 	"github.com/LingByte/lingllm/protocol"
 	_ "github.com/LingByte/lingllm/protocol/response"
 )
@@ -43,14 +45,16 @@ func main() {
 		Messages: []protocol.Message{protocol.UserMessage(prompt)},
 	}
 
+	e2eStart := time.Now()
 	resp, err := client.Chat(ctx, req)
 	if err != nil {
 		log.Fatalf("chat: %v", err)
 	}
 	fmt.Println("--- Chat ---")
 	fmt.Println(resp.FirstContent())
-	fmt.Printf("tokens: %d | latency: %v\n", resp.Usage.TotalTokens, resp.Metrics.Latency())
+	exutil.LogChat("chat", resp, e2eStart)
 
+	e2eStart = time.Now()
 	stream, err := client.StreamChat(ctx, req)
 	if err != nil {
 		log.Fatalf("stream chat: %v", err)
@@ -69,7 +73,7 @@ func main() {
 		fmt.Print(chunk.Delta)
 	}
 	fmt.Println()
-	fmt.Printf("stream latency: %v | ttft: %v\n", stream.Metrics().Latency(), stream.Metrics().FirstTokenLatency())
+	exutil.LogStream("stream", stream, e2eStart)
 }
 
 func envOr(key, fallback string) string {

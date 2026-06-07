@@ -40,6 +40,14 @@
 // The dialog subpackage defines the event/command contract between the voice
 // plane and an external Dialog application.
 //
+// LLM→TTS streaming path:
+//
+//	Dialog app streams CmdTTSStream chunks as the LLM emits tokens.
+//	TextSegmenter: first segment may break at comma (≥6 runes) for low latency;
+//	later segments break only on sentence punctuation (。！？.!?) or stream end.
+//	Speaker runs synth+play workers with prefetch=3 to overlap TTS with playback.
+//	WebRTC enables PaceRealtime so frames are not burst-written to RTP.
+//
 // Typical integration:
 //
 //	sess, _ := dialog.NewSession(ctx, dialog.Config{

@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/LingByte/lingllm/chain"
+	"github.com/LingByte/lingllm/examples/exutil"
 	"github.com/LingByte/lingllm/metrics"
 	"github.com/LingByte/lingllm/protocol"
 )
@@ -98,11 +100,13 @@ func translationChain() {
 		"target_lang": "Chinese",
 	}
 
+	e2eStart := time.Now()
 	result, err := transChain.Invoke(ctx, input)
 	if err != nil {
 		fmt.Printf("Invoke error: %v\n", err)
 		return
 	}
+	exutil.LogE2E("translation", e2eStart)
 
 	fmt.Printf("Input: %v\n", input["text"])
 	fmt.Printf("Output: %s\n", result)
@@ -140,11 +144,13 @@ func chainWithProcessor() {
 	chatChain.Compile(ctx)
 
 	input := map[string]any{"question": "What's the weather?"}
+	e2eStart := time.Now()
 	result, err := chatChain.Invoke(ctx, input)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
 	}
+	exutil.LogE2E("processor", e2eStart)
 
 	fmt.Printf("Result: %s\n", result)
 }
@@ -160,6 +166,7 @@ func legacyChain() {
 	c := chain.New("legacy-demo", chain.NewModelNode("model", model))
 
 	ctx := context.Background()
+	e2eStart := time.Now()
 	resp, err := c.Invoke(ctx, protocol.ChatRequest{
 		Model:    "claude",
 		Messages: []protocol.Message{{Role: protocol.RoleUser, Content: "Hello"}},
@@ -168,6 +175,7 @@ func legacyChain() {
 		fmt.Printf("Error: %v\n", err)
 		return
 	}
+	exutil.LogE2E("legacy", e2eStart)
 
 	fmt.Printf("Legacy Response: %s\n", resp.FirstContent())
 }

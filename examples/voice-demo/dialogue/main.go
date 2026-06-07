@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/LingByte/lingllm/examples/exutil"
 	"github.com/LingByte/lingllm/protocol"
 	_ "github.com/LingByte/lingllm/protocol/anthropic"
 	_ "github.com/LingByte/lingllm/protocol/ollama"
@@ -35,7 +36,8 @@ func main() {
 	model := flag.String("model", "gpt-4o-mini", "LLM model name")
 	apiKey := flag.String("apikey", "", "API key (or OPENAI_API_KEY / ANTHROPIC_API_KEY env)")
 	baseURL := flag.String("base_url", "", "optional provider base URL")
-	systemPrompt := flag.String("system", "You are a helpful voice assistant. Keep replies short and conversational.", "system prompt")
+	systemPrompt := flag.String("system", "你是语音助手。每次只用1-2句口语化中文回答，总长不超过50字。不要列表、不要 markdown。", "system prompt")
+	maxTokens := flag.Int("max_tokens", 80, "max LLM completion tokens per turn (lower = faster voice replies)")
 	flag.Parse()
 
 	key := *apiKey
@@ -53,10 +55,11 @@ func main() {
 	}
 
 	hub := &dialogHub{
-		client: client,
-		model:  *model,
-		system: *systemPrompt,
-		calls:  make(map[string]*callState),
+		client:    client,
+		model:     *model,
+		system:    *systemPrompt,
+		maxTokens: *maxTokens,
+		calls:     make(map[string]*callState),
 	}
 
 	mux := http.NewServeMux()
@@ -83,9 +86,10 @@ func portFromAddr(addr string) string {
 }
 
 type dialogHub struct {
-	client protocol.ChatModel
-	model  string
-	system string
+	client    protocol.ChatModel
+	model     string
+	system    string
+	maxTokens int
 
 	mu    sync.Mutex
 	calls map[string]*callState
@@ -168,6 +172,11 @@ func (h *dialogHub) cancelTurn(callID string) {
 
 func (h *dialogHub) handleTurn(conn *websocket.Conn, callID, userText string) {
 	h.cancelTurn(callID)
+	// Stop in-flight TTS from the previous turn before streaming a new reply.
+	_ = writeCommand(conn, dialog.Command{
+		Type:   dialog.CmdTTSInterrupt,
+		CallID: callID,
+	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	h.mu.Lock()
@@ -188,8 +197,9 @@ func (h *dialogHub) handleTurn(conn *websocket.Conn, callID, userText string) {
 	firstToken := time.Duration(-1)
 
 	stream, err := h.client.StreamChat(ctx, protocol.ChatRequest{
-		Model:    h.model,
-		Messages: messages,
+		Model:     h.model,
+		Messages:  messages,
+		MaxTokens: h.maxTokens,
 	})
 	if err != nil {
 		log.Printf("call=%s stream: %v", callID, err)
@@ -215,6 +225,7 @@ func (h *dialogHub) handleTurn(conn *websocket.Conn, callID, userText string) {
 		}
 		if firstToken < 0 {
 			firstToken = time.Since(start)
+			log.Printf("[dialog] call=%s first_llm_chunk=%s utterance=%s", callID, firstToken.Round(time.Millisecond), utterID)
 		}
 		full.WriteString(chunk.Delta)
 		if err := writeCommand(conn, dialog.Command{
@@ -233,6 +244,7 @@ func (h *dialogHub) handleTurn(conn *websocket.Conn, callID, userText string) {
 	}
 
 	wall := time.Since(start)
+	exutil.LogTurn("dialog", callID, stream, start, firstToken)
 	assistant := strings.TrimSpace(full.String())
 	if assistant != "" {
 		h.mu.Lock()
@@ -254,6 +266,8 @@ func (h *dialogHub) handleTurn(conn *websocket.Conn, callID, userText string) {
 			UserText:   userText,
 		},
 	})
+	log.Printf("[dialog] call=%s turn_done user=%q llm_ttft=%s llm_wall=%s chars=%d",
+		callID, userText, firstToken.Round(time.Millisecond), wall.Round(time.Millisecond), full.Len())
 }
 
 func writeCommand(conn *websocket.Conn, cmd dialog.Command) error {

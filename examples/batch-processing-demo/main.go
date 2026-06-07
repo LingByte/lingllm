@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"time"
 
 	"github.com/LingByte/lingllm/chain"
+	"github.com/LingByte/lingllm/examples/exutil"
 	"github.com/LingByte/lingllm/protocol"
 	_ "github.com/LingByte/lingllm/protocol/openai"
 )
@@ -94,11 +96,13 @@ func demoBatchInBatchOut(ctx context.Context, c *chain.NodeChain, model string) 
 
 	// 执行批处理
 	fmt.Println("Processing batch of 3 requests...")
+	e2eStart := time.Now()
 	responses, err := c.InvokeBatch(ctx, requests)
 	if err != nil {
 		log.Printf("InvokeBatch error: %v", err)
 		return
 	}
+	exutil.LogBatch("batch-in-batch-out", responses, e2eStart)
 
 	// 输出结果
 	fmt.Printf("Received %d responses:\n", len(responses))
@@ -138,6 +142,7 @@ func demoBatchInStreamOut(ctx context.Context, c *chain.NodeChain, model string)
 
 	// 执行流式批处理
 	fmt.Println("Processing batch with streaming output...")
+	e2eStart := time.Now()
 	stream, err := c.StreamBatch(ctx, requests)
 	if err != nil {
 		log.Printf("StreamBatch error: %v", err)
@@ -160,6 +165,7 @@ func demoBatchInStreamOut(ctx context.Context, c *chain.NodeChain, model string)
 		count++
 	}
 	stream.Close()
+	exutil.LogStream("batch-in-stream-out", stream, e2eStart)
 
 	fmt.Printf("\n\n✓ 批进流出完成: 处理了 %d 个请求，流式返回了 %d 个块\n", len(requests), count)
 }
@@ -206,11 +212,13 @@ func demoStreamInBatchOut(ctx context.Context, c *chain.NodeChain, model string)
 
 	// 收集所有流
 	fmt.Println("Collecting streams into responses...")
+	e2eStart := time.Now()
 	responses, err := c.CollectBatch(ctx, streams)
 	if err != nil {
 		log.Printf("CollectBatch error: %v", err)
 		return
 	}
+	exutil.LogBatch("stream-in-batch-out", responses, e2eStart)
 
 	// 输出聚合结果
 	fmt.Printf("Collected %d responses:\n", len(responses))
@@ -251,6 +259,7 @@ func demoStreamInStreamOut(ctx context.Context, c *chain.NodeChain, model string
 
 	// 创建流
 	fmt.Println("Creating 3 streams...")
+	e2eStart := time.Now()
 	streams := make([]protocol.StreamReader, len(requests))
 	for i, req := range requests {
 		stream, err := c.Stream(ctx, req)
@@ -289,6 +298,7 @@ func demoStreamInStreamOut(ctx context.Context, c *chain.NodeChain, model string
 		stream.Close()
 		fmt.Printf("\n(received %d chunks)", count)
 	}
+	exutil.LogE2E("stream-in-stream-out", e2eStart)
 
 	fmt.Printf("\n\n✓ 流进流出完成: 转换了 %d 个流，并读取了所有数据\n", len(transformedStreams))
 }

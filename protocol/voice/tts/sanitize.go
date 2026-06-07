@@ -3,10 +3,7 @@ package tts
 import "github.com/LingByte/lingllm/utils"
 
 // SanitizeSpeech prepares text for cloud TTS synthesis.
+// Returns empty when the segment has no speakable content (punctuation-only, SSML, emoji, etc.).
 func SanitizeSpeech(text string) string {
-	text = utils.SanitizeForSpeech(text)
-	if text == "" || !utils.HasSpeakableContent(text) {
-		return ""
-	}
-	return text
+	return utils.SanitizeForSpeech(text)
 }

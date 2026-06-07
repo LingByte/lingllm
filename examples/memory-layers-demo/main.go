@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/LingByte/lingllm/examples/exutil"
 	"github.com/LingByte/lingllm/memory"
 	"github.com/LingByte/lingllm/protocol"
 	_ "github.com/LingByte/lingllm/protocol/openai"
@@ -115,11 +116,13 @@ func interactiveConversation(ctx context.Context, client protocol.ChatModel, mod
 			MaxTokens: 300,
 		}
 
+		e2eStart := time.Now()
 		resp, err := client.Chat(ctx, req)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			continue
 		}
+		exutil.LogChat("conversation", resp, e2eStart)
 
 		response := resp.FirstContent()
 		fmt.Printf("%s\n\n", response)
@@ -228,10 +231,12 @@ func generateComprehensiveSummary(ctx context.Context, client protocol.ChatModel
 		MaxTokens: 500,
 	}
 
+	e2eStart := time.Now()
 	resp, err := client.Chat(ctx, req)
 	if err != nil {
 		return nil, err
 	}
+	exutil.LogChat("summary", resp, e2eStart)
 
 	summaryText := resp.FirstContent()
 

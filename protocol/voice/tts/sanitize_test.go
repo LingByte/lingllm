@@ -13,7 +13,10 @@ func TestSanitizeSpeech(t *testing.T) {
 		{"---", ""},
 		{"* * *", ""},
 		{"What's your name?", "What's your name?"},
-		{"<speak>bad</speak>", "speak bad /speak"},
+		{"<speak>bad</speak>", "bad"},
+		{"，", ""},
+		{"...", ""},
+		{"* * *", ""},
 	}
 	for _, tc := range tests {
 		got := SanitizeSpeech(tc.in)

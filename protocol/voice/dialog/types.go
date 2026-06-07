@@ -99,6 +99,13 @@ type StartMeta struct {
 	PCMHz int
 }
 
+// FirstAudioEvent fires when the first downlink audio frame of an utterance is sent.
+type FirstAudioEvent struct {
+	UtteranceID    string
+	TTSFirstByteMs int
+	E2EFirstByteMs int
+}
+
 // TurnEvent is delivered to OnTurn after each tts.speak completes.
 type TurnEvent struct {
 	UtteranceID      string

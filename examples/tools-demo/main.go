@@ -8,7 +8,9 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/LingByte/lingllm/examples/exutil"
 	"github.com/LingByte/lingllm/protocol"
 	_ "github.com/LingByte/lingllm/protocol/openai"
 	"github.com/LingByte/lingllm/tools"
@@ -121,11 +123,13 @@ func testCalculation(ctx context.Context, tc *tools.ToolChain, model string) {
 		MaxTokens: 500,
 	}
 
+	e2eStart := time.Now()
 	resp, err := tc.ExecuteWithTools(ctx, req)
 	if err != nil {
 		log.Printf("Error: %v", err)
 		return
 	}
+	exutil.LogChat("calculation", resp, e2eStart)
 
 	fmt.Printf("Question: What is 25 * 4 + 10 / 2?\n")
 	fmt.Printf("Answer: %s\n", resp.FirstContent())
@@ -143,11 +147,13 @@ func testWeather(ctx context.Context, tc *tools.ToolChain, model string) {
 		MaxTokens: 500,
 	}
 
+	e2eStart := time.Now()
 	resp, err := tc.ExecuteWithTools(ctx, req)
 	if err != nil {
 		log.Printf("Error: %v", err)
 		return
 	}
+	exutil.LogChat("weather", resp, e2eStart)
 
 	fmt.Printf("Question: What's the weather like in San Francisco, CA in Celsius?\n")
 	fmt.Printf("Answer: %s\n", resp.FirstContent())
@@ -165,11 +171,13 @@ func testSearch(ctx context.Context, tc *tools.ToolChain, model string) {
 		MaxTokens: 500,
 	}
 
+	e2eStart := time.Now()
 	resp, err := tc.ExecuteWithTools(ctx, req)
 	if err != nil {
 		log.Printf("Error: %v", err)
 		return
 	}
+	exutil.LogChat("search", resp, e2eStart)
 
 	fmt.Printf("Question: Search for information about Go programming language\n")
 	fmt.Printf("Answer: %s\n", resp.FirstContent())
@@ -187,11 +195,13 @@ func testMultiStep(ctx context.Context, tc *tools.ToolChain, model string) {
 		MaxTokens: 500,
 	}
 
+	e2eStart := time.Now()
 	resp, err := tc.ExecuteWithTools(ctx, req)
 	if err != nil {
 		log.Printf("Error: %v", err)
 		return
 	}
+	exutil.LogChat("multi-step", resp, e2eStart)
 
 	fmt.Printf("Question: Calculate area of circle with radius 5\n")
 	fmt.Printf("Answer: %s\n", resp.FirstContent())

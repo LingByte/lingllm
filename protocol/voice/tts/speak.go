@@ -92,6 +92,21 @@ func (p *TTSPipeline) fireFirstFrameHook() {
 
 // synthesize is the internal synthesis path used by Speak and Synthesize.
 func (p *TTSPipeline) synthesize(ctx context.Context, text string) error {
+	return p.synthesizeFrames(ctx, text, func(frame []byte) error {
+		audioBytes, err := p.processAndSendFrame(ctx, frame)
+		if err != nil {
+			return err
+		}
+		if len(audioBytes) > 0 {
+			p.fireFirstFrameHook()
+		}
+		return nil
+	})
+}
+
+// synthesizeFrames runs TTS and invokes emit for each paced output frame.
+// Used by Speak (inline playback) and the pipelined Speaker (prefetch path).
+func (p *TTSPipeline) synthesizeFrames(ctx context.Context, text string, emit func([]byte) error) error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -99,23 +114,12 @@ func (p *TTSPipeline) synthesize(ctx context.Context, text string) error {
 		return ErrPipelineNotStarted
 	}
 
-	text = utils.SanitizeForSpeech(text)
-	if text == "" || !utils.HasSpeakableContent(text) {
-		return nil
+	processedText, err := p.prepareSpeechText(ctx, text)
+	if err != nil {
+		return err
 	}
-
-	processedText := text
-	for _, processor := range p.textProcessors {
-		result, shouldContinue, err := processor.Process(ctx, processedText)
-		if err != nil {
-			return err
-		}
-		if !shouldContinue {
-			return nil
-		}
-		if resultStr, ok := result.(string); ok {
-			processedText = resultStr
-		}
+	if processedText == "" {
+		return nil
 	}
 
 	frameSizeBytes := p.frameBytes()
@@ -124,7 +128,7 @@ func (p *TTSPipeline) synthesize(ctx context.Context, text string) error {
 	}
 
 	buffer := make([]byte, 0, len(processedText)*100)
-	err := p.ttsService.Synthesize(ctx, processedText, func(pcmData []byte) error {
+	err = p.ttsService.Synthesize(ctx, processedText, func(pcmData []byte) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -137,12 +141,8 @@ func (p *TTSPipeline) synthesize(ctx context.Context, text string) error {
 			copy(frameData, buffer[:frameSizeBytes])
 			buffer = buffer[frameSizeBytes:]
 
-			audioBytes, err := p.processAndSendFrame(ctx, frameData)
-			if err != nil {
+			if err := emit(frameData); err != nil {
 				return err
-			}
-			if len(audioBytes) > 0 {
-				p.fireFirstFrameHook()
 			}
 		}
 		return nil
@@ -152,7 +152,25 @@ func (p *TTSPipeline) synthesize(ctx context.Context, text string) error {
 	}
 
 	if len(buffer) > 0 {
-		audioBytes, err := p.processAndSendFrame(ctx, buffer)
+		if err := emit(buffer); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// PlayFrames emits pre-collected frames with pacing and hooks.
+func (p *TTSPipeline) PlayFrames(ctx context.Context, frames [][]byte) error {
+	if p == nil {
+		return errors.New("tts: nil pipeline")
+	}
+	for _, frame := range frames {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		audioBytes, err := p.processAndSendFrame(ctx, frame)
 		if err != nil {
 			return err
 		}
@@ -161,6 +179,28 @@ func (p *TTSPipeline) synthesize(ctx context.Context, text string) error {
 		}
 	}
 	return nil
+}
+
+func (p *TTSPipeline) prepareSpeechText(ctx context.Context, text string) (string, error) {
+	text = utils.SanitizeForSpeech(text)
+	if text == "" || !utils.HasSpeakableContent(text) {
+		return "", nil
+	}
+
+	processedText := text
+	for _, processor := range p.textProcessors {
+		result, shouldContinue, err := processor.Process(ctx, processedText)
+		if err != nil {
+			return "", err
+		}
+		if !shouldContinue {
+			return "", nil
+		}
+		if resultStr, ok := result.(string); ok {
+			processedText = resultStr
+		}
+	}
+	return processedText, nil
 }
 
 func (p *TTSPipeline) frameBytes() int {

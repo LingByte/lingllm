@@ -41,6 +41,9 @@ type Session struct {
 	turnMetaMu sync.Mutex
 	turnMeta   map[string]*CommandMeta
 
+	turnAnchorMu sync.Mutex
+	turnAnchors  map[string]time.Time
+
 	spokenMu   sync.Mutex
 	spokenText map[string]string
 }
@@ -114,7 +117,7 @@ func (s *Session) wireCallbacks() {
 		s.emit(Event{Type: EvTTSInterrupt, CallID: s.cfg.CallID})
 	})
 
-	s.speaker.SetCallbacks(
+	s.speaker.SetCallbacksWithFirstFrame(
 		func(utteranceID, text string, chained bool) {
 			// Skip redundant tts.started between LLM-segmented chunks so
 			// transports can keep a single playback envelope (xiaozhi-style).
@@ -128,6 +131,11 @@ func (s *Session) wireCallbacks() {
 			})
 		},
 		func(utteranceID string, ok bool, dur time.Duration, ttsFirstMs, e2eFirstMs int, moreQueued bool) {
+			// Speaker reports once per utterance when all segments finish.
+			if moreQueued {
+				return
+			}
+			s.clearTurnAnchor(utteranceID)
 			s.emit(Event{
 				Type:        EvTTSEnded,
 				CallID:      s.cfg.CallID,
@@ -143,8 +151,17 @@ func (s *Session) wireCallbacks() {
 					DurationMs:       int(dur.Milliseconds()),
 					TTSFirstByteMs:   ttsFirstMs,
 					E2EFirstByteMs:   e2eFirstMs,
-					MoreSpeaksQueued: moreQueued,
+					MoreSpeaksQueued: false,
 					OK:               ok,
+				})
+			}
+		},
+		func(utteranceID string, ttsFirstMs, e2eFirstMs int) {
+			if s.cfg.OnFirstAudio != nil {
+				s.cfg.OnFirstAudio(FirstAudioEvent{
+					UtteranceID:    utteranceID,
+					TTSFirstByteMs: ttsFirstMs,
+					E2EFirstByteMs: e2eFirstMs,
 				})
 			}
 		},
@@ -156,8 +173,8 @@ func (s *Session) enqueueSegment(seg tts.TextSegment) {
 	if text == "" {
 		return
 	}
-	anchor := s.asrFinalAt.Swap(nil)
-	s.storeSpokenText(seg.PlayID, text)
+	anchor := s.turnE2EAnchor(seg.PlayID)
+	s.appendSpokenText(seg.PlayID, text)
 	if !s.speaker.Enqueue(text, seg.PlayID, anchor) {
 		s.emit(Event{
 			Type:        EvTTSEnded,
@@ -188,7 +205,14 @@ func (s *Session) handleStreamChunk(cmd Command, end bool) {
 
 	s.streamMu.Lock()
 	if utter != s.streamUtteranceID {
-		s.segmenter.Reset()
+		prev := s.streamUtteranceID
+		if prev != "" {
+			s.speaker.Interrupt()
+			s.clearTurnAnchor(prev)
+		}
+		if s.segmenter != nil {
+			s.segmenter.Reset()
+		}
 		s.streamUtteranceID = utter
 	}
 	s.streamMu.Unlock()
@@ -235,6 +259,7 @@ func (s *Session) Start(ctx context.Context) error {
 	if err := s.ttsPipeline.Start(s.runCtx); err != nil {
 		return err
 	}
+	s.ttsPipeline.Warmup(s.runCtx)
 	s.speaker.Start(s.runCtx)
 	if err := s.recognizer.Start(); err != nil {
 		return fmt.Errorf("dialog: asr start: %w", err)
@@ -300,8 +325,8 @@ func (s *Session) HandleCommand(cmd Command) {
 		if cmd.Meta != nil {
 			s.storeTurnMeta(cmd.UtteranceID, cmd.Meta)
 		}
-		anchor := s.asrFinalAt.Swap(nil)
-		s.storeSpokenText(cmd.UtteranceID, text)
+		anchor := s.turnE2EAnchor(cmd.UtteranceID)
+		s.appendSpokenText(cmd.UtteranceID, text)
 		if !s.speaker.Enqueue(text, cmd.UtteranceID, anchor) {
 			s.emit(Event{
 				Type:        EvTTSEnded,
@@ -317,6 +342,7 @@ func (s *Session) HandleCommand(cmd Command) {
 		s.handleStreamChunk(cmd, true)
 	case CmdTTSInterrupt:
 		s.resetStreamSegmenter()
+		s.clearAllTurnAnchors()
 		s.speaker.Interrupt()
 	case CmdHangup:
 		reason := cmd.Reason
@@ -393,7 +419,44 @@ func (s *Session) popTurnMeta(utteranceID string) *CommandMeta {
 	return meta
 }
 
-func (s *Session) storeSpokenText(utteranceID, text string) {
+func (s *Session) turnE2EAnchor(utteranceID string) *time.Time {
+	if utteranceID == "" {
+		return nil
+	}
+	s.turnAnchorMu.Lock()
+	defer s.turnAnchorMu.Unlock()
+	if s.turnAnchors == nil {
+		s.turnAnchors = make(map[string]time.Time)
+	}
+	if t, ok := s.turnAnchors[utteranceID]; ok {
+		tt := t
+		return &tt
+	}
+	if t := s.asrFinalAt.Load(); t != nil {
+		s.turnAnchors[utteranceID] = *t
+		s.asrFinalAt.Store(nil)
+		tt := *t
+		return &tt
+	}
+	return nil
+}
+
+func (s *Session) clearTurnAnchor(utteranceID string) {
+	if utteranceID == "" {
+		return
+	}
+	s.turnAnchorMu.Lock()
+	delete(s.turnAnchors, utteranceID)
+	s.turnAnchorMu.Unlock()
+}
+
+func (s *Session) clearAllTurnAnchors() {
+	s.turnAnchorMu.Lock()
+	s.turnAnchors = make(map[string]time.Time)
+	s.turnAnchorMu.Unlock()
+}
+
+func (s *Session) appendSpokenText(utteranceID, text string) {
 	if utteranceID == "" || text == "" {
 		return
 	}
@@ -401,7 +464,11 @@ func (s *Session) storeSpokenText(utteranceID, text string) {
 	if s.spokenText == nil {
 		s.spokenText = make(map[string]string)
 	}
-	s.spokenText[utteranceID] = text
+	if prev := s.spokenText[utteranceID]; prev != "" {
+		s.spokenText[utteranceID] = prev + text
+	} else {
+		s.spokenText[utteranceID] = text
+	}
 	s.spokenMu.Unlock()
 }
 

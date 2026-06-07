@@ -105,7 +105,8 @@ func (qs *QCloudService) CacheKey(text string) string {
 
 func (qs *QCloudService) Synthesize(ctx context.Context, handler AudioSynthesisHandler, text string) error {
 	text = utils.SanitizeForSpeech(text)
-	if text == "" || !utils.HasSpeakableContent(text) {
+	if !utils.IsCloudTTSAcceptable(text) {
+		logrus.WithField("text", text).Debug("qcloud tts: skip empty or invalid segment")
 		return nil
 	}
 
