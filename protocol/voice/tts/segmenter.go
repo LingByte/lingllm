@@ -10,24 +10,24 @@ import (
 
 // TextSegmenterConfig contains configuration for text segmentation.
 type TextSegmenterConfig struct {
-	// DelayTimeout: delay before sending a segment (default: 50ms)
+	// DelayTimeout: delay before sending a segment (default: 0ms)
 	DelayTimeout time.Duration
-	// MinChars: minimum characters before sending a segment (default: 10)
+	// MinChars: minimum characters before sending a segment (default: 5)
 	MinChars int
-	// MaxChars: maximum characters in a segment (default: 20)
+	// MaxChars: maximum characters in a segment (default: 15)
 	MaxChars int
 }
 
 // DefaultTextSegmenterConfig returns default text segmenter configuration.
-// Optimized for low-latency streaming with responsive segment sizes:
-// - MinChars: 10 (send quickly to reduce latency)
-// - MaxChars: 20 (small segments for responsive playback)
-// - DelayTimeout: 50ms (minimal delay before sending)
+// Optimized for ultra-low-latency streaming:
+// - MinChars: 5 (send immediately when we have minimal text)
+// - MaxChars: 15 (keep segments very small for responsiveness)
+// - DelayTimeout: 0 (no delay, send immediately)
 func DefaultTextSegmenterConfig() TextSegmenterConfig {
 	return TextSegmenterConfig{
-		DelayTimeout: 50 * time.Millisecond,
-		MinChars:     10,
-		MaxChars:     20,
+		DelayTimeout: 0,
+		MinChars:     5,
+		MaxChars:     15,
 	}
 }
 
@@ -47,14 +47,19 @@ type TextSegmenterComponent struct {
 
 // NewTextSegmenterComponent creates a new text segmenter component.
 func NewTextSegmenterComponent(config TextSegmenterConfig, outputFunc func(TextSegment)) *TextSegmenterComponent {
-	if config.DelayTimeout == 0 {
-		config.DelayTimeout = 50 * time.Millisecond
-	}
-	if config.MinChars == 0 {
-		config.MinChars = 10
-	}
-	if config.MaxChars == 0 {
-		config.MaxChars = 20
+	if config.DelayTimeout == 0 && config.MinChars == 0 && config.MaxChars == 0 {
+		// Use defaults only if all are zero
+		config.DelayTimeout = 0
+		config.MinChars = 5
+		config.MaxChars = 15
+	} else {
+		// Apply individual defaults
+		if config.MinChars == 0 {
+			config.MinChars = 5
+		}
+		if config.MaxChars == 0 {
+			config.MaxChars = 15
+		}
 	}
 
 	return &TextSegmenterComponent{
