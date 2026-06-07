@@ -19,6 +19,9 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// MessageHandler is a custom message handler for extensibility.
+type MessageHandler func(ctx context.Context, session *wsSession, raw []byte) error
+
 type wsSession struct {
 	cfg       ServerConfig
 	conn      *websocket.Conn
@@ -34,6 +37,8 @@ type wsSession struct {
 	opusDec media.EncoderFunc
 	opusEnc media.EncoderFunc
 
+	mode string
+
 	voiceSess *dialog.Session
 	gw        *gateway.Client
 
@@ -48,16 +53,29 @@ type wsSession struct {
 
 	writeMu sync.Mutex
 	closed  atomic.Bool
+	
+	// Custom message handlers for extensibility
+	customHandlers map[string]MessageHandler
 }
 
 func newSession(cfg ServerConfig, conn *websocket.Conn, callID, deviceID string) *wsSession {
 	return &wsSession{
-		cfg:       cfg,
-		conn:      conn,
-		callID:    callID,
-		sessionID: callID,
-		deviceID:  deviceID,
+		cfg:              cfg,
+		conn:             conn,
+		callID:           callID,
+		sessionID:        callID,
+		deviceID:         deviceID,
+		customHandlers:   make(map[string]MessageHandler),
 	}
+}
+
+// RegisterMessageHandler registers a custom message handler for a message type.
+// This allows third-party extensions to handle custom message types.
+func (s *wsSession) RegisterMessageHandler(msgType string, handler MessageHandler) {
+	if s.customHandlers == nil {
+		s.customHandlers = make(map[string]MessageHandler)
+	}
+	s.customHandlers[msgType] = handler
 }
 
 func (s *wsSession) run(parentCtx context.Context) {
@@ -88,6 +106,16 @@ func (s *wsSession) handleText(ctx context.Context, raw []byte) {
 	if err != nil {
 		return
 	}
+	
+	// Check custom handlers first
+	if handler, ok := s.customHandlers[t]; ok {
+		if err := handler(ctx, s, raw); err != nil {
+			s.writeText(MakeError(err.Error(), false))
+		}
+		return
+	}
+	
+	// Built-in message handlers
 	switch t {
 	case MsgHello:
 		s.handleHello(ctx, raw)
@@ -145,7 +173,13 @@ func (s *wsSession) handleHello(ctx context.Context, raw []byte) {
 		s.opusEnc = enc
 	}
 
-	if normalizeMode(s.cfg.Mode) == ModeRealtime {
+	mode := normalizeMode(msg.Mode)
+	if mode == "" {
+		mode = ModePipeline
+	}
+	s.mode = mode
+
+	if mode == ModeRealtime {
 		s.handleHelloRealtime(ctx)
 		return
 	}
@@ -263,7 +297,7 @@ func (s *wsSession) handleAbort() {
 }
 
 func (s *wsSession) handleAudio(ctx context.Context, frame []byte) {
-	if normalizeMode(s.cfg.Mode) == ModeRealtime {
+	if s.mode == ModeRealtime {
 		s.handleAudioRealtime(ctx, frame)
 		return
 	}

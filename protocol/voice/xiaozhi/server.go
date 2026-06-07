@@ -15,10 +15,6 @@ import (
 
 // ServerConfig wires the xiaozhi adapter.
 type ServerConfig struct {
-	// Mode selects pipeline (ASR+dialog+TTS) or realtime (pkg/realtime).
-	// Empty defaults to pipeline.
-	Mode string
-
 	SessionFactory       transport.SessionFactory
 	RealtimeFactory      RealtimeAgentFactory
 	DialogWSURL          string
@@ -27,6 +23,8 @@ type ServerConfig struct {
 	ConfigureClient      func(*gateway.ClientConfig)
 	OnSessionStart       func(ctx context.Context, callID, deviceID string)
 	OnSessionEnd         func(ctx context.Context, callID, reason string)
+	// ConfigureSession allows third-party extensions to register custom message handlers
+	ConfigureSession     func(session *wsSession)
 }
 
 // Server accepts xiaozhi WebSocket connections.
@@ -37,18 +35,14 @@ type Server struct {
 
 // NewServer validates cfg.
 func NewServer(cfg ServerConfig) (*Server, error) {
-	switch normalizeMode(cfg.Mode) {
-	case ModeRealtime:
-		if cfg.RealtimeFactory == nil {
-			return nil, errors.New("xiaozhi: nil RealtimeFactory in realtime mode")
-		}
-	default:
-		if cfg.SessionFactory == nil {
-			return nil, errors.New("xiaozhi: nil SessionFactory in pipeline mode")
-		}
-		if strings.TrimSpace(cfg.DialogWSURL) == "" {
-			return nil, errors.New("xiaozhi: empty DialogWSURL in pipeline mode")
-		}
+	if cfg.SessionFactory == nil {
+		return nil, errors.New("xiaozhi: nil SessionFactory")
+	}
+	if strings.TrimSpace(cfg.DialogWSURL) == "" {
+		return nil, errors.New("xiaozhi: empty DialogWSURL")
+	}
+	if cfg.RealtimeFactory == nil {
+		return nil, errors.New("xiaozhi: nil RealtimeFactory")
 	}
 	if cfg.CallIDPrefix == "" {
 		cfg.CallIDPrefix = "xz"
@@ -104,5 +98,11 @@ func (s *Server) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sess := newSession(cfg, conn, callID, deviceID)
+	
+	// Allow third-party extensions to configure the session
+	if cfg.ConfigureSession != nil {
+		cfg.ConfigureSession(sess)
+	}
+	
 	sess.run(r.Context())
 }

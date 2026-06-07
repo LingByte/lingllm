@@ -13,7 +13,6 @@ const (
 	MsgListen = "listen"
 	MsgAbort  = "abort"
 	MsgPing   = "ping"
-
 	RespHello        = "hello"
 	RespPong         = "pong"
 	RespSTT          = "stt"
@@ -33,6 +32,13 @@ const (
 	AudioFormatPCM  = "pcm"
 )
 
+const (
+	// ModePipeline: ASR + dialog-plane WebSocket (LLM) + TTS.
+	ModePipeline = "pipeline"
+	// ModeRealtime: pkg/realtime multimodal agent (e.g. Qwen-Omni).
+	ModeRealtime = "realtime"
+)
+
 type AudioParams struct {
 	Format        string `json:"format,omitempty"`
 	Codec         string `json:"codec,omitempty"`
@@ -48,6 +54,7 @@ type HelloMessage struct {
 	Transport   string                 `json:"transport,omitempty"`
 	Features    map[string]interface{} `json:"features,omitempty"`
 	AudioParams *AudioParams           `json:"audio_params,omitempty"`
+	Mode        string                 `json:"mode,omitempty"`
 }
 
 func DefaultHelloAudio() AudioParams {
@@ -181,4 +188,17 @@ func MakeError(message string, fatal bool) []byte {
 		"fatal":   fatal,
 	})
 	return b
+}
+
+func normalizeMode(m string) string {
+	m = strings.ToLower(strings.TrimSpace(m))
+	if m == "" {
+		return ""
+	}
+	switch m {
+	case ModeRealtime:
+		return ModeRealtime
+	default:
+		return ModePipeline
+	}
 }

@@ -1,5 +1,7 @@
 // Realtime voice demo: browser (web1) or xiaozhi device → xiaozhi WS → multimodal agent.
 //
+// Clients must specify "mode": "realtime" in the hello message.
+//
 // Aliyun Qwen-Omni:
 //
 //	export REALTIME_CONFIG_JSON='{"provider":"aliyun_omni","api_key":"sk-...","model":"qwen3.5-omni-flash-realtime-2026-03-15"}'
@@ -72,8 +74,9 @@ func main() {
 	}
 
 	xz, err := xiaozhi.NewServer(xiaozhi.ServerConfig{
-		Mode:            xiaozhi.ModeRealtime,
+		SessionFactory:  factory,
 		RealtimeFactory: loggingRealtimeFactory{inner: factory.RealtimeAgentFactory()},
+		DialogWSURL:     "ws://127.0.0.1:8082/ws/dialog",
 		OnSessionStart: func(_ context.Context, callID, deviceID string) {
 			log.Printf("[realtime] session start call=%s device=%s", callID, deviceID)
 		},

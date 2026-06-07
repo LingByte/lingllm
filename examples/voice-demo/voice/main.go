@@ -1,4 +1,7 @@
-// Voice media server: WebRTC browser client + xiaozhi WebSocket (pipeline or realtime).
+// Voice media server: WebRTC browser client + xiaozhi WebSocket.
+//
+// Xiaozhi mode (pipeline or realtime) is selected by the client in the hello message.
+// If not specified, defaults to pipeline.
 //
 // Pipeline mode (default):
 //
@@ -69,8 +72,7 @@ func (s *voiceServer) serveStatic(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	addr := flag.String("addr", ":8080", "listen address")
-	dialogURL := flag.String("dialog", "ws://127.0.0.1:8082/ws/dialog", "dialog WebSocket URL (pipeline mode)")
-	mode := flag.String("mode", "pipeline", "xiaozhi mode: pipeline or realtime")
+	dialogURL := flag.String("dialog", "ws://127.0.0.1:8082/ws/dialog", "dialog WebSocket URL")
 	webDir := flag.String("web", "", "static web root (default: examples/voice-demo/web)")
 	flag.Parse()
 
@@ -98,7 +100,6 @@ func main() {
 	}
 
 	xzCfg := xiaozhi.ServerConfig{
-		Mode:            *mode,
 		DialogWSURL:     *dialogURL,
 		SessionFactory:  factory,
 		RealtimeFactory: factory.RealtimeAgentFactory(),
@@ -115,16 +116,11 @@ func main() {
 
 	srv := &voiceServer{wrtc: wrtc, xz: xz, staticRoot: staticRoot}
 
-	log.Printf("voice server on http://localhost%s (xiaozhi=%s)", *addr, normalizeMode(*mode))
+	log.Printf("voice server on http://localhost%s", *addr)
 	log.Printf("  web:    http://localhost%s/", *addr)
 	log.Printf("  webrtc: POST http://localhost%s/webrtc/v1/offer (needs pipeline + ASR/TTS + dialogue)", *addr)
-	log.Printf("  xiaozhi ws: ws://localhost%s/xiaozhi/v1/", *addr)
-	if normalizeMode(*mode) == xiaozhi.ModePipeline {
-		log.Printf("  dialog: %s", *dialogURL)
-	} else {
-		log.Printf("  NOTE: browser realtime demo → go run ./examples/voice-demo/realtime")
-		log.Printf("        or: voice -mode realtime -web ../web1")
-	}
+	log.Printf("  xiaozhi ws: ws://localhost%s/xiaozhi/v1/ (mode selected by client in hello message)", *addr)
+	log.Printf("  dialog: %s", *dialogURL)
 	logStartupWarnings()
 	log.Fatal(http.ListenAndServe(*addr, srv))
 }
@@ -147,14 +143,4 @@ func defaultWebDir() string {
 		return filepath.Join(".", "examples", "voice-demo", "web")
 	}
 	return filepath.Join(filepath.Dir(file), "..", "web")
-}
-
-func normalizeMode(m string) string {
-	m = strings.ToLower(strings.TrimSpace(m))
-	switch m {
-	case xiaozhi.ModeRealtime, "omni", "multimodal":
-		return xiaozhi.ModeRealtime
-	default:
-		return xiaozhi.ModePipeline
-	}
 }
