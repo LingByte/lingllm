@@ -212,7 +212,10 @@ func (s *Speaker) play(job speakJob) {
 		}
 	}
 
-	moreQueued := len(s.queue) > 0
+	// Check if there are more utterances queued OR if the pipeline is still processing.
+	// This prevents premature "tts:stop" messages when the next segment is being prepared.
+	// By including IsPlaying(), we ensure seamless playback of consecutive segments.
+	moreQueued := len(s.queue) > 0 || s.pipeline.IsPlaying()
 	if s.onEnded != nil {
 		s.onEnded(job.utteranceID, ok, dur, ttsFirstMs, e2eFirstMs, moreQueued)
 	}
