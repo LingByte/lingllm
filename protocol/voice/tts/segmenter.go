@@ -10,20 +10,24 @@ import (
 
 // TextSegmenterConfig contains configuration for text segmentation.
 type TextSegmenterConfig struct {
-	// DelayTimeout: delay before sending a segment (default: 50ms)
+	// DelayTimeout: delay before sending a segment (default: 200ms)
 	DelayTimeout time.Duration
-	// MinChars: minimum characters before sending a segment (default: 15)
+	// MinChars: minimum characters before sending a segment (default: 30)
 	MinChars int
-	// MaxChars: maximum characters in a segment (default: 35)
+	// MaxChars: maximum characters in a segment (default: 100)
 	MaxChars int
 }
 
 // DefaultTextSegmenterConfig returns default text segmenter configuration.
+// Uses coarser granularity to reduce overhead and improve performance:
+// - MinChars: 30 (wait for more text before sending)
+// - MaxChars: 100 (reasonable segment size for TTS)
+// - DelayTimeout: 200ms (allow more text to accumulate)
 func DefaultTextSegmenterConfig() TextSegmenterConfig {
 	return TextSegmenterConfig{
-		DelayTimeout: 50 * time.Millisecond,
-		MinChars:     15,
-		MaxChars:     35,
+		DelayTimeout: 200 * time.Millisecond,
+		MinChars:     30,
+		MaxChars:     100,
 	}
 }
 
@@ -44,13 +48,13 @@ type TextSegmenterComponent struct {
 // NewTextSegmenterComponent creates a new text segmenter component.
 func NewTextSegmenterComponent(config TextSegmenterConfig, outputFunc func(TextSegment)) *TextSegmenterComponent {
 	if config.DelayTimeout == 0 {
-		config.DelayTimeout = 50 * time.Millisecond
+		config.DelayTimeout = 200 * time.Millisecond
 	}
 	if config.MinChars == 0 {
-		config.MinChars = 15
+		config.MinChars = 30
 	}
 	if config.MaxChars == 0 {
-		config.MaxChars = 35
+		config.MaxChars = 100
 	}
 
 	return &TextSegmenterComponent{
