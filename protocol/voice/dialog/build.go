@@ -155,7 +155,7 @@ func NewSession(ctx context.Context, cfg Config) (*Session, error) {
 		TTSService:       ttsService,
 		TargetSampleRate: sr,
 		FrameDuration:    frameDur,
-		PaceRealtime:     boolOr(cfg.PaceRealtime, true),
+		PaceRealtime:     boolOr(cfg.PaceRealtime, false),
 		SendCallback:     sendCallback,
 	})
 	if err != nil {
