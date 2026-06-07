@@ -246,6 +246,14 @@ func NewSession(ctx context.Context, cfg Config) (*Session, error) {
 		segCfg := tts.DefaultTextSegmenterConfig()
 		if cfg.TextSegmenterConfig != nil {
 			segCfg = *cfg.TextSegmenterConfig
+		} else {
+			caps := tts.CapabilitiesFrom(ttsService)
+			if caps.FirstMaxChars > 0 {
+				segCfg.FirstMaxChars = caps.FirstMaxChars
+			}
+			if caps.FirstMinChars > 0 {
+				segCfg.FirstMinChars = caps.FirstMinChars
+			}
 		}
 		sess.segmenter = tts.NewTextSegmenterComponent(segCfg, sess.enqueueSegment)
 	}

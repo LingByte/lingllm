@@ -556,6 +556,16 @@ func (c TTSCredentialConfig) getString(key string) string {
 	return ""
 }
 
+// getBool 从配置中获取 bool 值。
+func (c TTSCredentialConfig) getBool(key string, def bool) bool {
+	if val, ok := c[key]; ok {
+		if b, ok := val.(bool); ok {
+			return b
+		}
+	}
+	return def
+}
+
 // getInt64 从配置中获取 int64 值
 func (c TTSCredentialConfig) getInt64(key string) int64 {
 	if val, ok := c[key]; ok {
@@ -947,6 +957,7 @@ func NewAudioSynthesisEngineFromCredential(config TTSCredentialConfig) (AudioSyn
 		volcengineConfig.Rate = int(rate)
 		volcengineConfig.Encoding = encoding
 		volcengineConfig.SpeedRatio = speedRatio
+		volcengineConfig.Streaming = config.getBool("streaming", true)
 		// 将配置对象转换为 map[string]any
 		configBytes, err := json.Marshal(volcengineConfig)
 		if err != nil {

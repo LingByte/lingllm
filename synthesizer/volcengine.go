@@ -70,6 +70,8 @@ type VolcengineTTSOption struct {
 	FrameDuration string  `json:"frameDuration"` // 帧时长，默认 20ms
 	TextType      string  `json:"textType"`      // 文本类型，plain 或 ssml
 	Ssml          bool    `json:"ssml"`          // 是否使用 SSML
+	// Streaming uses WebSocket submit for chunked audio; false forces HTTP batch + PCM chunking.
+	Streaming bool `json:"streaming"`
 }
 
 // GetProvider returns the TTS provider type
@@ -100,6 +102,7 @@ func NewVolcengineTTSOption(appID, accessToken, cluster string) VolcengineTTSOpt
 		FrameDuration: "20ms",
 		TextType:      "plain",
 		Ssml:          false,
+		Streaming:     true,
 	}
 }
 
@@ -133,34 +136,56 @@ func (v *VolcengineService) CacheKey(text string) string {
 	return fmt.Sprintf("volcengine.tts-%s-%s-%d-%d-%s.pcm", v.opt.VoiceType, v.opt.Encoding, v.opt.Rate, speedRatio, digest)
 }
 
+func (v *VolcengineService) Capabilities() TTSCapabilities {
+	v.mu.Lock()
+	streaming := v.opt.Streaming
+	v.mu.Unlock()
+	if streaming {
+		return TTSCapabilities{
+			StreamingTTFB:          true,
+			SuggestedFirstMaxRunes: 24,
+		}
+	}
+	return DefaultTTSCapabilities()
+}
+
 func (v *VolcengineService) Synthesize(ctx context.Context, handler AudioSynthesisHandler, text string) error {
 	v.mu.Lock()
 	opt := v.opt
 	v.mu.Unlock()
 
-	ttsReq := &volcengineSpeechSynthesisListener{
-		handler: handler,
-	}
+	ttsReq := &volcengineSpeechSynthesisListener{handler: handler}
 	if text == "" {
 		handler.OnMessage(make([]byte, 0))
 		return nil
 	}
+
+	if opt.Streaming {
+		ts, err := ttsReq.sendStreamRequest(ctx, opt, text)
+		if err == nil {
+			if len(ts.Words) > 0 {
+				handler.OnTimestamp(ts)
+			}
+			return nil
+		}
+		if errors.Is(err, context.Canceled) {
+			logrus.WithField("text", text).Warn("volcengine tts: context canceled")
+			return nil
+		}
+		logrus.WithError(err).Warn("volcengine tts: websocket failed, falling back to http")
+	}
+
 	dataBytes, timestamp, err := ttsReq.sendRequest(ctx, opt, text)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
-			logrus.WithFields(logrus.Fields{
-				"text": text,
-			}).Warn("volcengine tts: context canceled")
+			logrus.WithField("text", text).Warn("volcengine tts: context canceled")
 			return nil
 		}
 		return err
 	}
 
-	// 记录音频数据大小
 	if len(dataBytes) == 0 {
-		logrus.WithFields(logrus.Fields{
-			"text": text,
-		}).Warn("volcengine tts: received empty audio data")
+		logrus.WithField("text", text).Warn("volcengine tts: received empty audio data")
 	} else {
 		logrus.WithFields(logrus.Fields{
 			"text":      text,
@@ -168,7 +193,10 @@ func (v *VolcengineService) Synthesize(ctx context.Context, handler AudioSynthes
 		}).Info("volcengine tts: received audio data")
 	}
 
-	handler.OnMessage(dataBytes)
+	emitCfg := PCMEmitConfigFromFormat(v.Format())
+	if err := EmitPCMChunks(ctx, handler, dataBytes, emitCfg); err != nil {
+		return err
+	}
 	handler.OnTimestamp(timestamp)
 	return nil
 }
