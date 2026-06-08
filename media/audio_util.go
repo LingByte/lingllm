@@ -8,6 +8,8 @@ package media
 // audio-specific concerns.
 
 import (
+	"encoding/binary"
+	"math"
 	"strings"
 	"time"
 )
@@ -58,4 +60,33 @@ func ComputeSampleByteCount(sampleRate, bitDepth, channels int) int {
 		return 0
 	}
 	return sampleRate * (bitDepth / 8) * channels / 1000
+}
+
+// RMSPCM16LE returns the RMS (Root Mean Square) level of signed 16-bit
+// little-endian PCM samples. RMS is a measure of the audio signal's energy
+// or loudness.
+//
+// The function calculates: sqrt(sum(sample^2) / count)
+//
+// Returns 0 when the buffer is too short to contain a full sample (less than 2 bytes).
+// This is useful for:
+//   - Voice Activity Detection (VAD): determining if audio contains speech
+//   - Gain Control: adjusting audio levels automatically
+//   - Audio Analysis: measuring signal strength
+//
+// Example:
+//   pcm := []byte{0x00, 0x10, 0x00, 0x10} // two 16-bit samples
+//   rms := RMSPCM16LE(pcm)                  // returns the RMS value
+func RMSPCM16LE(pcm []byte) float64 {
+	if len(pcm) < 2 {
+		return 0
+	}
+	n := len(pcm) / 2
+	var sum float64
+	for i := 0; i+1 < len(pcm); i += 2 {
+		v := int16(binary.LittleEndian.Uint16(pcm[i : i+2]))
+		f := float64(v)
+		sum += f * f
+	}
+	return math.Sqrt(sum / float64(n))
 }
