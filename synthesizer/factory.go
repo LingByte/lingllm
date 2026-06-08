@@ -238,6 +238,15 @@ func (f *DefaultSynthesisFactory) registerDefaultCreators() {
 		}
 		return NewMinimaxService(*minimaxConfig), nil
 	})
+
+	// 注册Aliyun
+	f.RegisterCreator(ProviderAliyun, func(config SynthesisConfig) (AudioSynthesisEngine, error) {
+		aliyunConfig, ok := config.(*AliyunTTSConfig)
+		if !ok {
+			return nil, fmt.Errorf("invalid config type for aliyun, expected *AliyunTTSConfig")
+		}
+		return NewAliyunService(*aliyunConfig), nil
+	})
 }
 
 // GlobalSynthesisFactory 全局TTS工厂实例
