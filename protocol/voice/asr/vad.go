@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LingByte/lingllm/media/dsp"
+	"github.com/LingByte/lingllm/media"
 )
 
 // VADComponent performs energy-based barge-in detection during downlink playback.
@@ -109,7 +109,7 @@ func (v *VADComponent) Process(ctx context.Context, data interface{}) (interface
 		return pcmData, true, nil
 	}
 
-	rms := dsp.RMSPCM16LE(pcmData)
+	rms := media.RMSPCM16LE(pcmData)
 	v.updateNoiseFloor(rms)
 	effective := v.effectiveThreshold()
 
