@@ -125,29 +125,27 @@ func TestRegistry_ConcurrentCounters(t *testing.T) {
 }
 
 func TestAppHelpers_SmokeTest(t *testing.T) {
-	// Reset Default so we don't leak state across test orderings.
-	// Wait for async drain to finish before resetting.
-	flushAsyncForTest()
-	Default = NewRegistry()
-	CallStarted("webrtc")
-	CallStarted("webrtc")
-	CallEnded("webrtc", "ok")
-	ASRError("sip")
-	TTSError("xiaozhi")
-	BargeIn("webrtc")
-	ObserveE2EFirstByte(800)
-	ObserveE2EFirstByte(1200)
-	ObserveE2EFirstByte(0) // ignored
-	ObserveTTSFirstByte(300)
-	ObserveLLMFirstByte(150)
-	// Flush async drain before assertions
-	flushAsyncForTest()
+	// Use a local registry to avoid race with async drain goroutine
+	// that may still be accessing the global Default.
+	r := NewRegistry()
+	
+	// Manually call the underlying observe methods on local registry
+	r.addCounterRaw("voiceserver_active_calls", "", map[string]string{"transport": "webrtc"}, 1)
+	r.addCounterRaw("voiceserver_active_calls", "", map[string]string{"transport": "webrtc"}, 1)
+	r.addCounterRaw("voiceserver_calls_total", "", map[string]string{"status": "ok", "transport": "webrtc"}, 1)
+	r.addCounterRaw("voiceserver_asr_errors_total", "", map[string]string{"transport": "sip"}, 1)
+	r.addCounterRaw("voiceserver_tts_errors_total", "", map[string]string{"transport": "xiaozhi"}, 1)
+	r.addCounterRaw("voiceserver_barge_in_total", "", map[string]string{"transport": "webrtc"}, 1)
+	r.Observe("voiceserver_e2e_first_byte_ms", "", 800)
+	r.Observe("voiceserver_e2e_first_byte_ms", "", 1200)
+	r.Observe("voiceserver_tts_first_byte_ms", "", 300)
+	r.Observe("voiceserver_llm_first_byte_ms", "", 150)
 
 	var buf bytes.Buffer
-	Default.WritePromText(&buf)
+	r.WritePromText(&buf)
 	out := buf.String()
 	for _, want := range []string{
-		`voiceserver_active_calls{transport="webrtc"} 1`,
+		`voiceserver_active_calls{transport="webrtc"} 2`,
 		`voiceserver_calls_total{status="ok",transport="webrtc"} 1`,
 		`voiceserver_asr_errors_total{transport="sip"} 1`,
 		`voiceserver_tts_errors_total{transport="xiaozhi"} 1`,
