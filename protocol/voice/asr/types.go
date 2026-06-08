@@ -51,7 +51,7 @@ type Pipeline interface {
 	// ResetState resets the pipeline state for a new conversation round.
 	ResetState()
 	// GetMetrics returns the pipeline performance metrics.
-	GetMetrics() Metrics
+	GetMetrics() *Metrics
 	// Close tears down the pipeline and releases resources.
 	Close() error
 }
@@ -254,9 +254,9 @@ func (p *StandardPipeline) ResetState() {
 }
 
 // GetMetrics returns the pipeline performance metrics.
-func (p *StandardPipeline) GetMetrics() Metrics {
-	p.metrics.mu.RLock()
-	defer p.metrics.mu.RUnlock()
+func (p *StandardPipeline) GetMetrics() *Metrics {
+	p.metrics.mu.Lock()
+	defer p.metrics.mu.Unlock()
 
 	// Calculate audio duration (assuming 16kHz, mono, 16-bit)
 	if p.metrics.TotalAudioBytes > 0 {
@@ -268,7 +268,7 @@ func (p *StandardPipeline) GetMetrics() Metrics {
 		p.metrics.RTF = float64(p.metrics.ASRLatency) / float64(p.metrics.AudioDuration)
 	}
 
-	return *p.metrics
+	return p.metrics
 }
 
 // Close tears down the pipeline.

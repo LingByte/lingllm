@@ -3,6 +3,7 @@ package protocol
 import (
 	"context"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
@@ -291,9 +292,8 @@ func (r *convertedReader) Metrics() metrics.CallMetrics {
 
 // CollectStream reads all chunks from a stream and returns them as a single response.
 func CollectStream(ctx context.Context, stream StreamReader) (*ChatResponse, error) {
-	var content string
+	var sb strings.Builder
 	var chunks int
-	var bytes int
 
 	for {
 		chunk, err := stream.Recv()
@@ -304,9 +304,8 @@ func CollectStream(ctx context.Context, stream StreamReader) (*ChatResponse, err
 			return nil, err
 		}
 
-		content += chunk.Delta
+		sb.WriteString(chunk.Delta)
 		chunks++
-		bytes += len(chunk.Delta)
 	}
 
 	metrics := stream.Metrics()
@@ -315,7 +314,7 @@ func CollectStream(ctx context.Context, stream StreamReader) (*ChatResponse, err
 	return &ChatResponse{
 		Model: metrics.Model,
 		Choices: []Choice{{
-			Message: Message{Role: RoleAssistant, Content: content},
+			Message: Message{Role: RoleAssistant, Content: sb.String()},
 		}},
 		Metrics: metrics,
 	}, nil
