@@ -306,14 +306,61 @@ func NewDefaultSession() *MediaSession {
 	}
 
 	// Initialize new architecture components
-	session.eventBus = NewEventBus(ctx, session.QueueSize, 4)
 	session.processorRegistry = NewProcessorRegistry()
 	session.router = NewRouter(StrategyBroadcast)
-
-	// Subscribe to events
-	session.setupEventHandlers()
+	session.initEventBus()
 
 	return session
+}
+
+// WithQueueSize sets TX/output queue depth and rebuilds the per-session EventBus
+// before Serve(). Call this after NewDefaultSession when a larger buffer is needed;
+// otherwise the bus stays at the default QueueSize (256) and may drop packets under
+// heavy TTS/realtime output load.
+func (s *MediaSession) WithQueueSize(n int) *MediaSession {
+	if n > 0 {
+		s.QueueSize = n
+	}
+	if !s.Running {
+		s.initEventBus()
+	}
+	return s
+}
+
+func (s *MediaSession) initEventBus() {
+	q := s.QueueSize
+	if q <= 0 {
+		q = 256
+		s.QueueSize = q
+	}
+	if s.eventBus != nil {
+		s.eventBus.Close()
+	}
+	s.eventBus = NewEventBus(s.ctx, q, mediaEventBusWorkers(q))
+	s.setupEventHandlers()
+}
+
+func mediaEventBusWorkers(queueSize int) int {
+	const maxWorkers = 32
+	for _, key := range []string{"MEDIA_EVENT_BUS_WORKERS", "SIP_MEDIA_EVENT_BUS_WORKERS"} {
+		if s := os.Getenv(key); s != "" {
+			n, err := strconv.Atoi(s)
+			if err == nil && n > 0 {
+				if n > maxWorkers {
+					return maxWorkers
+				}
+				return n
+			}
+		}
+	}
+	switch {
+	case queueSize >= 2048:
+		return 24
+	case queueSize >= 512:
+		return 12
+	default:
+		return 6
+	}
 }
 
 // setupEventHandlers configures default event handlers
@@ -839,6 +886,34 @@ func (s *MediaSession) EmitPacket(sender any, packet MediaPacket) {
 
 func (s *MediaSession) SendToOutput(sender any, packet MediaPacket) {
 	s.putPacket(DirectionOutput, packet)
+}
+
+// DrainOutputs non-blockingly drops every pending packet from each output
+// transport's send queue. Used for barge-in: when the caller starts speaking,
+// queued AI audio must be cleared immediately. Safe from any goroutine.
+func (s *MediaSession) DrainOutputs() int {
+	dropped := 0
+	for _, tl := range s.outputs {
+		dropped += tl.drain()
+	}
+	return dropped
+}
+
+func (tl *TransportManager) drain() int {
+	tl.mtx.Lock()
+	defer tl.mtx.Unlock()
+	if tl.txqueue == nil {
+		return 0
+	}
+	n := 0
+	for {
+		select {
+		case <-tl.txqueue:
+			n++
+		default:
+			return n
+		}
+	}
 }
 
 func (s *MediaSession) AddMetric(key string, duration time.Duration) {
