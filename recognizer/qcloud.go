@@ -149,8 +149,7 @@ func (asq *QCloudASR) OnRecognitionResultChange(response *asr.SpeechRecognitionR
 		return
 	}
 }
-
-// OnSentenceEnd implementation of SpeechRecognitionListener
+// OnSentenceEnd — 一句说完，isLast 应为 true
 func (asq *QCloudASR) OnSentenceEnd(response *asr.SpeechRecognitionResponse) {
 	logFields := logrus.Fields{
 		"voiceTextStr": response.Result.VoiceTextStr,
@@ -164,17 +163,44 @@ func (asq *QCloudASR) OnSentenceEnd(response *asr.SpeechRecognitionResponse) {
 	asq.sliceType = response.Result.SliceType
 	asq.startTime = response.Result.StartTime
 	asq.endTime = response.Result.EndTime
-	if asq.transcribeResult != nil {
-		asq.transcribeResult(asq.sentence, false, time.Since(*asq.sendReqTime), asq.dialogID)
+
+	completed := strings.TrimSpace(asq.sentence)
+	if completed == "" {
 		return
+	}
+
+	duration := time.Duration(0)
+	if asq.sendReqTime != nil {
+		duration = time.Since(*asq.sendReqTime)
+	}
+
+	if asq.transcribeResult != nil {
+		asq.transcribeResult(completed, true, duration, asq.dialogID)
+		asq.sentence = ""
+		return
+	}
+
+	if asq.Handler != nil {
+		packet := &media.TextPacket{
+			Text:          completed,
+			IsTranscribed: true,
+		}
+		asq.Handler.EmitPacket(asq.Handler, packet)
+		asq.Handler.EmitState(asq, media.Completed, &media.CompletedData{
+			SenderName: "asr.qcloud",
+			Result:     completed,
+			Duration:   duration,
+		})
+		asq.sentence = ""
 	}
 }
 
-// OnRecognitionComplete implementation of SpeechRecognitionListener
+// OnRecognitionComplete — 会话结束，只 flush 没碰到 OnSentenceEnd 的尾巴
 func (asq *QCloudASR) OnRecognitionComplete(response *asr.SpeechRecognitionResponse) {
-	finalSentence := asq.sentence
+	finalSentence := strings.TrimSpace(asq.sentence)
 	asq.sentence = ""
 	asq.sliceType = 0
+
 	logFields := logrus.Fields{
 		"voiceTextStr":  response.Result.VoiceTextStr,
 		"finalSentence": finalSentence,
@@ -182,25 +208,32 @@ func (asq *QCloudASR) OnRecognitionComplete(response *asr.SpeechRecognitionRespo
 	if asq.Handler != nil {
 		logFields["sessionID"] = asq.Handler.GetSession().ID
 	}
-	logrus.WithFields(logFields).Info("qcloud: on sentence complete")
+	logrus.WithFields(logFields).Info("qcloud: on recognition complete")
 
-	// 优先使用 transcribeResult 回调
-	if asq.transcribeResult != nil {
-		asq.transcribeResult(finalSentence, true, time.Since(*asq.sendReqTime), asq.dialogID)
+	if finalSentence == "" {
 		return
 	}
 
-	// 如果没有 transcribeResult 回调，尝试使用 Handler
+	duration := time.Duration(0)
+	if asq.sendReqTime != nil {
+		duration = time.Since(*asq.sendReqTime)
+	}
+
+	if asq.transcribeResult != nil {
+		asq.transcribeResult(finalSentence, true, duration, asq.dialogID)
+		return
+	}
+
 	if asq.Handler != nil {
 		packet := &media.TextPacket{
-			Text:          finalSentence,
-			IsTranscribed: true,
+		 Text:          finalSentence,
+		 IsTranscribed: true,
 		}
 		asq.Handler.EmitPacket(asq.Handler, packet)
 		asq.Handler.EmitState(asq, media.Completed, &media.CompletedData{
 			SenderName: "asr.qcloud",
 			Result:     finalSentence,
-			Duration:   time.Since(*asq.sendReqTime),
+			Duration:   duration,
 		})
 	}
 }
