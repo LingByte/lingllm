@@ -154,6 +154,16 @@ func Pcm2pcma(pcmData []byte) ([]byte, error) {
 	return alawData, nil
 }
 
+// DecodePCMU decodes G.711 μ-law RTP payloads to 16-bit little-endian PCM mono.
+func DecodePCMU(ulawData []byte) ([]byte, error) {
+	return pcmu2pcm(ulawData)
+}
+
+// DecodePCMA decodes G.711 A-law RTP payloads to 16-bit little-endian PCM mono.
+func DecodePCMA(alawData []byte) ([]byte, error) {
+	return pcma2pcm(alawData)
+}
+
 // convertULawToPCM converts μ-law encoded data to PCM
 func pcmu2pcm(ulawData []byte) ([]byte, error) {
 	pcmData := make([]byte, len(ulawData)<<1)
