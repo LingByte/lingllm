@@ -38,7 +38,13 @@ func main() {
 	baseURL := flag.String("base_url", "", "optional provider base URL")
 	systemPrompt := flag.String("system", "你是语音助手。每次只用1-2句口语化中文回答，总长不超过50字。不要列表、不要 markdown。", "system prompt")
 	maxTokens := flag.Int("max_tokens", 80, "max LLM completion tokens per turn (lower = faster voice replies)")
+	
+	// 降噪器配置
+	denoiserConfig := RegisterDenoiserFlags()
 	flag.Parse()
+
+	// 记录降噪器配置
+	denoiserConfig.LogConfig()
 
 	key := *apiKey
 	if key == "" {
@@ -54,11 +60,18 @@ func main() {
 		log.Fatalf("llm client: %v", err)
 	}
 
+	// 创建降噪器
+	denoiser, err := denoiserConfig.CreateDenoiser()
+	if err != nil {
+		log.Fatalf("create denoiser: %v", err)
+	}
+
 	hub := &dialogHub{
 		client:    client,
 		model:     *model,
 		system:    *systemPrompt,
 		maxTokens: *maxTokens,
+		denoiser:  denoiser,
 		calls:     make(map[string]*callState),
 	}
 
@@ -90,6 +103,7 @@ type dialogHub struct {
 	model     string
 	system    string
 	maxTokens int
+	denoiser  interface{} // ASR 降噪器组件
 
 	mu    sync.Mutex
 	calls map[string]*callState
