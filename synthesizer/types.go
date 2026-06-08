@@ -25,6 +25,7 @@ const (
 	TTS_VOLCENGINE_LLM    = "tts.volcengine_llm"
 	TTS_VOLCENGINE_STREAM = "tts.volcengine_stream"
 	TTS_MINIMAX           = "tts.minimax"
+	TTS_ALIYUN            = "tts.aliyun"
 )
 
 // TTSProvider TTS服务提供商类型

@@ -539,6 +539,9 @@ func NewAudioSynthesisEngine(name string, options map[string]any) (AudioSynthesi
 	case TTS_MINIMAX:
 		opt := media.CastOption[MinimaxOption](options)
 		return NewMinimaxService(opt), nil
+	case TTS_ALIYUN:
+		opt := media.CastOption[AliyunTTSConfig](options)
+		return NewAliyunService(opt), nil
 	default:
 		return nil, fmt.Errorf("synthesis: unknown synthesis: %s", name)
 	}
@@ -1575,7 +1578,7 @@ func NewAudioSynthesisEngineFromCredential(config TTSCredentialConfig) (AudioSyn
 		if apiKey == "" {
 			return nil, fmt.Errorf("阿里云TTS配置不完整：缺少apiKey")
 		}
-		providerName = "tts.aliyun"
+		providerName = TTS_ALIYUN
 		baseURL := config.getString("baseUrl")
 		if baseURL == "" {
 			baseURL = config.getString("base_url") // 兼容下划线格式
