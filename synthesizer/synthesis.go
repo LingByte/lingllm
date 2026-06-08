@@ -1567,6 +1567,98 @@ func NewAudioSynthesisEngineFromCredential(config TTSCredentialConfig) (AudioSyn
 			return nil, fmt.Errorf("反序列化本地go-speech配置失败: %w", err)
 		}
 
+	case "aliyun":
+		apiKey := config.getString("apiKey")
+		if apiKey == "" {
+			apiKey = config.getString("api_key") // 兼容下划线格式
+		}
+		if apiKey == "" {
+			return nil, fmt.Errorf("阿里云TTS配置不完整：缺少apiKey")
+		}
+		providerName = "tts.aliyun"
+		baseURL := config.getString("baseUrl")
+		if baseURL == "" {
+			baseURL = config.getString("base_url") // 兼容下划线格式
+		}
+		model := config.getString("model")
+		if model == "" {
+			model = "qwen3-tts-flash-realtime" // 默认值
+		}
+		voice := config.getString("voice")
+		if voice == "" {
+			voice = "Cherry" // 默认值
+		}
+		languageType := config.getString("languageType")
+		if languageType == "" {
+			languageType = config.getString("language_type") // 兼容下划线格式
+		}
+		if languageType == "" {
+			languageType = "Auto" // 默认值
+		}
+		mode := config.getString("mode")
+		if mode == "" {
+			mode = "server_commit" // 默认值
+		}
+		sampleRate := config.getInt64("sampleRate")
+		if sampleRate == 0 {
+			sampleRate = config.getInt64("sample_rate") // 兼容下划线格式
+		}
+		if sampleRate == 0 {
+			sampleRate = 24000 // 默认值
+		}
+		channels := config.getInt64("channels")
+		if channels == 0 {
+			channels = 1 // 默认值
+		}
+		bitDepth := config.getInt64("bitDepth")
+		if bitDepth == 0 {
+			bitDepth = config.getInt64("bit_depth") // 兼容下划线格式
+		}
+		if bitDepth == 0 {
+			bitDepth = 16 // 默认值
+		}
+		frameDuration := config.getString("frameDuration")
+		if frameDuration == "" {
+			frameDuration = config.getString("frame_duration") // 兼容下划线格式
+		}
+		if frameDuration == "" {
+			frameDuration = "20ms" // 默认值
+		}
+		dialTimeoutMs := config.getInt64("dialTimeoutMs")
+		if dialTimeoutMs == 0 {
+			dialTimeoutMs = config.getInt64("dial_timeout_ms") // 兼容下划线格式
+		}
+		if dialTimeoutMs == 0 {
+			dialTimeoutMs = 10000 // 默认值
+		}
+		instructions := config.getString("instructions")
+		optimizeInstructions := false
+		if optimizeStr := config.getString("optimizeInstructions"); optimizeStr != "" {
+			optimizeInstructions = optimizeStr == "true" || optimizeStr == "1"
+		}
+		aliyunConfig := NewAliyunTTSConfig(apiKey)
+		aliyunConfig.BaseURL = baseURL
+		aliyunConfig.Model = model
+		aliyunConfig.Voice = voice
+		aliyunConfig.LanguageType = languageType
+		aliyunConfig.Mode = mode
+		aliyunConfig.SampleRate = int(sampleRate)
+		aliyunConfig.Channels = int(channels)
+		aliyunConfig.BitDepth = int(bitDepth)
+		aliyunConfig.FrameDuration = frameDuration
+		aliyunConfig.DialTimeoutMs = int(dialTimeoutMs)
+		aliyunConfig.Instructions = instructions
+		aliyunConfig.OptimizeInstructions = optimizeInstructions
+		// 将配置对象转换为 map[string]any
+		configBytes, err := json.Marshal(aliyunConfig)
+		if err != nil {
+			return nil, fmt.Errorf("序列化阿里云TTS配置失败: %w", err)
+		}
+		options = make(map[string]any)
+		if err := json.Unmarshal(configBytes, &options); err != nil {
+			return nil, fmt.Errorf("反序列化阿里云TTS配置失败: %w", err)
+		}
+
 	default:
 		return nil, fmt.Errorf("不支持的TTS provider: %s", provider)
 	}
