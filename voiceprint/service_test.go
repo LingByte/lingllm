@@ -30,6 +30,16 @@ func (m *MockCache) Set(ctx context.Context, key string, value interface{}, ttl 
 	return nil
 }
 
+func (m *MockCache) Exists(ctx context.Context, key string) bool {
+	_, ok := m.data[key]
+	return ok
+}
+
+func (m *MockCache) Delete(ctx context.Context, key string) error {
+	delete(m.data, key)
+	return nil
+}
+
 func TestNewService(t *testing.T) {
 	tests := []struct {
 		name    string
