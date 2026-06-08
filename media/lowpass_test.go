@@ -37,13 +37,13 @@ func rmsInt16(s []int16) float64 {
 func TestLowPassFIR_NilForUpsampling(t *testing.T) {
 	// Upsampling has no aliasing risk; we MUST NOT apply a filter
 	// (would introduce unnecessary bandlimit).
-	if newDownsamplingLowPass(8000, 16000) != nil {
+	if NewDownsamplingLowPass(8000, 16000) != nil {
 		t.Error("upsampling case: filter should be nil")
 	}
-	if newDownsamplingLowPass(16000, 16000) != nil {
+	if NewDownsamplingLowPass(16000, 16000) != nil {
 		t.Error("no-op case: filter should be nil")
 	}
-	if newDownsamplingLowPass(0, 8000) != nil {
+	if NewDownsamplingLowPass(0, 8000) != nil {
 		t.Error("invalid source rate: filter should be nil")
 	}
 }
@@ -51,7 +51,7 @@ func TestLowPassFIR_NilForUpsampling(t *testing.T) {
 func TestLowPassFIR_DCGainIsUnity(t *testing.T) {
 	// Sum of normalised taps must be 1.0 within float epsilon —
 	// otherwise long-running calls would drift in volume.
-	f := newDownsamplingLowPass(16000, 8000)
+	f := NewDownsamplingLowPass(16000, 8000)
 	if f == nil {
 		t.Fatal("filter unexpectedly nil")
 	}
@@ -67,7 +67,7 @@ func TestLowPassFIR_DCGainIsUnity(t *testing.T) {
 func TestLowPassFIR_PassesLowFrequency(t *testing.T) {
 	// 1 kHz at 16 kHz source: deep in the passband (cutoff ≈ 3.6 kHz).
 	// Expect minimal attenuation (< 1 dB).
-	f := newDownsamplingLowPass(16000, 8000)
+	f := NewDownsamplingLowPass(16000, 8000)
 	in := genTone(1000, 16000, 4096)
 	out := f.filter(in)
 	rIn := rmsInt16(in)
@@ -85,7 +85,7 @@ func TestLowPassFIR_PassesLowFrequency(t *testing.T) {
 // inside the 8 kHz output — clearly audible buzz. The filter must
 // kill it BEFORE the decimator sees it.
 func TestLowPassFIR_RejectsAliasFrequency(t *testing.T) {
-	f := newDownsamplingLowPass(16000, 8000)
+	f := NewDownsamplingLowPass(16000, 8000)
 	in := genTone(7000, 16000, 4096)
 	out := f.filter(in)
 	rIn := rmsInt16(in)
@@ -107,10 +107,10 @@ func TestLowPassFIR_StatefulAcrossChunks(t *testing.T) {
 	// whole point of carrying history between calls.
 	in := genTone(1500, 16000, 1024)
 
-	fA := newDownsamplingLowPass(16000, 8000)
+	fA := NewDownsamplingLowPass(16000, 8000)
 	whole := fA.filter(in)
 
-	fB := newDownsamplingLowPass(16000, 8000)
+	fB := NewDownsamplingLowPass(16000, 8000)
 	first := fB.filter(in[:512])
 	second := fB.filter(in[512:])
 
@@ -139,7 +139,7 @@ func TestLowPassFIR_SaturatesNotWraps(t *testing.T) {
 	for i := range in {
 		in[i] = 32767
 	}
-	f := newDownsamplingLowPass(16000, 8000)
+	f := NewDownsamplingLowPass(16000, 8000)
 	out := f.filter(in)
 	// Skip past the (N-1)=30 sample warm-up region.
 	for i := 60; i < len(out); i++ {
@@ -226,10 +226,10 @@ func TestResamplePCM_8To16_NotAffected(t *testing.T) {
 
 func TestUpsamplingAntiImagingLowPass_NilForDownsample(t *testing.T) {
 	// The anti-imaging filter is only sensible when upsampling.
-	if newUpsamplingAntiImagingLowPass(16000, 8000) != nil {
+	if NewUpsamplingAntiImagingLowPass(16000, 8000) != nil {
 		t.Error("downsample: anti-imaging filter should be nil")
 	}
-	if newUpsamplingAntiImagingLowPass(8000, 8000) != nil {
+	if NewUpsamplingAntiImagingLowPass(8000, 8000) != nil {
 		t.Error("no-op: anti-imaging filter should be nil")
 	}
 }
@@ -239,7 +239,7 @@ func TestUpsamplingAntiImagingLowPass_CutoffAtSourceNyquist(t *testing.T) {
 	// = 0.225 cycles/sample at 16 kHz = 3.6 kHz. So:
 	//   - 1 kHz: passband, ~unity
 	//   - 6 kHz: stopband, should be heavily attenuated
-	f := newUpsamplingAntiImagingLowPass(8000, 16000)
+	f := NewUpsamplingAntiImagingLowPass(8000, 16000)
 	if f == nil {
 		t.Fatal("anti-imaging filter unexpectedly nil")
 	}
@@ -248,7 +248,7 @@ func TestUpsamplingAntiImagingLowPass_CutoffAtSourceNyquist(t *testing.T) {
 
 	passOut := f.filter(pass)
 	// Filter state separate per instance — rebuild for stopband test.
-	f2 := newUpsamplingAntiImagingLowPass(8000, 16000)
+	f2 := NewUpsamplingAntiImagingLowPass(8000, 16000)
 	stopOut := f2.filter(stop)
 
 	passRatio := rmsInt16(passOut[200:]) / rmsInt16(pass)
