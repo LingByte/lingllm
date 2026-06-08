@@ -126,6 +126,8 @@ func TestRegistry_ConcurrentCounters(t *testing.T) {
 
 func TestAppHelpers_SmokeTest(t *testing.T) {
 	// Reset Default so we don't leak state across test orderings.
+	// Wait for async drain to finish before resetting.
+	flushAsyncForTest()
 	Default = NewRegistry()
 	CallStarted("webrtc")
 	CallStarted("webrtc")
@@ -138,6 +140,8 @@ func TestAppHelpers_SmokeTest(t *testing.T) {
 	ObserveE2EFirstByte(0) // ignored
 	ObserveTTSFirstByte(300)
 	ObserveLLMFirstByte(150)
+	// Flush async drain before assertions
+	flushAsyncForTest()
 
 	var buf bytes.Buffer
 	Default.WritePromText(&buf)
