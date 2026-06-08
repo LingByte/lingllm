@@ -32,11 +32,14 @@ func TestCoordinator_HandleRefer_MissingDialog(t *testing.T) {
 }
 
 func TestCoordinator_HandleRefer_202(t *testing.T) {
+	var mu sync.Mutex
 	var sent bool
 	c := NewCoordinator(Config{
 		LocalIP: "10.0.0.9",
 		SIPPort: 5060,
 		Dial: func(context.Context, outbound.DialRequest) (string, error) {
+			mu.Lock()
+			defer mu.Unlock()
 			sent = true
 			return "out-call", nil
 		},
@@ -66,11 +69,17 @@ func TestCoordinator_HandleRefer_202(t *testing.T) {
 		t.Fatalf("refer: err=%v status=%d", err, resp.StatusCode)
 	}
 	deadline := time.Now().Add(200 * time.Millisecond)
-	for !sent && time.Now().Before(deadline) {
+	for {
+		mu.Lock()
+		if sent {
+			mu.Unlock()
+			break
+		}
+		mu.Unlock()
+		if time.Now().After(deadline) {
+			t.Fatal("expected dial to run")
+		}
 		time.Sleep(5 * time.Millisecond)
-	}
-	if !sent {
-		t.Fatal("expected dial to run")
 	}
 }
 

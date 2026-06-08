@@ -81,11 +81,14 @@ func TestAudioSenderStop(t *testing.T) {
 }
 
 func TestAudioSenderProcessFrame(t *testing.T) {
+	var mu sync.Mutex
 	sendCount := 0
 	config := AudioSenderConfig{
 		OutputCodec:      "pcm",
 		TargetSampleRate: 16000,
 		SendCallback: func(data []byte) error {
+			mu.Lock()
+			defer mu.Unlock()
 			sendCount++
 			return nil
 		},
@@ -111,6 +114,8 @@ func TestAudioSenderProcessFrame(t *testing.T) {
 	// Give time for async processing
 	time.Sleep(100 * time.Millisecond)
 
+	mu.Lock()
+	defer mu.Unlock()
 	if sendCount == 0 {
 		t.Error("SendCallback should have been called")
 	}

@@ -106,9 +106,12 @@ func TestTTSWorkerPoolClose(t *testing.T) {
 }
 
 func TestTTSWorkerPoolSynthesis(t *testing.T) {
+	var mu sync.Mutex
 	synthesizeCalled := false
 	mockService := &MockTTSService{
 		synthesizeFunc: func(ctx context.Context, text string, callback func([]byte) error) error {
+			mu.Lock()
+			defer mu.Unlock()
 			synthesizeCalled = true
 			// Simulate TTS output
 			return callback(make([]byte, 1920))
@@ -136,6 +139,8 @@ func TestTTSWorkerPoolSynthesis(t *testing.T) {
 	// Wait for processing
 	time.Sleep(100 * time.Millisecond)
 
+	mu.Lock()
+	defer mu.Unlock()
 	if !synthesizeCalled {
 		t.Error("TTS service should have been called")
 	}

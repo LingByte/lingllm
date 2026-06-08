@@ -131,8 +131,11 @@ func TestSIPRTPTransport_Input_OnInputRTPBeforeDTMFHeuristic(t *testing.T) {
 	tePT := uint8(101)
 	rx := NewSIPRTPTransport(a, codec, media.DirectionInput, tePT)
 
+	var mu sync.Mutex
 	var gotPayload []byte
 	rx.OnInputRTP = func(_ uint16, _ uint32, p []byte) {
+		mu.Lock()
+		defer mu.Unlock()
 		gotPayload = append([]byte(nil), p...)
 	}
 
@@ -163,6 +166,8 @@ func TestSIPRTPTransport_Input_OnInputRTPBeforeDTMFHeuristic(t *testing.T) {
 	time.Sleep(300 * time.Millisecond)
 	cancel()
 
+	mu.Lock()
+	defer mu.Unlock()
 	if len(gotPayload) != len(payload) {
 		t.Fatalf("OnInputRTP payload len: got %d want %d", len(gotPayload), len(payload))
 	}
