@@ -35,6 +35,17 @@ func TestCreateProvider(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "http provider",
+			config: &ProviderConfig{
+				Provider: ProviderHTTP,
+				Options: map[string]interface{}{
+					"base_url": "http://localhost:8080",
+					"api_key":  "test-key",
+				},
+			},
+			wantErr: false,
+		},
+		{
 			name: "xunfei without options",
 			config: &ProviderConfig{
 				Provider: ProviderXunfei,

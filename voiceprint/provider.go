@@ -12,6 +12,7 @@ import (
 type Provider string
 
 const (
+	ProviderHTTP   Provider = "http"
 	ProviderXunfei Provider = "xunfei"
 )
 
@@ -59,11 +60,36 @@ func (f *Factory) CreateProvider(config *ProviderConfig) (VoiceprintProvider, er
 	}
 
 	switch config.Provider {
+	case ProviderHTTP:
+		return f.createHTTPProvider(config.Options)
 	case ProviderXunfei:
 		return f.createXunfeiProvider(config.Options)
 	default:
 		return nil, fmt.Errorf("unsupported provider: %s", config.Provider)
 	}
+}
+
+// createHTTPProvider 创建 HTTP 提供商
+func (f *Factory) createHTTPProvider(options map[string]interface{}) (VoiceprintProvider, error) {
+	// 从 options 中提取配置
+	config := &Config{
+		Enabled: true,
+	}
+
+	if baseURL, ok := options["base_url"].(string); ok && baseURL != "" {
+		config.BaseURL = baseURL
+	}
+
+	if apiKey, ok := options["api_key"].(string); ok && apiKey != "" {
+		config.APIKey = apiKey
+	}
+
+	client, err := NewClient(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP client: %w", err)
+	}
+
+	return &HTTPProviderAdapter{client: client}, nil
 }
 
 // createXunfeiProvider 创建讯飞提供商
@@ -103,6 +129,63 @@ func (f *Factory) createXunfeiProvider(options map[string]interface{}) (Voicepri
 	}
 
 	return &XunfeiProviderAdapter{client: client}, nil
+}
+
+// HTTPProviderAdapter HTTP 提供商适配器
+type HTTPProviderAdapter struct {
+	client *Client
+}
+
+// CreateGroup 创建特征库
+func (a *HTTPProviderAdapter) CreateGroup(ctx context.Context, groupID, groupName, groupInfo string) (*CreateGroupResult, error) {
+	// HTTP 客户端不支持此操作，返回错误
+	return nil, fmt.Errorf("HTTP provider does not support CreateGroup")
+}
+
+// DeleteGroup 删除特征库
+func (a *HTTPProviderAdapter) DeleteGroup(ctx context.Context, groupID string) error {
+	return fmt.Errorf("HTTP provider does not support DeleteGroup")
+}
+
+// CreateFeature 创建特征
+func (a *HTTPProviderAdapter) CreateFeature(ctx context.Context, groupID, featureID, featureInfo string, audioData []byte) (*CreateFeatureResult, error) {
+	return nil, fmt.Errorf("HTTP provider does not support CreateFeature")
+}
+
+// UpdateFeature 更新特征
+func (a *HTTPProviderAdapter) UpdateFeature(ctx context.Context, groupID, featureID, featureInfo string, audioData []byte, cover bool) (*UpdateFeatureResult, error) {
+	return nil, fmt.Errorf("HTTP provider does not support UpdateFeature")
+}
+
+// DeleteFeature 删除特征
+func (a *HTTPProviderAdapter) DeleteFeature(ctx context.Context, groupID, featureID string) error {
+	return fmt.Errorf("HTTP provider does not support DeleteFeature")
+}
+
+// QueryFeatureList 查询特征列表
+func (a *HTTPProviderAdapter) QueryFeatureList(ctx context.Context, groupID string) (*QueryFeatureListResult, error) {
+	return nil, fmt.Errorf("HTTP provider does not support QueryFeatureList")
+}
+
+// SearchScoreFea 1:1比对
+func (a *HTTPProviderAdapter) SearchScoreFea(ctx context.Context, groupID, dstFeatureID string, audioData []byte) (*SearchScoreFeaResult, error) {
+	return nil, fmt.Errorf("HTTP provider does not support SearchScoreFea")
+}
+
+// SearchFea 1:N比对
+func (a *HTTPProviderAdapter) SearchFea(ctx context.Context, groupID string, topK int, audioData []byte) (*SearchFeaResult, error) {
+	return nil, fmt.Errorf("HTTP provider does not support SearchFea")
+}
+
+// HealthCheck 健康检查
+func (a *HTTPProviderAdapter) HealthCheck(ctx context.Context) error {
+	_, err := a.client.HealthCheck(ctx)
+	return err
+}
+
+// Close 关闭
+func (a *HTTPProviderAdapter) Close() error {
+	return nil
 }
 
 // XunfeiProviderAdapter 讯飞提供商适配器
