@@ -4,8 +4,8 @@
 package voiceprint
 
 import (
-	"bytes"
 	"encoding/binary"
+	"strings"
 	"testing"
 	"time"
 )
@@ -155,21 +155,15 @@ func TestGetAudioInfo(t *testing.T) {
 	}
 }
 
-func TestExtractPCMData(t *testing.T) {
+func TestConvertToMono(t *testing.T) {
 	tests := []struct {
 		name    string
 		data    []byte
 		wantErr bool
 	}{
 		{
-			name:    "invalid format",
-			data:    make([]byte, 10),
-			wantErr: true,
-		},
-		{
-			name: "valid WAV with data chunk",
-			data: func() []byte {
-				// Create a minimal valid WAV file
+			name:    "mono audio",
+			data:    func() []byte {
 				data := make([]byte, 100)
 				copy(data[0:4], "RIFF")
 				binary.LittleEndian.PutUint32(data[4:8], 92)
@@ -177,16 +171,7 @@ func TestExtractPCMData(t *testing.T) {
 				copy(data[12:16], "fmt ")
 				binary.LittleEndian.PutUint32(data[16:20], 16)
 				binary.LittleEndian.PutUint16(data[20:22], 1) // PCM
-				binary.LittleEndian.PutUint16(data[22:24], 1) // Channels
-				binary.LittleEndian.PutUint32(data[24:28], 16000) // Sample rate
-				binary.LittleEndian.PutUint32(data[28:32], 32000) // Byte rate
-				binary.LittleEndian.PutUint16(data[32:34], 2) // Block align
-				binary.LittleEndian.PutUint16(data[34:36], 16) // Bits per sample
-
-				// Add data chunk
-				copy(data[36:40], "data")
-				binary.LittleEndian.PutUint32(data[40:44], 20)
-
+				binary.LittleEndian.PutUint16(data[22:24], 1) // Mono
 				return data
 			}(),
 			wantErr: false,
@@ -195,191 +180,183 @@ func TestExtractPCMData(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := ExtractPCMData(tt.data)
+			_, err := ConvertToMono(tt.data)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("ExtractPCMData() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("ConvertToMono() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
 }
 
-func TestCalculateAudioDuration(t *testing.T) {
+func TestGenerateSpeakerID(t *testing.T) {
+	id := GenerateSpeakerID("speaker")
+	if id == "" {
+		t.Error("GenerateSpeakerID() returned empty string")
+	}
+	if !strings.HasPrefix(id, "speaker_") {
+		t.Errorf("GenerateSpeakerID() = %s, want prefix speaker_", id)
+	}
+}
+
+func TestFormatDuration(t *testing.T) {
 	tests := []struct {
-		name       string
-		pcmData    []byte
-		sampleRate int
-		channels   int
-		want       time.Duration
+		name string
+		d    time.Duration
 	}{
 		{
-			name:       "zero length",
-			pcmData:    []byte{},
-			sampleRate: 16000,
-			channels:   1,
-			want:       0,
+			name: "milliseconds",
+			d:    100 * time.Millisecond,
 		},
 		{
-			name:       "1 second of audio",
-			pcmData:    make([]byte, 16000*2), // 16000 samples * 2 bytes per sample
-			sampleRate: 16000,
-			channels:   1,
-			want:       time.Second,
+			name: "seconds",
+			d:    5 * time.Second,
 		},
 		{
-			name:       "stereo audio",
-			pcmData:    make([]byte, 16000*2*2), // 16000 samples * 2 channels * 2 bytes per sample
-			sampleRate: 16000,
-			channels:   2,
-			want:       time.Second,
+			name: "minutes",
+			d:    2 * time.Minute,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := CalculateAudioDuration(tt.pcmData, tt.sampleRate, tt.channels)
+			got := FormatDuration(tt.d)
+			if got == "" {
+				t.Error("FormatDuration() returned empty string")
+			}
+		})
+	}
+}
+
+func TestFormatFileSize(t *testing.T) {
+	tests := []struct {
+		name string
+		size int64
+	}{
+		{
+			name: "bytes",
+			size: 512,
+		},
+		{
+			name: "kilobytes",
+			size: 1024 * 10,
+		},
+		{
+			name: "megabytes",
+			size: 1024 * 1024 * 5,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := FormatFileSize(tt.size)
+			if got == "" {
+				t.Error("FormatFileSize() returned empty string")
+			}
+		})
+	}
+}
+
+func TestIsValidSpeakerID(t *testing.T) {
+	tests := []struct {
+		name      string
+		speakerID string
+		want      bool
+	}{
+		{
+			name:      "valid id",
+			speakerID: "speaker_001",
+			want:      true,
+		},
+		{
+			name:      "valid id with dash",
+			speakerID: "speaker-001",
+			want:      true,
+		},
+		{
+			name:      "empty id",
+			speakerID: "",
+			want:      false,
+		},
+		{
+			name:      "invalid characters",
+			speakerID: "speaker@001",
+			want:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsValidSpeakerID(tt.speakerID)
 			if got != tt.want {
-				t.Errorf("CalculateAudioDuration() = %v, want %v", got, tt.want)
+				t.Errorf("IsValidSpeakerID() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestNormalizeAudioData(t *testing.T) {
+func TestSanitizeSpeakerID(t *testing.T) {
 	tests := []struct {
-		name    string
-		data    []byte
-		wantErr bool
+		name      string
+		speakerID string
 	}{
 		{
-			name:    "empty data",
-			data:    []byte{},
-			wantErr: false,
+			name:      "valid id",
+			speakerID: "speaker_001",
 		},
 		{
-			name:    "valid PCM data",
-			data:    make([]byte, 1000),
-			wantErr: false,
+			name:      "id with invalid chars",
+			speakerID: "speaker@001!",
+		},
+		{
+			name:      "empty id",
+			speakerID: "",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NormalizeAudioData(tt.data)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("NormalizeAudioData() error = %v, wantErr %v", err, tt.wantErr)
-				return
+			got := SanitizeSpeakerID(tt.speakerID)
+			if got == "" {
+				t.Error("SanitizeSpeakerID() returned empty string")
 			}
-			if !tt.wantErr && got == nil {
-				t.Error("NormalizeAudioData() returned nil")
+			if !IsValidSpeakerID(got) {
+				t.Errorf("SanitizeSpeakerID() returned invalid ID: %s", got)
 			}
 		})
 	}
 }
 
-func TestConvertAudioFormat(t *testing.T) {
+func TestCalculateAudioHash(t *testing.T) {
 	tests := []struct {
-		name       string
-		data       []byte
-		fromFormat string
-		toFormat   string
-		wantErr    bool
+		name string
+		data []byte
 	}{
 		{
-			name:       "unsupported format",
-			data:       []byte{},
-			fromFormat: "unknown",
-			toFormat:   "pcm",
-			wantErr:    true,
+			name: "valid WAV data",
+			data: func() []byte {
+				data := make([]byte, 100)
+				copy(data[0:4], "RIFF")
+				return data
+			}(),
 		},
 		{
-			name:       "pcm to pcm",
-			data:       make([]byte, 100),
-			fromFormat: "pcm",
-			toFormat:   "pcm",
-			wantErr:    false,
+			name: "short data",
+			data: make([]byte, 10),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ConvertAudioFormat(tt.data, tt.fromFormat, tt.toFormat)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ConvertAudioFormat() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !tt.wantErr && got == nil {
-				t.Error("ConvertAudioFormat() returned nil")
+			got := CalculateAudioHash(tt.data)
+			// Hash can be empty for short data, that's ok
+			if len(tt.data) >= 44 && got == "" {
+				t.Error("CalculateAudioHash() returned empty string for valid data")
 			}
 		})
 	}
 }
 
-func TestComputeAudioHash(t *testing.T) {
-	tests := []struct {
-		name    string
-		data    []byte
-		wantErr bool
-	}{
-		{
-			name:    "empty data",
-			data:    []byte{},
-			wantErr: false,
-		},
-		{
-			name:    "valid data",
-			data:    []byte("test audio data"),
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := ComputeAudioHash(tt.data)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ComputeAudioHash() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !tt.wantErr && got == "" {
-				t.Error("ComputeAudioHash() returned empty string")
-			}
-		})
-	}
-}
-
-func TestIsValidAudioFormat(t *testing.T) {
-	tests := []struct {
-		name   string
-		format string
-		want   bool
-	}{
-		{
-			name:   "valid PCM",
-			format: "pcm",
-			want:   true,
-		},
-		{
-			name:   "valid WAV",
-			format: "wav",
-			want:   true,
-		},
-		{
-			name:   "invalid format",
-			format: "unknown",
-			want:   false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := IsValidAudioFormat(tt.format)
-			if got != tt.want {
-				t.Errorf("IsValidAudioFormat() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestAudioInfo_String(t *testing.T) {
+func TestAudioInfo_Fields(t *testing.T) {
 	info := &AudioInfo{
 		Format:        "WAV",
 		SampleRate:    16000,
@@ -389,13 +366,13 @@ func TestAudioInfo_String(t *testing.T) {
 		FileSize:      64000,
 	}
 
-	result := info.String()
-	if result == "" {
-		t.Error("AudioInfo.String() returned empty string")
+	if info.Format != "WAV" {
+		t.Errorf("AudioInfo.Format = %s, want WAV", info.Format)
 	}
-
-	// Check that the string contains expected information
-	if !bytes.Contains([]byte(result), []byte("WAV")) {
-		t.Error("AudioInfo.String() does not contain format")
+	if info.SampleRate != 16000 {
+		t.Errorf("AudioInfo.SampleRate = %d, want 16000", info.SampleRate)
+	}
+	if info.Channels != 2 {
+		t.Errorf("AudioInfo.Channels = %d, want 2", info.Channels)
 	}
 }

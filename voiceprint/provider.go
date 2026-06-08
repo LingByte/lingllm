@@ -73,11 +73,14 @@ func (f *Factory) CreateProvider(config *ProviderConfig) (VoiceprintProvider, er
 func (f *Factory) createHTTPProvider(options map[string]interface{}) (VoiceprintProvider, error) {
 	// 从 options 中提取配置
 	config := &Config{
-		Enabled: true,
+		Enabled:       true,
+		MaxCandidates: 10, // 设置默认值
 	}
 
 	if baseURL, ok := options["base_url"].(string); ok && baseURL != "" {
 		config.BaseURL = baseURL
+	} else {
+		config.BaseURL = "http://localhost:8080"
 	}
 
 	if apiKey, ok := options["api_key"].(string); ok && apiKey != "" {

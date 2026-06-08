@@ -86,7 +86,17 @@ func TestNewConfigFromEnv(t *testing.T) {
 				return ""
 			},
 			want: &Config{
-				BaseURL: "http://service:8005",
+				BaseURL:             "http://service:8005",
+				Timeout:             30 * time.Second,
+				ConnectTimeout:      10 * time.Second,
+				MaxRetries:          3,
+				RetryInterval:       1 * time.Second,
+				SimilarityThreshold: 0.6,
+				MaxCandidates:       10,
+				CacheEnabled:        true,
+				CacheTTL:            5 * time.Minute,
+				LogEnabled:          true,
+				LogLevel:            "info",
 			},
 		},
 		{
@@ -98,7 +108,17 @@ func TestNewConfigFromEnv(t *testing.T) {
 				return ""
 			},
 			want: &Config{
-				Timeout: 30 * time.Second, // Should use default
+				BaseURL:             "http://localhost:8005",
+				Timeout:             30 * time.Second,
+				ConnectTimeout:      10 * time.Second,
+				MaxRetries:          3,
+				RetryInterval:       1 * time.Second,
+				SimilarityThreshold: 0.6,
+				MaxCandidates:       10,
+				CacheEnabled:        true,
+				CacheTTL:            5 * time.Minute,
+				LogEnabled:          true,
+				LogLevel:            "info",
 			},
 		},
 		{
@@ -110,7 +130,17 @@ func TestNewConfigFromEnv(t *testing.T) {
 				return ""
 			},
 			want: &Config{
-				MaxRetries: 3, // Should use default
+				BaseURL:             "http://localhost:8005",
+				Timeout:             30 * time.Second,
+				ConnectTimeout:      10 * time.Second,
+				MaxRetries:          3,
+				RetryInterval:       1 * time.Second,
+				SimilarityThreshold: 0.6,
+				MaxCandidates:       10,
+				CacheEnabled:        true,
+				CacheTTL:            5 * time.Minute,
+				LogEnabled:          true,
+				LogLevel:            "info",
 			},
 		},
 		{
@@ -122,7 +152,17 @@ func TestNewConfigFromEnv(t *testing.T) {
 				return ""
 			},
 			want: &Config{
-				SimilarityThreshold: 0.6, // Should use default
+				BaseURL:             "http://localhost:8005",
+				Timeout:             30 * time.Second,
+				ConnectTimeout:      10 * time.Second,
+				MaxRetries:          3,
+				RetryInterval:       1 * time.Second,
+				SimilarityThreshold: 0.6,
+				MaxCandidates:       10,
+				CacheEnabled:        true,
+				CacheTTL:            5 * time.Minute,
+				LogEnabled:          true,
+				LogLevel:            "info",
 			},
 		},
 	}

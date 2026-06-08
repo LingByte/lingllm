@@ -35,7 +35,7 @@ func TestCreateProvider(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "http provider",
+			name: "http provider with minimal config",
 			config: &ProviderConfig{
 				Provider: ProviderHTTP,
 				Options: map[string]interface{}{

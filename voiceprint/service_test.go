@@ -50,11 +50,12 @@ func TestNewService(t *testing.T) {
 		{
 			name: "valid config",
 			config: &Config{
-				Enabled:  true,
-				BaseURL:  "http://localhost:8005",
-				APIKey:   "test-key",
-				Timeout:  10 * time.Second,
-				LogLevel: "info",
+				Enabled:       true,
+				BaseURL:       "http://localhost:8005",
+				APIKey:        "test-key",
+				Timeout:       10 * time.Second,
+				LogLevel:      "info",
+				MaxCandidates: 10,
 			},
 			cache:   NewMockCache(),
 			wantErr: false,
@@ -62,10 +63,11 @@ func TestNewService(t *testing.T) {
 		{
 			name: "invalid config - no base url",
 			config: &Config{
-				Enabled:  true,
-				APIKey:   "test-key",
-				Timeout:  10 * time.Second,
-				LogLevel: "info",
+				Enabled:       true,
+				APIKey:        "test-key",
+				Timeout:       10 * time.Second,
+				LogLevel:      "info",
+				MaxCandidates: 10,
 			},
 			cache:   NewMockCache(),
 			wantErr: true,
@@ -73,10 +75,11 @@ func TestNewService(t *testing.T) {
 		{
 			name: "invalid config - no api key",
 			config: &Config{
-				Enabled:  true,
-				BaseURL:  "http://localhost:8005",
-				Timeout:  10 * time.Second,
-				LogLevel: "info",
+				Enabled:       true,
+				BaseURL:       "http://localhost:8005",
+				Timeout:       10 * time.Second,
+				LogLevel:      "info",
+				MaxCandidates: 10,
 			},
 			cache:   NewMockCache(),
 			wantErr: true,
@@ -99,9 +102,10 @@ func TestNewService(t *testing.T) {
 
 func TestService_IsEnabled(t *testing.T) {
 	config := &Config{
-		Enabled: true,
-		BaseURL: "http://localhost:8005",
-		APIKey:  "test-key",
+		Enabled:       true,
+		BaseURL:       "http://localhost:8005",
+		APIKey:        "test-key",
+		MaxCandidates: 10,
 	}
 	service, _ := NewService(config, NewMockCache())
 
@@ -134,9 +138,10 @@ func TestService_HealthCheck(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config := &Config{
-				Enabled: tt.enabled,
-				BaseURL: "http://localhost:8005",
-				APIKey:  "test-key",
+				Enabled:       tt.enabled,
+				BaseURL:       "http://localhost:8005",
+				APIKey:        "test-key",
+				MaxCandidates: 10,
 			}
 			service, _ := NewService(config, NewMockCache())
 			ctx := context.Background()
@@ -149,43 +154,30 @@ func TestService_HealthCheck(t *testing.T) {
 	}
 }
 
-func TestService_GetStats(t *testing.T) {
+func TestService_GetStatistics(t *testing.T) {
 	config := &Config{
-		Enabled: true,
-		BaseURL: "http://localhost:8005",
-		APIKey:  "test-key",
+		Enabled:       true,
+		BaseURL:       "http://localhost:8005",
+		APIKey:        "test-key",
+		MaxCandidates: 10,
 	}
 	service, _ := NewService(config, NewMockCache())
 
-	stats := service.GetStats()
+	stats := service.GetStatistics()
 	if stats == nil {
-		t.Error("GetStats() returned nil")
+		t.Error("GetStatistics() returned nil")
 	}
-	if stats.TotalRequests != 0 {
-		t.Errorf("GetStats() TotalRequests = %d, want 0", stats.TotalRequests)
-	}
-}
-
-func TestService_ResetStats(t *testing.T) {
-	config := &Config{
-		Enabled: true,
-		BaseURL: "http://localhost:8005",
-		APIKey:  "test-key",
-	}
-	service, _ := NewService(config, NewMockCache())
-
-	service.ResetStats()
-	stats := service.GetStats()
-	if stats.TotalRequests != 0 {
-		t.Errorf("ResetStats() failed, TotalRequests = %d, want 0", stats.TotalRequests)
+	if stats.TotalIdentifications != 0 {
+		t.Errorf("GetStatistics() TotalIdentifications = %d, want 0", stats.TotalIdentifications)
 	}
 }
 
 func TestService_Close(t *testing.T) {
 	config := &Config{
-		Enabled: true,
-		BaseURL: "http://localhost:8005",
-		APIKey:  "test-key",
+		Enabled:       true,
+		BaseURL:       "http://localhost:8005",
+		APIKey:        "test-key",
+		MaxCandidates: 10,
 	}
 	service, _ := NewService(config, NewMockCache())
 
@@ -197,14 +189,15 @@ func TestService_Close(t *testing.T) {
 
 func TestService_CacheOperations(t *testing.T) {
 	config := &Config{
-		Enabled:      true,
-		BaseURL:      "http://localhost:8005",
-		APIKey:       "test-key",
-		CacheEnabled: true,
-		CacheTTL:     5 * time.Minute,
+		Enabled:       true,
+		BaseURL:       "http://localhost:8005",
+		APIKey:        "test-key",
+		CacheEnabled:  true,
+		CacheTTL:      5 * time.Minute,
+		MaxCandidates: 10,
 	}
 	cache := NewMockCache()
-	service, _ := NewService(config, cache)
+	_, _ = NewService(config, cache)
 	ctx := context.Background()
 
 	// Test cache set and get
@@ -230,9 +223,10 @@ func TestService_CacheOperations(t *testing.T) {
 
 func TestService_Concurrent(t *testing.T) {
 	config := &Config{
-		Enabled: true,
-		BaseURL: "http://localhost:8005",
-		APIKey:  "test-key",
+		Enabled:       true,
+		BaseURL:       "http://localhost:8005",
+		APIKey:        "test-key",
+		MaxCandidates: 10,
 	}
 	service, _ := NewService(config, NewMockCache())
 
@@ -240,9 +234,9 @@ func TestService_Concurrent(t *testing.T) {
 	done := make(chan bool)
 	for i := 0; i < 10; i++ {
 		go func() {
-			stats := service.GetStats()
+			stats := service.GetStatistics()
 			if stats == nil {
-				t.Error("GetStats() returned nil")
+				t.Error("GetStatistics() returned nil")
 			}
 			done <- true
 		}()
@@ -255,13 +249,14 @@ func TestService_Concurrent(t *testing.T) {
 
 func TestService_StatisticsUpdate(t *testing.T) {
 	config := &Config{
-		Enabled: true,
-		BaseURL: "http://localhost:8005",
-		APIKey:  "test-key",
+		Enabled:       true,
+		BaseURL:       "http://localhost:8005",
+		APIKey:        "test-key",
+		MaxCandidates: 10,
 	}
 	service, _ := NewService(config, NewMockCache())
 
-	initialStats := service.GetStats()
+	initialStats := service.GetStatistics()
 	if initialStats.LastActivity.IsZero() {
 		t.Error("Statistics.LastActivity should not be zero")
 	}
