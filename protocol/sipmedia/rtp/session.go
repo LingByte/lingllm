@@ -359,7 +359,10 @@ func (s *Session) ReceiveRTP(buffer []byte) (n int, from *net.UDPAddr, packet *R
 	}
 
 	work := buffer[:n]
-	if s.srtpDecrypt != nil {
+	s.srtpMu.Lock()
+	decrypt := s.srtpDecrypt
+	s.srtpMu.Unlock()
+	if decrypt != nil {
 		s.srtpMu.Lock()
 		plain, derr := s.srtpDecrypt.DecryptRTP(nil, work, nil)
 		s.srtpMu.Unlock()
