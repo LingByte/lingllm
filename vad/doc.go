@@ -38,5 +38,3 @@
 //		// Handle voice activity
 //	}
 package vad
-
-import "fmt"

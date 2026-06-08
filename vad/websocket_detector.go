@@ -6,7 +6,6 @@ package vad
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"

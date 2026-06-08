@@ -8,8 +8,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// Detector performs energy-based (RMS) gating suitable for barge-in while downlink synthesis plays.
-type Detector struct {
+// RMSDetector performs energy-based (RMS) gating suitable for barge-in while downlink synthesis plays.
+type RMSDetector struct {
 	mu                      sync.RWMutex
 	enabled                 bool
 	threshold               float64
@@ -23,9 +23,9 @@ type Detector struct {
 	maxNoiseSamples         int
 }
 
-// NewDetector builds a detector with sipold-aligned defaults.
-func NewDetector() *Detector {
-	return &Detector{
+// NewRMSDetector builds a detector with sipold-aligned defaults.
+func NewRMSDetector() *RMSDetector {
+	return &RMSDetector{
 		enabled:                 true,
 		threshold:               1500.0,
 		adaptiveThreshold:       0,
@@ -38,8 +38,13 @@ func NewDetector() *Detector {
 	}
 }
 
+// NewDetector is an alias for NewRMSDetector for backward compatibility.
+func NewDetector() *RMSDetector {
+	return NewRMSDetector()
+}
+
 // SetLogger attaches an optional logrus logger (debug/info).
-func (v *Detector) SetLogger(logger *logrus.Logger) {
+func (v *RMSDetector) SetLogger(logger *logrus.Logger) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	v.logger = logger
@@ -47,7 +52,7 @@ func (v *Detector) SetLogger(logger *logrus.Logger) {
 
 // CheckBargeIn returns true when uplink PCM suggests the user is speaking during synthesis playback.
 // pcmData must be 16-bit little-endian mono PCM (typically 20 ms @ 16 kHz from the sip1 decode path).
-func (v *Detector) CheckBargeIn(pcmData []byte, synthPlaying bool) bool {
+func (v *RMSDetector) CheckBargeIn(pcmData []byte, synthPlaying bool) bool {
 	if len(pcmData) < 2 {
 		return false
 	}
@@ -136,7 +141,7 @@ func (v *Detector) CheckBargeIn(pcmData []byte, synthPlaying bool) bool {
 }
 
 // SetEnabled turns detection on/off.
-func (v *Detector) SetEnabled(enabled bool) {
+func (v *RMSDetector) SetEnabled(enabled bool) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	v.enabled = enabled
@@ -146,14 +151,14 @@ func (v *Detector) SetEnabled(enabled bool) {
 }
 
 // SetThreshold sets the RMS ceiling used with adaptive noise tracking.
-func (v *Detector) SetThreshold(threshold float64) {
+func (v *RMSDetector) SetThreshold(threshold float64) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	v.threshold = threshold
 }
 
 // SetConsecutiveFrames sets how many consecutive over-threshold frames trigger barge-in.
-func (v *Detector) SetConsecutiveFrames(frames int) {
+func (v *RMSDetector) SetConsecutiveFrames(frames int) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	v.consecutiveFramesNeeded = frames
