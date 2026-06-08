@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -40,7 +39,7 @@ func main() {
 	config := voiceclone.XunfeiCloneConfig{
 		AppID:         *appID,
 		APIKey:        *apiKey,
-		EngineVersion: "omni_v1", // 多风格版
+		EngineVersion: "omni_v1",  // 多风格版
 		VCN:           "x6_clone", // 多风格克隆音色
 	}
 
@@ -72,7 +71,7 @@ func main() {
 		Language:      "zh",
 		ResourceType:  12, // 12=一句话复刻
 		EngineVersion: "omni_v1",
-		Denoise:       1, // 开启降噪
+		Denoise:       1,   // 开启降噪
 		MosRatio:      0.5, // 音频质量检测阈值
 	}
 

@@ -4,9 +4,9 @@ import "github.com/LingByte/lingllm/synthesizer"
 
 // Capabilities describes vendor synthesis behavior for pipeline tuning.
 type Capabilities struct {
-	StreamingTTFB   bool
-	FirstMaxChars   int
-	FirstMinChars   int
+	StreamingTTFB bool
+	FirstMaxChars int
+	FirstMinChars int
 }
 
 // DefaultCapabilities returns conservative batch-oriented defaults.

@@ -24,7 +24,7 @@ type ServerConfig struct {
 	OnSessionStart       func(ctx context.Context, callID, deviceID string)
 	OnSessionEnd         func(ctx context.Context, callID, reason string)
 	// ConfigureSession allows third-party extensions to register custom message handlers
-	ConfigureSession     func(session *wsSession)
+	ConfigureSession func(session *wsSession)
 }
 
 // Server accepts xiaozhi WebSocket connections.
@@ -98,11 +98,11 @@ func (s *Server) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sess := newSession(cfg, conn, callID, deviceID)
-	
+
 	// Allow third-party extensions to configure the session
 	if cfg.ConfigureSession != nil {
 		cfg.ConfigureSession(sess)
 	}
-	
+
 	sess.run(r.Context())
 }

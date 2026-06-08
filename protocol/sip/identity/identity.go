@@ -201,11 +201,11 @@ func ParsePAI(raw string) []Asserted {
 func splitHeaderRows(s string) []string {
 	s = strings.ReplaceAll(s, "\r\n", ",")
 	var (
-		out      []string
-		buf      strings.Builder
-		inQuote  bool
-		inAngle  bool
-		escNext  bool
+		out     []string
+		buf     strings.Builder
+		inQuote bool
+		inAngle bool
+		escNext bool
 	)
 	flush := func() {
 		t := strings.TrimSpace(buf.String())

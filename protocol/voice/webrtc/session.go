@@ -285,7 +285,7 @@ func (s *session) startVoice(ctx context.Context) error {
 		TTSFrameDuration: 20 * time.Millisecond,
 		Denoiser:         dn,
 		Gateway:          gwCfg,
-		OnHangup: func(reason string) { s.teardown("dialog-hangup:" + reason) },
+		OnHangup:         func(reason string) { s.teardown("dialog-hangup:" + reason) },
 		OnFirstAudio: func(ev dialog.FirstAudioEvent) {
 			log.Printf("[voice] call=%s first_audio utter=%s tts_first=%dms e2e_first=%dms",
 				s.callID, ev.UtteranceID, ev.TTSFirstByteMs, ev.E2EFirstByteMs)

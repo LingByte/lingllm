@@ -104,7 +104,7 @@ func TestRecordIncomingRTPForRTCP_ResetsOnSSRCChange(t *testing.T) {
 	defer s.Close()
 
 	s.recordIncomingRTPForRTCP(1, 100, 0x1111)
-	s.recordIncomingRTPForRTCP(2, 260, 0x1111) // builds some transit
+	s.recordIncomingRTPForRTCP(2, 260, 0x1111)     // builds some transit
 	s.recordIncomingRTPForRTCP(3, 9999999, 0x2222) // SSRC swap
 
 	s.rxStats.mu.Lock()

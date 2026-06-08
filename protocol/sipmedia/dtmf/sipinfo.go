@@ -9,6 +9,7 @@ import (
 // Supports:
 //   - application/dtmf-relay: "Signal=X\r\n" where X is 0-9, *, #
 //   - application/dtmf: "Signal=X"
+//
 // If the body contains Signal=, it is parsed even when Content-Type is missing or non-dtmf.
 func DigitFromSIPINFO(contentType, body string) (digit string, ok bool) {
 	_ = contentType
@@ -21,7 +22,7 @@ func DigitFromSIPINFO(contentType, body string) (digit string, ok bool) {
 		if line == "" {
 			continue
 		}
-		// Signal=5 or Signal=# 
+		// Signal=5 or Signal=#
 		if strings.HasPrefix(strings.ToLower(line), "signal=") {
 			v := strings.TrimSpace(line[7:])
 			v = strings.Trim(v, "\"'")

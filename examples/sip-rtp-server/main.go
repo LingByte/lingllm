@@ -55,11 +55,11 @@ import (
 	"github.com/LingByte/lingllm/examples/sip-split/controlapi"
 	"github.com/LingByte/lingllm/examples/sip-split/rtppool"
 	"github.com/LingByte/lingllm/protocol/sip/sdp"
+	"github.com/LingByte/lingllm/protocol/sipmedia/rtp"
+	"github.com/LingByte/lingllm/protocol/sipmedia/session"
 	"github.com/LingByte/lingllm/protocol/voice/siprealtime"
 	_ "github.com/LingByte/lingllm/realtime/aliyunomni"
 	_ "github.com/LingByte/lingllm/realtime/volcdialogue"
-	"github.com/LingByte/lingllm/protocol/sipmedia/rtp"
-	"github.com/LingByte/lingllm/protocol/sipmedia/session"
 	"github.com/sirupsen/logrus"
 )
 
@@ -150,14 +150,14 @@ func main() {
 }
 
 type mediaLeg struct {
-	callID      string
-	cs          *session.CallSession
-	rtpSess     *rtp.Session
-	codec       sdp.Codec
-	ai          *siprealtime.Bridge
-	stopMedia   chan struct{}
-	mediaDone   chan struct{}
-	active      bool
+	callID    string
+	cs        *session.CallSession
+	rtpSess   *rtp.Session
+	codec     sdp.Codec
+	ai        *siprealtime.Bridge
+	stopMedia chan struct{}
+	mediaDone chan struct{}
+	active    bool
 }
 
 type legStore struct {

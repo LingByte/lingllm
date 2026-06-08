@@ -53,22 +53,22 @@ type wsSession struct {
 
 	writeMu sync.Mutex
 	closed  atomic.Bool
-	
+
 	// Custom message handlers for extensibility
 	customHandlers map[string]MessageHandler
-	
+
 	// Audio processing optimization
 	audioProcessChan chan []byte
 }
 
 func newSession(cfg ServerConfig, conn *websocket.Conn, callID, deviceID string) *wsSession {
 	return &wsSession{
-		cfg:              cfg,
-		conn:             conn,
-		callID:           callID,
-		sessionID:        callID,
-		deviceID:         deviceID,
-		customHandlers:   make(map[string]MessageHandler),
+		cfg:            cfg,
+		conn:           conn,
+		callID:         callID,
+		sessionID:      callID,
+		deviceID:       deviceID,
+		customHandlers: make(map[string]MessageHandler),
 	}
 }
 
@@ -89,7 +89,7 @@ func (s *wsSession) run(parentCtx context.Context) {
 	// Initialize audio processing channel
 	s.audioProcessChan = make(chan []byte, 32) // Buffer up to 32 frames
 	defer close(s.audioProcessChan)
-	
+
 	// Start audio processing goroutine
 	go s.audioProcessWorker(ctx)
 
@@ -121,7 +121,7 @@ func (s *wsSession) handleText(ctx context.Context, raw []byte) {
 	if err != nil {
 		return
 	}
-	
+
 	// Check custom handlers first
 	if handler, ok := s.customHandlers[t]; ok {
 		if err := handler(ctx, s, raw); err != nil {
@@ -129,7 +129,7 @@ func (s *wsSession) handleText(ctx context.Context, raw []byte) {
 		}
 		return
 	}
-	
+
 	// Built-in message handlers
 	switch t {
 	case MsgHello:

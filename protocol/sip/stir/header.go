@@ -82,9 +82,9 @@ func FormatIdentityHeader(h IdentityHeader) (string, error) {
 // after `Identity: `, with surrounding whitespace trimmed). We
 // accept:
 //
-//   * RFC 8224 unquoted form (current): JWT;info=<url>;alg=ES256;ppt=shaken
-//   * RFC 4474 quoted form (legacy):    "JWT";info=<url>;alg=ES256
-//   * Mixed-case parameter names (RFC 3261 §7.3.1 says they're
+//   - RFC 8224 unquoted form (current): JWT;info=<url>;alg=ES256;ppt=shaken
+//   - RFC 4474 quoted form (legacy):    "JWT";info=<url>;alg=ES256
+//   - Mixed-case parameter names (RFC 3261 §7.3.1 says they're
 //     case-insensitive).
 //
 // Returns a wrapped error when required params are missing so the

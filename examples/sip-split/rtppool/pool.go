@@ -32,12 +32,12 @@ type Node struct {
 
 // Pool selects RTP nodes and remembers which node owns each Call-ID.
 type Pool struct {
-	client  *http.Client
-	ttl     time.Duration
-	mu      sync.RWMutex
-	nodes   map[string]*Node // keyed by node ID
-	order   []string         // stable iteration order
-	binds   map[string]string
+	client *http.Client
+	ttl    time.Duration
+	mu     sync.RWMutex
+	nodes  map[string]*Node // keyed by node ID
+	order  []string         // stable iteration order
+	binds  map[string]string
 }
 
 // New creates an empty pool. Optional seed URLs are treated as static nodes.

@@ -3,8 +3,8 @@ package session
 import (
 	"testing"
 
-	siprtp "github.com/LingByte/lingllm/protocol/sipmedia/rtp"
 	"github.com/LingByte/lingllm/protocol/sip/sdp"
+	siprtp "github.com/LingByte/lingllm/protocol/sipmedia/rtp"
 )
 
 func TestNewCallSession_PCMU(t *testing.T) {

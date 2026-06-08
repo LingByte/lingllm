@@ -28,9 +28,9 @@ import (
 // KEY") block types — STI-CA issuance pipelines emit one or the
 // other depending on tooling. Returns an error on:
 //
-//   * any other PEM block type
-//   * non-EC keys (RSA / Ed25519 / etc.)
-//   * EC keys whose curve isn't P-256
+//   - any other PEM block type
+//   - non-EC keys (RSA / Ed25519 / etc.)
+//   - EC keys whose curve isn't P-256
 //
 // Use LoadES256PrivateKeyFile to read straight from disk.
 func LoadES256PrivateKey(pemBytes []byte) (*ecdsa.PrivateKey, error) {

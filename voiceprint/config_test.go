@@ -10,9 +10,9 @@ import (
 
 func TestNewConfigFromEnv(t *testing.T) {
 	tests := []struct {
-		name      string
+		name       string
 		getEnvFunc func(string) string
-		want      *Config
+		want       *Config
 	}{
 		{
 			name: "default values",

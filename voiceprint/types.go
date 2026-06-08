@@ -11,7 +11,7 @@ import (
 // RegisterRequest 声纹注册请求
 type RegisterRequest struct {
 	SpeakerID   string                 `json:"speaker_id" validate:"required"`
-	AgentID string                 `json:"agent_id" validate:"required"`
+	AgentID     string                 `json:"agent_id" validate:"required"`
 	AudioData   []byte                 `json:"-"`
 	AudioFormat string                 `json:"audio_format,omitempty"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
@@ -28,7 +28,7 @@ type RegisterResponse struct {
 // IdentifyRequest 声纹识别请求
 type IdentifyRequest struct {
 	CandidateIDs []string `json:"candidate_ids" validate:"required,min=1"`
-	AgentID  string   `json:"agent_id" validate:"required"`
+	AgentID      string   `json:"agent_id" validate:"required"`
 	AudioData    []byte   `json:"-"`
 	AudioFormat  string   `json:"audio_format,omitempty"`
 	Threshold    float64  `json:"threshold,omitempty"`
@@ -45,8 +45,8 @@ type IdentifyResponse struct {
 
 // DeleteRequest 声纹删除请求
 type DeleteRequest struct {
-	SpeakerID   string `json:"speaker_id" validate:"required"`
-	AgentID string `json:"agent_id,omitempty"`
+	SpeakerID string `json:"speaker_id" validate:"required"`
+	AgentID   string `json:"agent_id,omitempty"`
 }
 
 // DeleteResponse 声纹删除响应
@@ -171,13 +171,13 @@ type XunfeiServiceParam struct {
 	Func string `json:"func"`
 
 	// 创建特征库参数
-	GroupID      string `json:"groupId,omitempty"`
-	GroupName    string `json:"groupName,omitempty"`
-	GroupInfo    string `json:"groupInfo,omitempty"`
+	GroupID   string `json:"groupId,omitempty"`
+	GroupName string `json:"groupName,omitempty"`
+	GroupInfo string `json:"groupInfo,omitempty"`
 
 	// 特征相关参数
-	FeatureID   string `json:"featureId,omitempty"`
-	FeatureInfo string `json:"featureInfo,omitempty"`
+	FeatureID    string `json:"featureId,omitempty"`
+	FeatureInfo  string `json:"featureInfo,omitempty"`
 	DstFeatureID string `json:"dstFeatureId,omitempty"`
 
 	// 查询参数
@@ -187,14 +187,14 @@ type XunfeiServiceParam struct {
 	Cover bool `json:"cover,omitempty"`
 
 	// 响应格式配置
-	CreateGroupRes    *ResponseFormat `json:"createGroupRes,omitempty"`
-	CreateFeatureRes  *ResponseFormat `json:"createFeatureRes,omitempty"`
-	UpdateFeatureRes  *ResponseFormat `json:"updateFeatureRes,omitempty"`
+	CreateGroupRes      *ResponseFormat `json:"createGroupRes,omitempty"`
+	CreateFeatureRes    *ResponseFormat `json:"createFeatureRes,omitempty"`
+	UpdateFeatureRes    *ResponseFormat `json:"updateFeatureRes,omitempty"`
 	QueryFeatureListRes *ResponseFormat `json:"queryFeatureListRes,omitempty"`
-	SearchScoreFeaRes *ResponseFormat `json:"searchScoreFeaRes,omitempty"`
-	SearchFeaRes      *ResponseFormat `json:"searchFeaRes,omitempty"`
-	DeleteFeatureRes  *ResponseFormat `json:"deleteFeatureRes,omitempty"`
-	DeleteGroupRes    *ResponseFormat `json:"deleteGroupRes,omitempty"`
+	SearchScoreFeaRes   *ResponseFormat `json:"searchScoreFeaRes,omitempty"`
+	SearchFeaRes        *ResponseFormat `json:"searchFeaRes,omitempty"`
+	DeleteFeatureRes    *ResponseFormat `json:"deleteFeatureRes,omitempty"`
+	DeleteGroupRes      *ResponseFormat `json:"deleteGroupRes,omitempty"`
 }
 
 // ResponseFormat 响应格式配置
@@ -211,17 +211,17 @@ type XunfeiPayload struct {
 
 // AudioResource 音频资源
 type AudioResource struct {
-	Encoding  string `json:"encoding"`   // lame
-	SampleRate int   `json:"sample_rate"` // 16000
-	Channels  int    `json:"channels"`    // 1
-	BitDepth  int    `json:"bit_depth"`   // 16
-	Status    int    `json:"status"`      // 3
-	Audio     string `json:"audio"`       // base64编码的音频数据
+	Encoding   string `json:"encoding"`    // lame
+	SampleRate int    `json:"sample_rate"` // 16000
+	Channels   int    `json:"channels"`    // 1
+	BitDepth   int    `json:"bit_depth"`   // 16
+	Status     int    `json:"status"`      // 3
+	Audio      string `json:"audio"`       // base64编码的音频数据
 }
 
 // XunfeiResponse 讯飞响应基础结构
 type XunfeiResponse struct {
-	Header  XunfeiResponseHeader `json:"header"`
+	Header  XunfeiResponseHeader  `json:"header"`
 	Payload XunfeiResponsePayload `json:"payload"`
 }
 
@@ -234,14 +234,14 @@ type XunfeiResponseHeader struct {
 
 // XunfeiResponsePayload 讯飞响应负载
 type XunfeiResponsePayload struct {
-	CreateGroupRes    *TextResponse `json:"createGroupRes,omitempty"`
-	CreateFeatureRes  *TextResponse `json:"createFeatureRes,omitempty"`
-	UpdateFeatureRes  *TextResponse `json:"updateFeatureRes,omitempty"`
+	CreateGroupRes      *TextResponse `json:"createGroupRes,omitempty"`
+	CreateFeatureRes    *TextResponse `json:"createFeatureRes,omitempty"`
+	UpdateFeatureRes    *TextResponse `json:"updateFeatureRes,omitempty"`
 	QueryFeatureListRes *TextResponse `json:"queryFeatureListRes,omitempty"`
-	SearchScoreFeaRes *TextResponse `json:"searchScoreFeaRes,omitempty"`
-	SearchFeaRes      *TextResponse `json:"searchFeaRes,omitempty"`
-	DeleteFeatureRes  *TextResponse `json:"deleteFeatureRes,omitempty"`
-	DeleteGroupRes    *TextResponse `json:"deleteGroupRes,omitempty"`
+	SearchScoreFeaRes   *TextResponse `json:"searchScoreFeaRes,omitempty"`
+	SearchFeaRes        *TextResponse `json:"searchFeaRes,omitempty"`
+	DeleteFeatureRes    *TextResponse `json:"deleteFeatureRes,omitempty"`
+	DeleteGroupRes      *TextResponse `json:"deleteGroupRes,omitempty"`
 }
 
 // TextResponse 文本响应

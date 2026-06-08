@@ -12,8 +12,8 @@ import (
 // Speaker serializes TTS playback and pipelines synthesis ahead of playback so
 // LLM stream segments can be synthesized while the previous segment is playing.
 type Speaker struct {
-	pipeline  *TTSPipeline
-	textQueue chan speakJob
+	pipeline   *TTSPipeline
+	textQueue  chan speakJob
 	readyQueue chan *segmentStream
 
 	runCtx    context.Context
@@ -53,9 +53,9 @@ type segmentStream struct {
 
 // SpeakerConfig configures a serial TTS speaker.
 type SpeakerConfig struct {
-	Pipeline   *TTSPipeline
-	QueueSize  int
-	Prefetch   int // buffered segments between synth and play (default 2)
+	Pipeline     *TTSPipeline
+	QueueSize    int
+	Prefetch     int // buffered segments between synth and play (default 2)
 	OnStarted    func(utteranceID, text string, chained bool)
 	OnEnded      func(utteranceID string, ok bool, duration time.Duration, ttsFirstMs, e2eFirstMs int, moreQueued bool)
 	OnFirstFrame func(utteranceID string, ttsFirstMs, e2eFirstMs int)
@@ -75,13 +75,13 @@ func NewSpeaker(cfg SpeakerConfig) (*Speaker, error) {
 		prefetch = 3
 	}
 	return &Speaker{
-		pipeline:    cfg.Pipeline,
-		textQueue:   make(chan speakJob, size),
-		readyQueue:  make(chan *segmentStream, prefetch),
+		pipeline:     cfg.Pipeline,
+		textQueue:    make(chan speakJob, size),
+		readyQueue:   make(chan *segmentStream, prefetch),
 		onStarted:    cfg.OnStarted,
 		onEnded:      cfg.OnEnded,
 		onFirstFrame: cfg.OnFirstFrame,
-		turnLatency: make(map[string]*utteranceLatency),
+		turnLatency:  make(map[string]*utteranceLatency),
 	}, nil
 }
 

@@ -58,7 +58,6 @@ func (f *DenoiserFactory) CreateDenoiser(denoiserType DenoiserType, config inter
 	}
 }
 
-
 // GetAvailableDenoiserTypes 获取可用的降噪器类型
 func (f *DenoiserFactory) GetAvailableDenoiserTypes() []DenoiserType {
 	types := []DenoiserType{

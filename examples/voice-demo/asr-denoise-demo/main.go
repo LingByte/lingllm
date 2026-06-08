@@ -144,7 +144,7 @@ func demonstrateProcessing(component interface{}) {
 // 在 ASR 管道中使用降噪器的示例
 func exampleASRPipeline() {
 	fmt.Println("\n=== ASR 管道集成示例 ===")
-	fmt.Println(`
+	fmt.Print(`
 // 1. 创建降噪器工厂
 factory := asr.NewDenoiserFactory()
 

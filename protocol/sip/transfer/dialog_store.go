@@ -14,11 +14,11 @@ import (
 
 // DialogState holds in-dialog routing data for NOTIFY/BYE on an inbound UAS leg.
 type DialogState struct {
-	Remote    *net.UDPAddr
-	From      string // our To from 200 OK (local tag)
-	To        string // remote From from INVITE
+	Remote     *net.UDPAddr
+	From       string // our To from 200 OK (local tag)
+	To         string // remote From from INVITE
 	RequestURI string
-	NextCSeq  int
+	NextCSeq   int
 }
 
 // DialogStore tracks confirmed inbound dialogs keyed by Call-ID.

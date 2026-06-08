@@ -75,8 +75,9 @@ func ComputeSampleByteCount(sampleRate, bitDepth, channels int) int {
 //   - Audio Analysis: measuring signal strength
 //
 // Example:
-//   pcm := []byte{0x00, 0x10, 0x00, 0x10} // two 16-bit samples
-//   rms := RMSPCM16LE(pcm)                  // returns the RMS value
+//
+//	pcm := []byte{0x00, 0x10, 0x00, 0x10} // two 16-bit samples
+//	rms := RMSPCM16LE(pcm)                  // returns the RMS value
 func RMSPCM16LE(pcm []byte) float64 {
 	if len(pcm) < 2 {
 		return 0

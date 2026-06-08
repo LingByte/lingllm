@@ -323,7 +323,7 @@ func TestVerifier_StaleIAT(t *testing.T) {
 	x5u := "https://sti.example/cert.pem"
 	hdr := PassportHeader{Alg: AlgES256, Ppt: PptShaken, Typ: "passport", X5u: x5u}
 	claims := PassportClaims{
-		IAT: now.Add(-10 * time.Minute).Unix(),
+		IAT:  now.Add(-10 * time.Minute).Unix(),
 		Orig: PassportParty{TN: "+1"}, Dest: PassportDestSet{TN: []string{"+2"}},
 		Attest: "A", OrigID: "u",
 	}
@@ -354,7 +354,7 @@ func TestVerifier_InfoX5UMismatch(t *testing.T) {
 
 	hdr := PassportHeader{Alg: AlgES256, Ppt: PptShaken, Typ: "passport", X5u: jwsX5U}
 	claims := PassportClaims{
-		IAT: now.Unix(),
+		IAT:  now.Unix(),
 		Orig: PassportParty{TN: "+1"}, Dest: PassportDestSet{TN: []string{"+2"}},
 		Attest: "A", OrigID: "u",
 	}
@@ -379,7 +379,7 @@ func TestVerifier_TNMismatch(t *testing.T) {
 	x5u := "https://sti.example/cert.pem"
 	hdr := PassportHeader{Alg: AlgES256, Ppt: PptShaken, Typ: "passport", X5u: x5u}
 	claims := PassportClaims{
-		IAT: now.Unix(),
+		IAT:  now.Unix(),
 		Orig: PassportParty{TN: "+15551234567"}, Dest: PassportDestSet{TN: []string{"+2"}},
 		Attest: "A", OrigID: "u",
 	}
@@ -406,7 +406,7 @@ func TestVerifier_AttestFiltered(t *testing.T) {
 	x5u := "https://sti.example/cert.pem"
 	hdr := PassportHeader{Alg: AlgES256, Ppt: PptShaken, Typ: "passport", X5u: x5u}
 	claims := PassportClaims{
-		IAT: now.Unix(),
+		IAT:  now.Unix(),
 		Orig: PassportParty{TN: "+1"}, Dest: PassportDestSet{TN: []string{"+2"}},
 		Attest: "C", OrigID: "u",
 	}
@@ -449,8 +449,8 @@ func TestVerifier_FetcherError(t *testing.T) {
 
 func TestCanonicalTN(t *testing.T) {
 	cases := map[string]string{
-		"+15551234567":          "+15551234567",
-		"+1 (555) 123-4567":     "+15551234567",
+		"+15551234567":         "+15551234567",
+		"+1 (555) 123-4567":    "+15551234567",
 		"  +1-555-1234567  ":   "+15551234567",
 		"abc+1xyz5551234567pq": "+15551234567",
 	}
@@ -463,10 +463,10 @@ func TestCanonicalTN(t *testing.T) {
 
 func TestCanonicalURI(t *testing.T) {
 	cases := map[string]string{
-		"sip:alice@example.com":                  "sip:alice@example.com",
-		"<sip:alice@EXAMPLE.com>":                "sip:alice@example.com",
-		"<sip:Alice@example.com>;tag=abc":        "sip:Alice@example.com",
-		"\"Alice\" <sip:alice@example.com>;lr":   "sip:alice@example.com",
+		"sip:alice@example.com":                "sip:alice@example.com",
+		"<sip:alice@EXAMPLE.com>":              "sip:alice@example.com",
+		"<sip:Alice@example.com>;tag=abc":      "sip:Alice@example.com",
+		"\"Alice\" <sip:alice@example.com>;lr": "sip:alice@example.com",
 	}
 	for in, want := range cases {
 		if got := canonicalURI(in); got != want {

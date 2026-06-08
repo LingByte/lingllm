@@ -33,7 +33,7 @@ type CallConfig struct {
 
 	Gateway gateway.ClientConfig
 
-	OnHangup func(reason string)
+	OnHangup     func(reason string)
 	OnTurn       func(dialog.TurnEvent)
 	OnFirstAudio func(dialog.FirstAudioEvent)
 
@@ -110,7 +110,7 @@ func NewCall(ctx context.Context, cfg CallConfig) (*dialog.Session, *gateway.Cli
 		OnEvent: func(ev dialog.Event) {
 			_ = gw.SendEvent(ev)
 		},
-		OnHangup: cfg.OnHangup,
+		OnHangup:     cfg.OnHangup,
 		OnTurn:       onTurn,
 		OnFirstAudio: cfg.OnFirstAudio,
 	})

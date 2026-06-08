@@ -204,12 +204,12 @@ func LabelsCall(transport, status string) map[string]string {
 }
 
 var (
-	labelsCallSIPOK             = map[string]string{"transport": "sip", "status": "ok"}
-	labelsCallSIPError          = map[string]string{"transport": "sip", "status": "error"}
-	labelsCallSIPDialogHangup   = map[string]string{"transport": "sip", "status": "dialog-hangup"}
-	labelsCallSIPTimerExpired   = map[string]string{"transport": "sip", "status": "timer-expired"}
-	labelsCallWebRTCOK          = map[string]string{"transport": "webrtc", "status": "ok"}
-	labelsCallWebRTCError       = map[string]string{"transport": "webrtc", "status": "error"}
+	labelsCallSIPOK           = map[string]string{"transport": "sip", "status": "ok"}
+	labelsCallSIPError        = map[string]string{"transport": "sip", "status": "error"}
+	labelsCallSIPDialogHangup = map[string]string{"transport": "sip", "status": "dialog-hangup"}
+	labelsCallSIPTimerExpired = map[string]string{"transport": "sip", "status": "timer-expired"}
+	labelsCallWebRTCOK        = map[string]string{"transport": "webrtc", "status": "ok"}
+	labelsCallWebRTCError     = map[string]string{"transport": "webrtc", "status": "error"}
 )
 
 // LabelsDialogOutcome is used by DialogReconnect — bounded set of

@@ -42,11 +42,11 @@ func NewWebSocketDetector(config *Config, logger *zap.Logger) (*WebSocketDetecto
 	}
 
 	detector := &WebSocketDetector{
-		baseURL:  config.BaseURL,
-		logger:   logger,
-		config:   config,
+		baseURL:   config.BaseURL,
+		logger:    logger,
+		config:    config,
 		closeChan: make(chan struct{}),
-		respChan: make(map[string]chan *DetectResponse),
+		respChan:  make(map[string]chan *DetectResponse),
 	}
 
 	// 连接到 WebSocket 服务

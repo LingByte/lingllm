@@ -81,14 +81,14 @@ func NewVolcengineCloneEngine(opt VolcengineCloneOption) (*VolcengineCloneEngine
 	svc, err := voiceclone.NewFactory().CreateService(&voiceclone.Config{
 		Provider: voiceclone.ProviderVolcengine,
 		Options: map[string]interface{}{
-			"app_id":       opt.AppID,
-			"token":        opt.AccessToken,
-			"cluster":      cluster,
-			"resource_id":  resourceID,
-			"model_type":   modelType,
-			"encoding":     encoding,
-			"sample_rate":  sourceRate,
-			"speed_ratio":  speed,
+			"app_id":      opt.AppID,
+			"token":       opt.AccessToken,
+			"cluster":     cluster,
+			"resource_id": resourceID,
+			"model_type":  modelType,
+			"encoding":    encoding,
+			"sample_rate": sourceRate,
+			"speed_ratio": speed,
 		},
 	})
 	if err != nil {

@@ -47,10 +47,10 @@ func NewDenoiseProcessor(config *DenoiseConfig) (*DenoiseProcessor, error) {
 
 	// 创建C配置结构体
 	cConfig := C.denoise_config_t{
-		aec_enable:     C.bool(config.AECEnable),
-		agc_enable:     C.bool(config.AGCEnable),
-		sample_rate:    C.int(config.SampleRate),
-		channels:       C.int(config.Channels),
+		aec_enable:      C.bool(config.AECEnable),
+		agc_enable:      C.bool(config.AGCEnable),
+		sample_rate:     C.int(config.SampleRate),
+		channels:        C.int(config.Channels),
 		bits_per_sample: C.int(config.BitsPerSample),
 	}
 

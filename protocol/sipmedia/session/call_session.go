@@ -1,10 +1,10 @@
 package session
 
 import (
-	"github.com/LingByte/lingllm/protocol/sipmedia/internal/siplog"
 	"context"
 	"encoding/binary"
 	"fmt"
+	"github.com/LingByte/lingllm/protocol/sipmedia/internal/siplog"
 	"sort"
 	"strings"
 	"sync"
@@ -13,8 +13,8 @@ import (
 	"github.com/LingByte/lingllm/media"
 	"github.com/LingByte/lingllm/media/encoder"
 	"github.com/LingByte/lingllm/protocol/sip/hooks"
-	"github.com/LingByte/lingllm/protocol/sipmedia/rtp"
 	"github.com/LingByte/lingllm/protocol/sip/sdp"
+	"github.com/LingByte/lingllm/protocol/sipmedia/rtp"
 )
 
 // SIP recording blob format v3 (sippersist): magic "SN3" then repeated
@@ -41,26 +41,26 @@ const (
 // Downlink: only synthesized (TTS) PCM is encoded and sent as RTP; uplink is not echoed
 // (see media.KeySIPSuppressUplinkEcho).
 type CallSession struct {
-	CallID        string
-	rtpSess       *rtp.Session
-	media         *media.MediaSession
-	neg           sdp.Codec
-	rxTransport   *rtp.SIPRTPTransport // RTP transports and codec (same as used for MediaSession) for handoff to in-process PCM bridge.
-	txTransport   *rtp.SIPRTPTransport
-	srcCodec      media.CodecConfig
-	pcmSampleRate int // internal PCM bridge rate (matches InternalPCMSampleRate(src))
-	dtmfPT        uint8
-	ctx           context.Context
-	cancel        context.CancelFunc
-	startOnce     sync.Once
-	ackOnce       sync.Once // For SIP: media starts on ACK, not on INVITE.
-	voiceMu       sync.Mutex
-	voiceAttached bool
-	recMu            sync.Mutex
-	recBuf           []byte
-	recTimeOrigin    time.Time // first appendRecordingFrame sets anchor for wallNs (monotonic via time.Since)
-	recorderEnabled  bool
-	recordingSink    hooks.RecordingSink // set by EnableRecorder; nil uses hooks.DefaultRegistry.Recording
+	CallID          string
+	rtpSess         *rtp.Session
+	media           *media.MediaSession
+	neg             sdp.Codec
+	rxTransport     *rtp.SIPRTPTransport // RTP transports and codec (same as used for MediaSession) for handoff to in-process PCM bridge.
+	txTransport     *rtp.SIPRTPTransport
+	srcCodec        media.CodecConfig
+	pcmSampleRate   int // internal PCM bridge rate (matches InternalPCMSampleRate(src))
+	dtmfPT          uint8
+	ctx             context.Context
+	cancel          context.CancelFunc
+	startOnce       sync.Once
+	ackOnce         sync.Once // For SIP: media starts on ACK, not on INVITE.
+	voiceMu         sync.Mutex
+	voiceAttached   bool
+	recMu           sync.Mutex
+	recBuf          []byte
+	recTimeOrigin   time.Time // first appendRecordingFrame sets anchor for wallNs (monotonic via time.Since)
+	recorderEnabled bool
+	recordingSink   hooks.RecordingSink // set by EnableRecorder; nil uses hooks.DefaultRegistry.Recording
 
 	// remoteFromHeader 保存呼入 INVITE 的原始 From header（含 display-name +
 	// SIP URI），由 sip/server 在创建 CallSession 后立刻 SetRemoteFromHeader
@@ -439,8 +439,7 @@ func (cs *CallSession) AttachVoiceConversation(fn func() error) error {
 	cs.voiceMu.Lock()
 	defer cs.voiceMu.Unlock()
 	if cs.voiceAttached {
-		siplog.L.Debug("sip session: voice attach skipped (already attached; often duplicate ACK)",
-		)
+		siplog.L.Debug("sip session: voice attach skipped (already attached; often duplicate ACK)")
 		return nil
 	}
 	if err := fn(); err != nil {

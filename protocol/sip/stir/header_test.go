@@ -101,10 +101,10 @@ func TestParseIdentityHeader_CaseInsensitiveParams(t *testing.T) {
 func TestParseIdentityHeader_RejectsMissingParts(t *testing.T) {
 	cases := []string{
 		"",
-		"only.two;info=<https://x/c>;alg=ES256",        // bad JWT
-		"a.b.c.d;info=<https://x/c>;alg=ES256",         // 4 segments
-		fakeJWT + ";alg=ES256",                          // no info
-		fakeJWT + ";info=<https://x/c>",                 // no alg
+		"only.two;info=<https://x/c>;alg=ES256", // bad JWT
+		"a.b.c.d;info=<https://x/c>;alg=ES256",  // 4 segments
+		fakeJWT + ";alg=ES256",                  // no info
+		fakeJWT + ";info=<https://x/c>",         // no alg
 	}
 	for _, raw := range cases {
 		if _, err := ParseIdentityHeader(raw); err == nil {

@@ -14,8 +14,8 @@ const (
 type HangupInitiator string
 
 const (
-	HangupLocal  HangupInitiator = "local"
-	HangupRemote HangupInitiator = "remote"
+	HangupLocal   HangupInitiator = "local"
+	HangupRemote  HangupInitiator = "remote"
 	HangupUnknown HangupInitiator = "unknown"
 )
 
@@ -34,11 +34,11 @@ type CallMeta struct {
 
 // HangupMeta accompanies OnBye / OnFailed.
 type HangupMeta struct {
-	Initiator  HangupInitiator
-	SIPCode    int    // final SIP status when known (0 if N/A)
-	Reason     string // SIP phrase or internal reason
-	Duration   time.Duration
-	EndedAt    time.Time
+	Initiator HangupInitiator
+	SIPCode   int    // final SIP status when known (0 if N/A)
+	Reason    string // SIP phrase or internal reason
+	Duration  time.Duration
+	EndedAt   time.Time
 }
 
 // LifecycleSink receives call state transitions. All methods must be non-blocking
@@ -66,9 +66,9 @@ type LifecycleSink interface {
 // NopLifecycle is a sink that ignores all events.
 type NopLifecycle struct{}
 
-func (NopLifecycle) OnRinging(CallMeta)                              {}
-func (NopLifecycle) OnEstablished(CallMeta)                          {}
-func (NopLifecycle) OnTransferStarted(CallMeta, string)              {}
-func (NopLifecycle) OnBridgeStarted(string, string)                  {}
-func (NopLifecycle) OnBye(CallMeta, HangupMeta, RecordingArtifact)   {}
-func (NopLifecycle) OnFailed(CallMeta, HangupMeta)                   {}
+func (NopLifecycle) OnRinging(CallMeta)                            {}
+func (NopLifecycle) OnEstablished(CallMeta)                        {}
+func (NopLifecycle) OnTransferStarted(CallMeta, string)            {}
+func (NopLifecycle) OnBridgeStarted(string, string)                {}
+func (NopLifecycle) OnBye(CallMeta, HangupMeta, RecordingArtifact) {}
+func (NopLifecycle) OnFailed(CallMeta, HangupMeta)                 {}

@@ -13,8 +13,8 @@ package session
 
 import (
 	"github.com/LingByte/lingllm/media"
-	"github.com/LingByte/lingllm/protocol/sipmedia/codecreg"
 	"github.com/LingByte/lingllm/protocol/sip/sdp"
+	"github.com/LingByte/lingllm/protocol/sipmedia/codecreg"
 )
 
 // NegotiateOffer picks the first supported audio codec from a remote SDP offer (ordered by preference).

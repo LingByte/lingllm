@@ -162,8 +162,8 @@ func TestConvertToMono(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "mono audio",
-			data:    func() []byte {
+			name: "mono audio",
+			data: func() []byte {
 				data := make([]byte, 100)
 				copy(data[0:4], "RIFF")
 				binary.LittleEndian.PutUint32(data[4:8], 92)

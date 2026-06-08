@@ -95,9 +95,9 @@ func (v *volcengineSpeechSynthesisListener) sendStreamRequest(ctx context.Contex
 			if !ttfbLogged {
 				ttfbLogged = true
 				logrus.WithFields(logrus.Fields{
-					"text":     text,
-					"ttfb_ms":  time.Since(start).Milliseconds(),
-					"voice":    opt.VoiceType,
+					"text":    text,
+					"ttfb_ms": time.Since(start).Milliseconds(),
+					"voice":   opt.VoiceType,
 				}).Info("volcengine tts ws: first audio chunk")
 			}
 			v.handler.OnMessage(resp.Audio)
@@ -129,11 +129,11 @@ func buildVolcengineWSRequest(opt VolcengineTTSOption, text, operation string) [
 			"pitch_ratio":  opt.PitchRatio,
 		},
 		"request": {
-			"reqid":           reqID,
-			"text":            text,
-			"text_type":       "plain",
-			"operation":       operation,
-			"with_timestamp":  "1",
+			"reqid":          reqID,
+			"text":           text,
+			"text_type":      "plain",
+			"operation":      operation,
+			"with_timestamp": "1",
 		},
 	}
 	if strings.HasPrefix(text, SsmlSpeak) {

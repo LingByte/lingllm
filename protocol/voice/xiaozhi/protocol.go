@@ -9,10 +9,10 @@ import (
 )
 
 const (
-	MsgHello  = "hello"
-	MsgListen = "listen"
-	MsgAbort  = "abort"
-	MsgPing   = "ping"
+	MsgHello         = "hello"
+	MsgListen        = "listen"
+	MsgAbort         = "abort"
+	MsgPing          = "ping"
 	RespHello        = "hello"
 	RespPong         = "pong"
 	RespSTT          = "stt"

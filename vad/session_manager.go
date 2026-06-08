@@ -14,15 +14,15 @@ import (
 
 // DefaultSessionManager 默认会话管理器实现
 type DefaultSessionManager struct {
-	detector       Detector
-	sessions       map[string]*Session
-	mu             sync.RWMutex
-	logger         *zap.Logger
-	ttl            time.Duration
-	cleanupTicker  *time.Ticker
-	stopChan       chan struct{}
-	cleanupOnce    sync.Once
-	maxSessions    int
+	detector      Detector
+	sessions      map[string]*Session
+	mu            sync.RWMutex
+	logger        *zap.Logger
+	ttl           time.Duration
+	cleanupTicker *time.Ticker
+	stopChan      chan struct{}
+	cleanupOnce   sync.Once
+	maxSessions   int
 }
 
 // NewDefaultSessionManager 创建新的会话管理器

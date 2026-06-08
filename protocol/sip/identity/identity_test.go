@@ -123,9 +123,9 @@ func TestPrivacyRequestsID(t *testing.T) {
 		{[]string{"id"}, true},
 		{[]string{"header"}, true},
 		{[]string{"user"}, true},
-		{[]string{"id", "none"}, false},   // none overrides
-		{[]string{"session"}, false},      // session alone doesn't hide PAI
-		{[]string{"critical"}, false},     // critical alone is just a flag
+		{[]string{"id", "none"}, false}, // none overrides
+		{[]string{"session"}, false},    // session alone doesn't hide PAI
+		{[]string{"critical"}, false},   // critical alone is just a flag
 	}
 	for _, tc := range cases {
 		if got := PrivacyRequestsID(tc.in); got != tc.want {

@@ -65,7 +65,7 @@ func TestParseTokenList(t *testing.T) {
 		{"", nil},
 		{"timer", []string{"timer"}},
 		{"timer, replaces", []string{"timer", "replaces"}},
-		{"TIMER", []string{"timer"}}, // lowercased
+		{"TIMER", []string{"timer"}},                     // lowercased
 		{"timer\r\n100rel", []string{"timer", "100rel"}}, // folded headers
 		{",  ,timer,,", []string{"timer"}},
 	}

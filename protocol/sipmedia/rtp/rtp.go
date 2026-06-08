@@ -12,6 +12,7 @@ import (
 //   - CSRC list (CC)
 //   - header extension (X)
 //   - padding (P)
+//
 // - It does not attempt to interpret extension payloads beyond carrying raw bytes.
 type RTPHeader struct {
 	Version        uint8
@@ -207,4 +208,3 @@ func (p *RTPPacket) Unmarshal(data []byte) error {
 	p.Payload = data[offset:end]
 	return nil
 }
-

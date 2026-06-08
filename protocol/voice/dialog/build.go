@@ -25,8 +25,8 @@ type Config struct {
 	TTSCache   *tts.CacheConfig
 	OnAudioOut func([]byte) error
 
-	OnEvent  EventHandler
-	OnHangup func(reason string)
+	OnEvent      EventHandler
+	OnHangup     func(reason string)
 	OnTurn       func(TurnEvent)
 	OnFirstAudio func(FirstAudioEvent)
 

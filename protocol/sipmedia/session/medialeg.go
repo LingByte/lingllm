@@ -9,8 +9,8 @@ import (
 
 	"github.com/LingByte/lingllm/media"
 	"github.com/LingByte/lingllm/media/encoder"
-	siprtp "github.com/LingByte/lingllm/protocol/sipmedia/rtp"
 	"github.com/LingByte/lingllm/protocol/sip/sdp"
+	siprtp "github.com/LingByte/lingllm/protocol/sipmedia/rtp"
 )
 
 const defaultOutputQueue = 512

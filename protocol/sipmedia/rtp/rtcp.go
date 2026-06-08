@@ -28,8 +28,8 @@ package rtp
 // layer just to send 4-5 packets per minute.
 
 import (
-	"github.com/LingByte/lingllm/protocol/sipmedia/internal/siplog"
 	"errors"
+	"github.com/LingByte/lingllm/protocol/sipmedia/internal/siplog"
 	"math/rand"
 	"net"
 	"sync"
@@ -72,10 +72,10 @@ type rtcpReceiverStats struct {
 	ssrc        uint32
 
 	// Sequence number tracking (RFC 3550 §A.1).
-	baseSeq      uint32 // first ext-seq we saw
-	maxSeq       uint16 // highest ext-seq number observed (low 16)
-	cycles       uint32 // shifted up by 16 per wrap
-	packetsRecv  uint32
+	baseSeq     uint32 // first ext-seq we saw
+	maxSeq      uint16 // highest ext-seq number observed (low 16)
+	cycles      uint32 // shifted up by 16 per wrap
+	packetsRecv uint32
 
 	// Loss snapshot for fraction-lost (RFC 3550 §A.3).
 	expectedPrior uint32
@@ -95,10 +95,10 @@ type rtcpReceiverStats struct {
 type rtcpSenderEcho struct {
 	mu sync.Mutex
 
-	seenRR        bool
-	rttMs         uint32
-	jitter        uint32 // peer-reported jitter on our stream
-	lossFraction  uint8  // peer-reported fraction lost (Q0.8)
+	seenRR         bool
+	rttMs          uint32
+	jitter         uint32 // peer-reported jitter on our stream
+	lossFraction   uint8  // peer-reported fraction lost (Q0.8)
 	cumulativeLost uint32
 }
 
@@ -229,7 +229,7 @@ func (s *Session) recordIncomingRTPForRTCP(seq uint16, ts uint32, ssrc uint32) {
 	if rs.clockRate == 0 {
 		rs.clockRate = rtcpJitterClockRateDefault
 	}
-	arrivalRTP := uint32(time.Now().UnixNano()/int64(time.Second/time.Duration(rs.clockRate))) // arrival in RTP clock
+	arrivalRTP := uint32(time.Now().UnixNano() / int64(time.Second/time.Duration(rs.clockRate))) // arrival in RTP clock
 	// transit = arrival_in_rtp_units - rtp_timestamp (signed)
 	transit := int64(arrivalRTP) - int64(ts)
 	if rs.transit != 0 {

@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/LingByte/lingllm/media"
-	"github.com/LingByte/lingllm/protocol/sipmedia/codecreg"
 	"github.com/LingByte/lingllm/protocol/sip/sdp"
+	"github.com/LingByte/lingllm/protocol/sipmedia/codecreg"
 )
 
 func TestNegotiateOffer_PrefersPCMA(t *testing.T) {

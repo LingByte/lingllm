@@ -51,7 +51,7 @@ type EndpointConfig struct {
 	OnResponseSent func(req *Message, resp *Message, addr *net.UDPAddr)
 	OnSIPResponse  func(resp *Message, addr *net.UDPAddr)
 	// OnMessageSent is invoked after a message is written to the UDP socket (requests and responses).
-	OnMessageSent func(msg *Message, addr *net.UDPAddr)
+	OnMessageSent  func(msg *Message, addr *net.UDPAddr)
 	OnEvent        func(e Event)
 	NoRouteHandler HandlerFunc
 }

@@ -94,24 +94,24 @@ func TestVerifyResponse(t *testing.T) {
 	auth := NewXunfeiAuth("test-key", "test-secret", "api.xf-yun.com")
 
 	tests := []struct {
-		name      string
-		date      string
-		wantErr   bool
+		name    string
+		date    string
+		wantErr bool
 	}{
 		{
-			name:      "valid date",
-			date:      time.Now().UTC().Format(time.RFC1123),
-			wantErr:   false,
+			name:    "valid date",
+			date:    time.Now().UTC().Format(time.RFC1123),
+			wantErr: false,
 		},
 		{
-			name:      "invalid date format",
-			date:      "invalid",
-			wantErr:   true,
+			name:    "invalid date format",
+			date:    "invalid",
+			wantErr: true,
 		},
 		{
-			name:      "old date",
-			date:      time.Now().UTC().Add(-400 * time.Second).Format(time.RFC1123),
-			wantErr:   true,
+			name:    "old date",
+			date:    time.Now().UTC().Add(-400 * time.Second).Format(time.RFC1123),
+			wantErr: true,
 		},
 	}
 

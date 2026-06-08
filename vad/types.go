@@ -12,27 +12,27 @@ import (
 type Provider string
 
 const (
-	ProviderHTTP      Provider = "http"       // HTTP 服务提供商
-	ProviderWebSocket Provider = "websocket"  // WebSocket 提供商
+	ProviderHTTP      Provider = "http"      // HTTP 服务提供商
+	ProviderWebSocket Provider = "websocket" // WebSocket 提供商
 )
 
 // DetectRequest VAD 检测请求
 type DetectRequest struct {
-	AudioData   []byte    `json:"audio_data,omitempty"`   // 音频数据
-	AudioFormat string    `json:"audio_format"`            // "pcm" 或 "opus"
-	SampleRate  int       `json:"sample_rate"`             // 采样率
-	Channels    int       `json:"channels"`                // 声道数
-	Threshold   float64   `json:"threshold,omitempty"`     // VAD 阈值（可选）
-	SessionID   string    `json:"session_id,omitempty"`    // 会话 ID
-	Timestamp   time.Time `json:"timestamp,omitempty"`     // 时间戳
+	AudioData   []byte    `json:"audio_data,omitempty"` // 音频数据
+	AudioFormat string    `json:"audio_format"`         // "pcm" 或 "opus"
+	SampleRate  int       `json:"sample_rate"`          // 采样率
+	Channels    int       `json:"channels"`             // 声道数
+	Threshold   float64   `json:"threshold,omitempty"`  // VAD 阈值（可选）
+	SessionID   string    `json:"session_id,omitempty"` // 会话 ID
+	Timestamp   time.Time `json:"timestamp,omitempty"`  // 时间戳
 }
 
 // DetectResponse VAD 检测响应
 type DetectResponse struct {
-	HaveVoice  bool    `json:"have_voice"`           // 是否有语音
-	VoiceStop  bool    `json:"voice_stop"`           // 语音是否停止
-	SpeechProb float64 `json:"speech_prob,omitempty"` // 语音概率
-	Timestamp  time.Time `json:"timestamp,omitempty"` // 响应时间戳
+	HaveVoice  bool      `json:"have_voice"`            // 是否有语音
+	VoiceStop  bool      `json:"voice_stop"`            // 语音是否停止
+	SpeechProb float64   `json:"speech_prob,omitempty"` // 语音概率
+	Timestamp  time.Time `json:"timestamp,omitempty"`   // 响应时间戳
 }
 
 // Detector VAD 检测器接口
@@ -87,11 +87,11 @@ type Session struct {
 
 // Config VAD 配置
 type Config struct {
-	Provider    Provider              `json:"provider"`     // 提供商
-	BaseURL     string                `json:"base_url"`     // 基础 URL（HTTP 提供商）
-	Timeout     time.Duration         `json:"timeout"`      // 超时时间
-	SessionTTL  time.Duration         `json:"session_ttl"`  // 会话过期时间
-	Options     map[string]interface{} `json:"options"`      // 提供商特定选项
+	Provider   Provider               `json:"provider"`    // 提供商
+	BaseURL    string                 `json:"base_url"`    // 基础 URL（HTTP 提供商）
+	Timeout    time.Duration          `json:"timeout"`     // 超时时间
+	SessionTTL time.Duration          `json:"session_ttl"` // 会话过期时间
+	Options    map[string]interface{} `json:"options"`     // 提供商特定选项
 }
 
 // Factory VAD 工厂接口
@@ -112,13 +112,13 @@ type HealthResponse struct {
 
 // WebSocketMessage WebSocket 消息
 type WebSocketMessage struct {
-	Type      string          `json:"type"`                  // "audio", "reset"
-	Data      string          `json:"data,omitempty"`        // Base64 编码的音频数据
-	Format    string          `json:"format,omitempty"`      // "pcm" 或 "opus"
-	SessionID string          `json:"session_id,omitempty"`  // 会话 ID
-	Result    *DetectResponse `json:"result,omitempty"`      // 检测结果
-	Error     string          `json:"error,omitempty"`       // 错误信息
-	Timestamp time.Time       `json:"timestamp,omitempty"`   // 时间戳
+	Type      string          `json:"type"`                 // "audio", "reset"
+	Data      string          `json:"data,omitempty"`       // Base64 编码的音频数据
+	Format    string          `json:"format,omitempty"`     // "pcm" 或 "opus"
+	SessionID string          `json:"session_id,omitempty"` // 会话 ID
+	Result    *DetectResponse `json:"result,omitempty"`     // 检测结果
+	Error     string          `json:"error,omitempty"`      // 错误信息
+	Timestamp time.Time       `json:"timestamp,omitempty"`  // 时间戳
 }
 
 // DetectorOptions 检测器选项

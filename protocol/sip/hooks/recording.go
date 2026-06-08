@@ -22,12 +22,12 @@ const (
 
 // RecordingArtifact is what the SIP stack can hand off at hangup without knowing storage backend.
 type RecordingArtifact struct {
-	CallID      string
-	Format      RecordingFormat
-	Payload     []byte // SN3 blob or app-defined PCM container
-	Codec       string
-	SampleRate  int
-	Channels    int // 1 mono taps, 2 when stereo PCM sink merged
+	CallID     string
+	Format     RecordingFormat
+	Payload    []byte // SN3 blob or app-defined PCM container
+	Codec      string
+	SampleRate int
+	Channels   int // 1 mono taps, 2 when stereo PCM sink merged
 }
 
 // RecordingSink receives live PCM taps and/or the final SN3 blob at call end.
@@ -49,15 +49,15 @@ type RecordingSink interface {
 
 // RecordingResult is an opaque durable handle returned by RecordingSink.
 type RecordingResult struct {
-	URL      string
+	URL       string
 	ObjectKey string
-	Bytes    int64
+	Bytes     int64
 }
 
 // NopRecording ignores all recording hooks.
 type NopRecording struct{}
 
-func (NopRecording) BeginRecording(CallMeta, int, string) bool { return false }
+func (NopRecording) BeginRecording(CallMeta, int, string) bool  { return false }
 func (NopRecording) AppendPCM(string, RecordingChannel, []byte) {}
 func (NopRecording) FinishRecording(context.Context, RecordingArtifact) (RecordingResult, error) {
 	return RecordingResult{}, nil

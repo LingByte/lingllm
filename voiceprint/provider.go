@@ -43,8 +43,8 @@ type VoiceprintProvider interface {
 
 // ProviderConfig 提供商配置
 type ProviderConfig struct {
-	Provider Provider                `json:"provider"`
-	Options  map[string]interface{}  `json:"options"`
+	Provider Provider               `json:"provider"`
+	Options  map[string]interface{} `json:"options"`
 }
 
 // Factory 声纹识别工厂

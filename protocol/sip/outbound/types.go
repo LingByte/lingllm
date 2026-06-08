@@ -11,19 +11,19 @@ import (
 type Scenario string
 
 const (
-	ScenarioCampaign       Scenario = "campaign"
-	ScenarioTransferAgent  Scenario = "transfer_agent"
-	ScenarioCallback       Scenario = "callback"
-	ScenarioManual         Scenario = "manual"
+	ScenarioCampaign      Scenario = "campaign"
+	ScenarioTransferAgent Scenario = "transfer_agent"
+	ScenarioCallback      Scenario = "callback"
+	ScenarioManual        Scenario = "manual"
 )
 
 // DialTarget describes the next SIP hop for an outbound INVITE.
 type DialTarget struct {
-	RequestURI    string // e.g. sip:1001@192.168.1.10;user=phone
-	SignalingAddr string // host:port of proxy or UAS
-	CallerUser    string
+	RequestURI        string // e.g. sip:1001@192.168.1.10;user=phone
+	SignalingAddr     string // host:port of proxy or UAS
+	CallerUser        string
 	CallerDisplayName string
-	Transport     Transport
+	Transport         Transport
 }
 
 // DialRequest is one outbound signaling attempt (no media binding).

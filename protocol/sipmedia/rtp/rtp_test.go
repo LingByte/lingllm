@@ -21,7 +21,7 @@ func TestRTPPacket_MarshalUnmarshal_RoundTrip(t *testing.T) {
 		CSRC:             []uint32{0x11111111, 0x22222222},
 		ExtensionProfile: 0xBEDE,
 		ExtensionPayload: []byte{0x00, 0x01, 0x02, 0x03},
-		Payload: []byte{0x01, 0x02, 0x03, 0xFF, 0x10},
+		Payload:          []byte{0x01, 0x02, 0x03, 0xFF, 0x10},
 	}
 
 	b, err := orig.Marshal()
@@ -121,8 +121,8 @@ func TestSession_SendRTP_RemoteAddrNotSet(t *testing.T) {
 
 func TestSession_BuildPacketAndUpdateAfterSend(t *testing.T) {
 	s := &Session{
-		SSRC:       0x11223344,
-		SeqNum:     10,
+		SSRC:      0x11223344,
+		SeqNum:    10,
 		Timestamp: 1000,
 	}
 
@@ -149,4 +149,3 @@ func TestSession_BuildPacketAndUpdateAfterSend(t *testing.T) {
 		t.Fatalf("expected ts=1320, got=%d", s.Timestamp)
 	}
 }
-
