@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LingByte/lingllm/media/dsp"
+	"github.com/LingByte/lingllm/media"
 )
 
 func testGate(streaming bool) *PlaybackGate {
@@ -86,7 +86,7 @@ func TestDSPRMSSpeech(t *testing.T) {
 	for i := 0; i < len(speech)-1; i += 2 {
 		binary.LittleEndian.PutUint16(speech[i:i+2], 5000)
 	}
-	rms := dsp.RMSPCM16LE(speech)
+	rms := media.RMSPCM16LE(speech)
 	if rms < 4000 || rms > 6000 {
 		t.Errorf("rms = %f", rms)
 	}
