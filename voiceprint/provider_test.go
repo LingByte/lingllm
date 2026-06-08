@@ -110,6 +110,56 @@ func TestCreateProvider(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "volcengine without options",
+			config: &ProviderConfig{
+				Provider: ProviderVolcengine,
+			},
+			wantErr: true,
+		},
+		{
+			name: "volcengine without access_key",
+			config: &ProviderConfig{
+				Provider: ProviderVolcengine,
+				Options: map[string]interface{}{
+					"secret_key": "secret",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "volcengine without secret_key",
+			config: &ProviderConfig{
+				Provider: ProviderVolcengine,
+				Options: map[string]interface{}{
+					"access_key": "key",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid volcengine config",
+			config: &ProviderConfig{
+				Provider: ProviderVolcengine,
+				Options: map[string]interface{}{
+					"access_key": "test-access",
+					"secret_key": "test-secret",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid volcengine config with region",
+			config: &ProviderConfig{
+				Provider: ProviderVolcengine,
+				Options: map[string]interface{}{
+					"access_key": "test-access",
+					"secret_key": "test-secret",
+					"region":     "cn-south-1",
+				},
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {

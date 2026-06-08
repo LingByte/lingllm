@@ -5,6 +5,7 @@ package voiceprint
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 )
 
@@ -12,8 +13,9 @@ import (
 type Provider string
 
 const (
-	ProviderHTTP   Provider = "http"
-	ProviderXunfei Provider = "xunfei"
+	ProviderHTTP       Provider = "http"
+	ProviderXunfei     Provider = "xunfei"
+	ProviderVolcengine Provider = "volcengine"
 )
 
 // VoiceprintProvider 声纹识别提供商接口
@@ -64,6 +66,8 @@ func (f *Factory) CreateProvider(config *ProviderConfig) (VoiceprintProvider, er
 		return f.createHTTPProvider(config.Options)
 	case ProviderXunfei:
 		return f.createXunfeiProvider(config.Options)
+	case ProviderVolcengine:
+		return f.createVolcengineProvider(config.Options)
 	default:
 		return nil, fmt.Errorf("unsupported provider: %s", config.Provider)
 	}
@@ -248,4 +252,138 @@ func (a *XunfeiProviderAdapter) HealthCheck(ctx context.Context) error {
 // Close 关闭
 func (a *XunfeiProviderAdapter) Close() error {
 	return a.client.Close()
+}
+
+// createVolcengineProvider 创建火山引擎提供商
+func (f *Factory) createVolcengineProvider(options map[string]interface{}) (VoiceprintProvider, error) {
+	if options == nil {
+		return nil, fmt.Errorf("options is required for volcengine provider")
+	}
+
+	accessKey, ok := options["access_key"].(string)
+	if !ok || accessKey == "" {
+		return nil, fmt.Errorf("access_key is required")
+	}
+
+	secretKey, ok := options["secret_key"].(string)
+	if !ok || secretKey == "" {
+		return nil, fmt.Errorf("secret_key is required")
+	}
+
+	config := &VolcengineConfig{
+		AccessKey: accessKey,
+		SecretKey: secretKey,
+	}
+
+	if region, ok := options["region"].(string); ok && region != "" {
+		config.Region = region
+	}
+
+	if baseURL, ok := options["base_url"].(string); ok && baseURL != "" {
+		config.BaseURL = baseURL
+	}
+
+	client, err := NewVolcengineClient(config, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create volcengine client: %w", err)
+	}
+
+	return &VolcengineProviderAdapter{client: client}, nil
+}
+
+// VolcengineProviderAdapter 火山引擎提供商适配器
+type VolcengineProviderAdapter struct {
+	client *VolcengineClient
+}
+
+// CreateGroup 创建特征库 - 火山引擎不支持
+func (a *VolcengineProviderAdapter) CreateGroup(ctx context.Context, groupID, groupName, groupInfo string) (*CreateGroupResult, error) {
+	return nil, fmt.Errorf("volcengine provider does not support CreateGroup")
+}
+
+// DeleteGroup 删除特征库 - 火山引擎不支持
+func (a *VolcengineProviderAdapter) DeleteGroup(ctx context.Context, groupID string) error {
+	return fmt.Errorf("volcengine provider does not support DeleteGroup")
+}
+
+// CreateFeature 创建特征 - 映射到Register
+func (a *VolcengineProviderAdapter) CreateFeature(ctx context.Context, groupID, featureID, featureInfo string, audioData []byte) (*CreateFeatureResult, error) {
+	// 将音频数据转换为Base64
+	audioBase64 := encodeBase64(audioData)
+
+	result, err := a.client.Register(ctx, audioBase64, featureID, featureInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	return &CreateFeatureResult{
+		FeatureID: result.UUID,
+	}, nil
+}
+
+// UpdateFeature 更新特征 - 映射到Update
+func (a *VolcengineProviderAdapter) UpdateFeature(ctx context.Context, groupID, featureID, featureInfo string, audioData []byte, cover bool) (*UpdateFeatureResult, error) {
+	audioBase64 := ""
+	if len(audioData) > 0 {
+		audioBase64 = encodeBase64(audioData)
+	}
+
+	err := a.client.Update(ctx, featureID, audioBase64, featureID, featureInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	return &UpdateFeatureResult{
+		Message: "success",
+	}, nil
+}
+
+// DeleteFeature 删除特征 - 映射到Delete
+func (a *VolcengineProviderAdapter) DeleteFeature(ctx context.Context, groupID, featureID string) error {
+	return a.client.Delete(ctx, featureID)
+}
+
+// QueryFeatureList 查询特征列表 - 映射到Query
+func (a *VolcengineProviderAdapter) QueryFeatureList(ctx context.Context, groupID string) (*QueryFeatureListResult, error) {
+	result, err := a.client.Query(ctx, nil, 0, "")
+	if err != nil {
+		return nil, err
+	}
+
+	features := make([]FeatureItem, len(result.VoicePrints))
+	for i, vp := range result.VoicePrints {
+		features[i] = FeatureItem{
+			FeatureID:   vp.UUID,
+			FeatureInfo: vp.MetaInfo,
+		}
+	}
+
+	return &QueryFeatureListResult{
+		Features: features,
+	}, nil
+}
+
+// SearchScoreFea 1:1比对 - 火山引擎不支持
+func (a *VolcengineProviderAdapter) SearchScoreFea(ctx context.Context, groupID, dstFeatureID string, audioData []byte) (*SearchScoreFeaResult, error) {
+	return nil, fmt.Errorf("volcengine provider does not support SearchScoreFea")
+}
+
+// SearchFea 1:N比对 - 火山引擎不支持
+func (a *VolcengineProviderAdapter) SearchFea(ctx context.Context, groupID string, topK int, audioData []byte) (*SearchFeaResult, error) {
+	return nil, fmt.Errorf("volcengine provider does not support SearchFea")
+}
+
+// HealthCheck 健康检查
+func (a *VolcengineProviderAdapter) HealthCheck(ctx context.Context) error {
+	return a.client.HealthCheck(ctx)
+}
+
+// Close 关闭
+func (a *VolcengineProviderAdapter) Close() error {
+	return a.client.Close()
+}
+
+// encodeBase64 编码为Base64
+func encodeBase64(data []byte) string {
+	return base64.StdEncoding.EncodeToString(data)
 }
