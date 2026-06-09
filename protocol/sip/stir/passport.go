@@ -22,7 +22,7 @@
 //   - Wiring into outbound INVITE / inbound 4xx-on-bad-Identity. The
 //     B2BUA caller decides whether to attest A/B/C per call.
 //
-// Why a separate package from pkg/sip/identity (PAI, RFC 3325)?
+// Why a separate package from protocol/sip/identity (PAI, RFC 3325)?
 // RFC 3325 is hop-by-hop trust within a domain (no signature),
 // while RFC 8224 is a globally-verifiable cryptographic assertion.
 // Keeping them apart prevents accidental conflation in code review.

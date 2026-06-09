@@ -7,6 +7,6 @@
 //
 // Production SIP stacks import this package directly for Parse / Generate / codec negotiate helpers.
 //
-// After you map SDP codecs to names (pcmu, pcma, opus, g722), use pkg/media/encoder.CreateDecode /
+// After you map SDP codecs to names (pcmu, pcma, opus, g722), use media/encoder.CreateDecode /
 // CreateEncode — do not reimplement those codecs in sip1.
 package sdp

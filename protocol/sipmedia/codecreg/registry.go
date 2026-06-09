@@ -3,7 +3,7 @@
 
 // Package codecreg holds the SIP audio codec negotiation registry.
 //
-// Pre-refactor: pkg/sip/session/negotiate.go 把 pcmu/pcma/g722/opus 的协商规则
+// Pre-refactor: protocol/sipmedia/session/negotiate.go 把 pcmu/pcma/g722/opus 的协商规则
 // 用一个大 switch 写死，添加新 codec（例如 G.729 / iLBC / EVS）要同时改：
 //
 //  1. NegotiateOffer 的 case 分支
@@ -14,7 +14,7 @@
 // 这个包把每个 codec 抽象成 Descriptor，注册到全局表里。新增 codec 写一个
 // Descriptor + 在 init() 里 Register 即可，协商代码不再动。
 //
-// 编解码字节流（PCM ↔ 网络字节）的工厂在 pkg/media/encoder/registry.go，
+// 编解码字节流（PCM ↔ 网络字节）的工厂在 media/encoder/registry.go，
 // 那是单独一层；本包只关心"协商哪个 codec、桥接 PCM 用什么采样率"。
 package codecreg
 
@@ -34,7 +34,7 @@ import (
 //   - Name 全部 lowercase，匹配时统一 ToLower。
 //   - Preference 数值越小越优先，便于在 offer 列表里挑出首选。
 //   - BuildNegotiated 从 offer 的原始 sdp.Codec 派生：
-//     (a) 落到媒体 codec config（送给 pkg/media encoder/decoder）；
+//     (a) 落到媒体 codec config（送给 media encoder/decoder）；
 //     (b) 落到 sdp 应答 codec（送回对端）；
 //   - InternalPCMRate 决定 MediaSession 内部 PCM 桥的采样率，避免不必要的重采样。
 //

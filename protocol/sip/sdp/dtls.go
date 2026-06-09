@@ -5,7 +5,7 @@ package sdp
 
 // dtls.go: SDP DTLS-SRTP attributes per RFC 5763 (signalling) +
 // RFC 5764 (DTLS-SRTP keying). Pure parsing/rendering — handshake
-// + key derivation live in pkg/sip/rtp.
+// + key derivation live in protocol/sipmedia/rtp.
 //
 // What we negotiate:
 //

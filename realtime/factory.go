@@ -7,7 +7,7 @@ package realtime
 // of the form `{ "provider": "<slug>", ...vendor fields }`. SIP attach
 // sites call NewAgentFromCredential to materialise an Agent without
 // importing any provider package directly — providers self-register via
-// blank import (see internal/sipserver bootstrap).
+// blank import at the application entrypoint, e.g. examples/sip-rtp-server).
 
 import (
 	"fmt"

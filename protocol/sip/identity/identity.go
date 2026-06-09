@@ -7,9 +7,9 @@
 //
 // Why a dedicated package:
 //
-//   - The same parser is needed in pkg/sip/server (extract PAI from
-//     inbound INVITE) and pkg/sip/outbound (emit PAI on outbound INVITE),
-//     and a future pkg/sip/identity8224 extension (STIR/SHAKEN) wants
+//   - The same parser is needed in protocol/sip/uas (extract PAI from
+//     inbound INVITE) and protocol/sip/outbound (emit PAI on outbound INVITE),
+//     and a future protocol/sip/identity8224 extension (STIR/SHAKEN) wants
 //     to chain off the same trust-domain config.
 //   - PAI semantics differ from From/Contact in two non-obvious ways:
 //     (1) it carries an *asserted* (carrier-validated) identity, not the

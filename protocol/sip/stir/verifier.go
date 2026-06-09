@@ -18,7 +18,7 @@ package stir
 //
 // This file does NOT touch SIP message types — the caller passes in
 // the raw Identity header value plus the From-claimed TN/URI. That
-// keeps the package free of dependencies on pkg/sip/stack and means
+// keeps the package free of dependencies on protocol/sip/stack and means
 // inbound TCP/UDP servers can call it without bringing along extra
 // types.
 

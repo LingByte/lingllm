@@ -6,7 +6,7 @@ package session
 // EVS / AMR-WB 等）需要同时改三处分支，是项目"扩展性 4/10"评分的主要扣分点。
 //
 // 现在这层退化成两个一次性 thin wrapper：真正的协商规则、偏好排序、PCM 桥接
-// 都搬到 pkg/sip/codecreg 注册表里。要加 codec？写一份 codecreg.Descriptor 并
+// 都搬到 protocol/sipmedia/codecreg 注册表里。要加 codec？写一份 codecreg.Descriptor 并
 // Register 即可，本文件不需要再改。
 //
 // 兼容性：函数签名与错误返回保持不变；老调用方零修改即可继续工作。

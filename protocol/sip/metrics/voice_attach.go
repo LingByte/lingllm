@@ -60,7 +60,7 @@ const (
 )
 
 // Voice-attach mode enum. Mirrors engine.Mode but kept as plain
-// strings here so this package doesn't import pkg/dialog/engine
+// strings here so this package doesn't import protocol/voice/dialog
 // (which would create an import cycle once engines start emitting
 // metrics directly). The constants MUST stay in sync with
 // engine.Mode's string values.

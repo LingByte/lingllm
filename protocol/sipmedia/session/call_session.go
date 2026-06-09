@@ -21,7 +21,7 @@ import (
 // [dir u8][seq u16LE][rtpTs u32LE][wallNs u64LE][len u16LE][payload].
 // wallNs is nanoseconds since the first captured frame (time.Since anchor): restores real gaps between
 // TTS phrases when RTP timestamps stay continuous across silence (unlike SN2 RTP-only placement).
-// Legacy "SN2" blobs remain readable in pkg/utils/sip_recording_wav.go.
+// Legacy "SN2" blobs remain readable in the legacy WAV recording reader (since removed).
 const recBlobMagic = "SN3"
 
 const (
@@ -75,7 +75,7 @@ type CallSession struct {
 	// extension) so retargeted legs surface the original To URI and
 	// any upstream SBC retarget history downstream. We store them as
 	// raw header strings (not parsed entries) on purpose:
-	//   - keeps pkg/sip/session free of a dependency on pkg/sip/historyinfo
+	//   - keeps this session package free of a dependency on protocol/sip/historyinfo
 	//   - tolerates malformed headers (parsing failures don't break call setup)
 	//   - lets the conversation layer re-parse on each retarget, which is
 	//     cheap and avoids storing parser-version-bound structs in the
@@ -87,7 +87,7 @@ type CallSession struct {
 	inboundUnboundTenant  bool
 
 	// RFC 4028 Session Timer state. When we're the refreshee (the
-	// usual case for inbound legs — see pkg/sip/session_timer), the
+	// usual case for inbound legs — see protocol/sip/session_timer), the
 	// peer is contractually obligated to send a re-INVITE / UPDATE
 	// within `sessionTimerInterval` seconds; if they don't, we MUST
 	// BYE per RFC 4028 §10. Reset on every in-dialog re-INVITE /
