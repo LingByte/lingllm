@@ -190,6 +190,21 @@ func TestSignPassport_IATFreshness(t *testing.T) {
 	}
 }
 
+func TestVerifyPassport_RejectsNonRawES256Signature(t *testing.T) {
+	key := newES256Key(t)
+	hdr, claims := validPassport()
+	signed, err := SignPassport(hdr, claims, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parts := strings.Split(signed.Compact, ".")
+	// Corrupt signature segment to non-64-byte payload.
+	parts[2] = string(b64URLEncode([]byte("not-a-valid-es256-signature")))
+	if _, err := VerifyPassport(strings.Join(parts, "."), &key.PublicKey); err == nil {
+		t.Fatal("non-64-byte signature must be rejected")
+	}
+}
+
 func TestVerifyPassport_RejectsMalformed(t *testing.T) {
 	key := newES256Key(t)
 	bad := []string{

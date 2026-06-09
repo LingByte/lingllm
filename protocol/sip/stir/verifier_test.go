@@ -55,8 +55,8 @@ func genCertChain(t *testing.T, notBefore, notAfter time.Time) (leaf *x509.Certi
 		Subject:      pkix.Name{CommonName: "stir-test-leaf"},
 		NotBefore:    notBefore,
 		NotAfter:     notAfter,
-		KeyUsage:     x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+		KeyUsage:    x509.KeyUsageDigitalSignature,
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageEmailProtection},
 	}
 	leafDER, err := x509.CreateCertificate(rand.Reader, leafTmpl, caCert, &leafKey.PublicKey, caKey)
 	if err != nil {
@@ -447,16 +447,17 @@ func TestVerifier_FetcherError(t *testing.T) {
 	}
 }
 
-func TestCanonicalTN(t *testing.T) {
+func TestCanonicalE164(t *testing.T) {
 	cases := map[string]string{
-		"+15551234567":         "+15551234567",
-		"+1 (555) 123-4567":    "+15551234567",
-		"  +1-555-1234567  ":   "+15551234567",
-		"abc+1xyz5551234567pq": "+15551234567",
+		"+15551234567":       "+15551234567",
+		"+1 (555) 123-4567":  "+15551234567",
+		"  +1-555-1234567  ": "+15551234567",
+		"15551234567":        "",
+		"abc+15551234567":    "",
 	}
 	for in, want := range cases {
-		if got := canonicalTN(in); got != want {
-			t.Errorf("canonicalTN(%q) = %q, want %q", in, got, want)
+		if got := CanonicalE164(in); got != want {
+			t.Errorf("CanonicalE164(%q) = %q, want %q", in, got, want)
 		}
 	}
 }

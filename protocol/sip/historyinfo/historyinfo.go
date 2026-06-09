@@ -114,7 +114,7 @@ func (e Entry) Format() string {
 }
 
 // FormatChain renders an entire History-Info chain as a comma-
-// separated header value. Pass to msg.SetHeader("History-Info", ...).
+// separated header value. Pass to msg.SetHeader(stack.HeaderHistoryInfo, ...).
 // Empty input → "".
 func FormatChain(chain []Entry) string {
 	parts := make([]string, 0, len(chain))

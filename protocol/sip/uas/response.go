@@ -23,13 +23,23 @@ func NewResponse(req *stack.Message, status int, reason, body, contentType strin
 	}
 	resp := &stack.Message{
 		IsRequest:    false,
-		Version:      "SIP/2.0",
+		Version: stack.SIPVersion,
 		StatusCode:   status,
 		StatusText:   reason,
 		Headers:      map[string]string{},
 		HeadersMulti: map[string][]string{},
 	}
-	for _, h := range []string{"Via", "From", "To", "Call-ID", "CSeq"} {
+	// Via may appear multiple times; echo all in order (RFC 3261).
+	if vias := req.GetHeaders(stack.HeaderVia); len(vias) > 0 {
+		resp.SetHeader(stack.HeaderVia, vias[0])
+		for i := 1; i < len(vias); i++ {
+			resp.AddHeader(stack.HeaderVia, vias[i])
+		}
+	}
+	for _, h := range stack.CorrelationHeaders {
+		if h == stack.HeaderVia {
+			continue
+		}
 		if v := req.GetHeader(h); v != "" {
 			resp.SetHeader(h, v)
 		}
@@ -38,9 +48,9 @@ func NewResponse(req *stack.Message, status int, reason, body, contentType strin
 	body = strings.ReplaceAll(body, "\r", "\n")
 	resp.Body = body
 	if strings.TrimSpace(contentType) != "" {
-		resp.SetHeader("Content-Type", strings.TrimSpace(contentType))
+		resp.SetHeader(stack.HeaderContentType, strings.TrimSpace(contentType))
 	}
-	resp.SetHeader("Content-Length", strconv.Itoa(stack.BodyBytesLen(body)))
+	resp.SetHeader(stack.HeaderContentLength, strconv.Itoa(stack.BodyBytesLen(body)))
 	return resp, nil
 }
 
@@ -69,4 +79,18 @@ func ErrorResponse(req *stack.Message, status int, reason string) (*stack.Messag
 		}
 	}
 	return NewResponse(req, status, reason, "", "")
+}
+
+// FormatContact builds a SIP Contact header field value.
+// user may be empty for the host-only form <sip:host:port>.
+func FormatContact(host string, port int, user string) string {
+	if port <= 0 {
+		port = 5060
+	}
+	host = strings.TrimSpace(host)
+	user = strings.TrimSpace(user)
+	if user != "" {
+		return fmt.Sprintf("<sip:%s@%s:%d>", user, host, port)
+	}
+	return fmt.Sprintf("<sip:%s:%d>", host, port)
 }

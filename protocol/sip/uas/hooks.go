@@ -102,8 +102,8 @@ func defaultOptions(req *stack.Message, addr *net.UDPAddr) (*stack.Message, erro
 	if err != nil {
 		return nil, err
 	}
-	resp.SetHeader("Allow", allow)
-	resp.SetHeader("Accept", "application/sdp")
+	resp.SetHeader(stack.HeaderAllow, allow)
+	resp.SetHeader(stack.HeaderAccept, "application/sdp")
 	return resp, nil
 }
 

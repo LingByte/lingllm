@@ -49,7 +49,7 @@ func (h *Hook) LogRequest(msg *stack.Message, remote *net.UDPAddr) {
 		Direction: "in",
 		Transport: h.Transport,
 		Method:    msg.Method,
-		CallID:    strings.TrimSpace(msg.GetHeader("Call-ID")),
+		CallID:    strings.TrimSpace(msg.GetHeader(stack.HeaderCallID)),
 		Remote:    addrString(remote),
 		Summary:   fmt.Sprintf("%s %s", msg.Method, strings.TrimSpace(msg.RequestURI)),
 	}
@@ -65,7 +65,7 @@ func (h *Hook) LogResponse(msg *stack.Message, remote *net.UDPAddr) {
 		Direction: "in",
 		Transport: h.Transport,
 		Status:    msg.StatusCode,
-		CallID:    strings.TrimSpace(msg.GetHeader("Call-ID")),
+		CallID:    strings.TrimSpace(msg.GetHeader(stack.HeaderCallID)),
 		Remote:    addrString(remote),
 		Summary:   fmt.Sprintf("SIP/2.0 %d %s", msg.StatusCode, strings.TrimSpace(msg.StatusText)),
 	}
@@ -80,7 +80,7 @@ func (h *Hook) LogSent(msg *stack.Message, remote *net.UDPAddr) {
 	e := Entry{
 		Direction: "out",
 		Transport: h.Transport,
-		CallID:    strings.TrimSpace(msg.GetHeader("Call-ID")),
+		CallID:    strings.TrimSpace(msg.GetHeader(stack.HeaderCallID)),
 		Remote:    addrString(remote),
 	}
 	if msg.IsRequest {

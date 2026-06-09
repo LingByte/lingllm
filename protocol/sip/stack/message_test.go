@@ -28,11 +28,11 @@ func TestParse_SIPRequest(t *testing.T) {
 	if msg.Method != "INVITE" || msg.RequestURI != "sip:user@domain.com" {
 		t.Fatalf("first line: method=%q uri=%q", msg.Method, msg.RequestURI)
 	}
-	if len(msg.GetHeaders("Via")) != 2 {
-		t.Fatalf("Via count: got %d", len(msg.GetHeaders("Via")))
+	if len(msg.GetHeaders(HeaderVia)) != 2 {
+		t.Fatalf("Via count: got %d", len(msg.GetHeaders(HeaderVia)))
 	}
-	if msg.GetHeader("Call-ID") != "abc123" {
-		t.Fatalf("Call-ID: got %q", msg.GetHeader("Call-ID"))
+	if msg.GetHeader(HeaderCallID) != "abc123" {
+		t.Fatalf("Call-ID: got %q", msg.GetHeader(HeaderCallID))
 	}
 }
 
@@ -73,7 +73,7 @@ func TestMessage_StringRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("re-parse: %v\nout=%q", err, out)
 	}
-	if msg2.Method != "OPTIONS" || msg2.GetHeader("Call-ID") != "cid" {
+	if msg2.Method != "OPTIONS" || msg2.GetHeader(HeaderCallID) != "cid" {
 		t.Fatalf("round trip mismatch: %#v", msg2)
 	}
 }

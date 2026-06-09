@@ -6,14 +6,12 @@ package metrics
 import (
 	"strings"
 	"testing"
-
-	voiceMetrics "github.com/LingByte/lingllm/protocol/sip/observability"
 )
 
 func snapshot(t *testing.T) string {
 	t.Helper()
 	var sb strings.Builder
-	voiceMetrics.Default.WritePromText(&sb)
+	Default.WritePromText(&sb)
 	return sb.String()
 }
 

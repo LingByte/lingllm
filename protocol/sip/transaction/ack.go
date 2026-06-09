@@ -12,7 +12,7 @@ func AckRequestURIFor2xx(resp *stack.Message, inviteRequestURI string) string {
 	if resp == nil {
 		return strings.TrimSpace(inviteRequestURI)
 	}
-	c := strings.TrimSpace(resp.GetHeader("Contact"))
+	c := strings.TrimSpace(resp.GetHeader(stack.HeaderContact))
 	if c == "" {
 		return strings.TrimSpace(inviteRequestURI)
 	}
@@ -33,14 +33,14 @@ func AckRequestURIFor2xx(resp *stack.Message, inviteRequestURI string) string {
 // For 300–699, requestURI should be the same as the INVITE Request-URI (RFC 3261 §17.1.1.2).
 func BuildAckForInvite(invite *stack.Message, final *stack.Message, requestURI string) (*stack.Message, error) {
 	if invite == nil || final == nil {
-		return nil, fmt.Errorf("sip1/transaction: nil message")
+		return nil, fmt.Errorf("%s: nil message", errPrefix)
 	}
 	if !IsInviteCSeq(invite) {
-		return nil, fmt.Errorf("sip1/transaction: invite CSeq is not INVITE")
+		return nil, fmt.Errorf("%s: invite CSeq is not INVITE", errPrefix)
 	}
 	st := final.StatusCode
 	if st < 200 || st > 699 {
-		return nil, fmt.Errorf("sip1/transaction: final status %d is not a final response", st)
+		return nil, fmt.Errorf("%s: final status %d is not a final response", errPrefix, st)
 	}
 
 	reqURI := strings.TrimSpace(requestURI)
@@ -48,38 +48,38 @@ func BuildAckForInvite(invite *stack.Message, final *stack.Message, requestURI s
 		reqURI = strings.TrimSpace(invite.RequestURI)
 	}
 
-	n := stack.ParseCSeqNum(invite.GetHeader("CSeq"))
-	if n <= 0 {
-		return nil, fmt.Errorf("sip1/transaction: invalid CSeq on INVITE")
+	n, ok := stack.ParseCSeqNum(invite.GetHeader(stack.HeaderCSeq))
+	if !ok || n <= 0 {
+		return nil, fmt.Errorf("%s: invalid CSeq on INVITE", errPrefix)
 	}
 
 	ack := &stack.Message{
 		IsRequest:    true,
 		Method:       stack.MethodAck,
 		RequestURI:   reqURI,
-		Version:      "SIP/2.0",
+		Version: stack.SIPVersion,
 		Headers:      map[string]string{},
 		HeadersMulti: map[string][]string{},
 	}
 
 	// Single Via: reuse the top Via from the INVITE (UAC behavior).
 	if v := TopVia(invite); v != "" {
-		ack.SetHeader("Via", v)
+		ack.SetHeader(stack.HeaderVia, v)
 	} else {
-		return nil, fmt.Errorf("sip1/transaction: invite missing Via")
+		return nil, fmt.Errorf("%s: invite missing Via", errPrefix)
 	}
-	ack.SetHeader("Max-Forwards", "70")
+	ack.SetHeader(stack.HeaderMaxForwards, stack.DefaultMaxForwards)
 
-	if f := strings.TrimSpace(invite.GetHeader("From")); f != "" {
-		ack.SetHeader("From", f)
+	if f := strings.TrimSpace(invite.GetHeader(stack.HeaderFrom)); f != "" {
+		ack.SetHeader(stack.HeaderFrom, f)
 	}
-	if to := strings.TrimSpace(final.GetHeader("To")); to != "" {
-		ack.SetHeader("To", to)
-	} else if to := strings.TrimSpace(invite.GetHeader("To")); to != "" {
-		ack.SetHeader("To", to)
+	if to := strings.TrimSpace(final.GetHeader(stack.HeaderTo)); to != "" {
+		ack.SetHeader(stack.HeaderTo, to)
+	} else if to := strings.TrimSpace(invite.GetHeader(stack.HeaderTo)); to != "" {
+		ack.SetHeader(stack.HeaderTo, to)
 	}
-	ack.SetHeader("Call-ID", strings.TrimSpace(invite.GetHeader("Call-ID")))
-	ack.SetHeader("CSeq", stack.WithCSeqACK(n))
-	ack.SetHeader("Content-Length", "0")
+	ack.SetHeader(stack.HeaderCallID, strings.TrimSpace(invite.GetHeader(stack.HeaderCallID)))
+	ack.SetHeader(stack.HeaderCSeq, stack.WithCSeqACK(n))
+	ack.PrepareForSend()
 	return ack, nil
 }

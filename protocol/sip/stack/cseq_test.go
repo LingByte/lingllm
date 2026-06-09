@@ -9,11 +9,14 @@ import (
 )
 
 func TestParseCSeqNum(t *testing.T) {
-	if n := ParseCSeqNum("42 INVITE"); n != 42 {
-		t.Fatalf("got %d", n)
+	if n, ok := ParseCSeqNum("42 INVITE"); !ok || n != 42 {
+		t.Fatalf("got %d ok=%v", n, ok)
 	}
-	if n := ParseCSeqNum(""); n != 0 {
-		t.Fatalf("empty: got %d", n)
+	if _, ok := ParseCSeqNum(""); ok {
+		t.Fatal("empty should fail")
+	}
+	if _, ok := ParseCSeqNum("x INVITE"); ok {
+		t.Fatal("malformed should fail")
 	}
 }
 
@@ -46,10 +49,26 @@ func TestBodyBytesLen(t *testing.T) {
 
 func TestMessage_AddHeader(t *testing.T) {
 	m := &Message{Headers: map[string]string{}, HeadersMulti: map[string][]string{}}
-	m.AddHeader("Via", "one")
-	m.AddHeader("Via", "two")
-	if len(m.GetHeaders("via")) != 2 {
-		t.Fatalf("via: %#v", m.GetHeaders("Via"))
+	m.AddHeader(HeaderVia, "one")
+	m.AddHeader(HeaderVia, "two")
+	if len(m.GetHeaders(HeaderVia)) != 2 {
+		t.Fatalf("via: %#v", m.GetHeaders(HeaderVia))
+	}
+}
+
+func TestMessage_PrepareForSend(t *testing.T) {
+	m := &Message{
+		IsRequest:    true,
+		Method:       "INVITE",
+		RequestURI:   "sip:a",
+		Version: SIPVersion,
+		Headers:      map[string]string{},
+		HeadersMulti: map[string][]string{},
+		Body:         "v=0\r\n",
+	}
+	m.PrepareForSend()
+	if m.GetHeader(HeaderContentLength) != "5" {
+		t.Fatalf("content-length %q", m.GetHeader(HeaderContentLength))
 	}
 }
 
@@ -91,10 +110,10 @@ func TestEndpoint_DispatchAndNotify(t *testing.T) {
 	defer func() { _ = ep.Close() }()
 
 	ep.RegisterHandler(MethodOptions, func(msg *Message, _ *net.UDPAddr) *Message {
-		return &Message{IsRequest: false, Version: "SIP/2.0", StatusCode: 200, StatusText: "OK"}
+		return &Message{IsRequest: false, Version: SIPVersion, StatusCode: 200, StatusText: "OK"}
 	})
 	ep.SetNoRouteHandler(func(_ *Message, _ *net.UDPAddr) *Message {
-		return &Message{IsRequest: false, Version: "SIP/2.0", StatusCode: 404, StatusText: "Nope"}
+		return &Message{IsRequest: false, Version: SIPVersion, StatusCode: 404, StatusText: "Nope"}
 	})
 
 	req, _ := Parse("OPTIONS sip:x SIP/2.0\r\nContent-Length: 0\r\n\r\n")
@@ -120,5 +139,26 @@ func TestEndpoint_DispatchAndNotify(t *testing.T) {
 	ep2.InvokeOnSIPResponse(&Message{StatusCode: 180}, nil)
 	if !saw.Load() {
 		t.Fatal("InvokeOnSIPResponse")
+	}
+}
+
+func TestDefaultNoRouteResponse(t *testing.T) {
+	ep := NewEndpoint(EndpointConfig{Host: "127.0.0.1", Port: 0})
+	req, _ := Parse(strings.Join([]string{
+		"FOO sip:x SIP/2.0",
+		"Via: SIP/2.0/UDP 1.1.1.1;branch=z9hG4bK1",
+		"From: <sip:a@b>",
+		"To: <sip:c@d>",
+		"Call-ID: cid",
+		"CSeq: 9 FOO",
+		"",
+		"",
+	}, "\r\n"))
+	resp := ep.DispatchRequest(req, nil)
+	if resp == nil || resp.StatusCode != 501 {
+		t.Fatalf("expected 501, got %#v", resp)
+	}
+	if resp.GetHeader(HeaderCallID) != "cid" {
+		t.Fatalf("call-id %q", resp.GetHeader(HeaderCallID))
 	}
 }

@@ -18,19 +18,19 @@ func buildBYE(inv inviteParams, toHeader200, requestURI string, cseq int, branch
 		IsRequest:  true,
 		Method:     stack.MethodBye,
 		RequestURI: reqURI,
-		Version:    "SIP/2.0",
+		Version: stack.SIPVersion,
 	}
-	msg.SetHeader("Via", formatVia(inv.ViaTransport, inv.SIPHost, inv.SIPPort, branch))
-	msg.SetHeader("Max-Forwards", "70")
-	msg.SetHeader("From", formatOutboundFromHeader(inv.FromDisplayName, inv.FromUser, inv.SIPHost, inv.SIPPort, inv.FromTag))
+	msg.SetHeader(stack.HeaderVia, formatVia(inv.ViaTransport, inv.SIPHost, inv.SIPPort, branch))
+	msg.SetHeader(stack.HeaderMaxForwards, stack.DefaultMaxForwards)
+	msg.SetHeader(stack.HeaderFrom, formatOutboundFromHeader(inv.FromDisplayName, inv.FromUser, inv.SIPHost, inv.SIPPort, inv.FromTag))
 	if strings.TrimSpace(toHeader200) != "" {
-		msg.SetHeader("To", toHeader200)
+		msg.SetHeader(stack.HeaderTo, toHeader200)
 	} else {
-		msg.SetHeader("To", formatToHeader(inv.RequestURI))
+		msg.SetHeader(stack.HeaderTo, formatToHeader(inv.RequestURI))
 	}
-	msg.SetHeader("Call-ID", inv.CallID)
-	msg.SetHeader("CSeq", fmt.Sprintf("%d BYE", cseq))
-	msg.SetHeader("Content-Length", "0")
+	msg.SetHeader(stack.HeaderCallID, inv.CallID)
+	msg.SetHeader(stack.HeaderCSeq, fmt.Sprintf("%d BYE", cseq))
+	msg.SetHeader(stack.HeaderContentLength, "0")
 	return msg
 }
 

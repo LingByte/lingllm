@@ -206,7 +206,7 @@ func (r *outRefresher) handleUPDATEResponse(resp *stack.Message) bool {
 		// Peer may shorten SE in the 200 OK (RFC 4028 §7.1: response
 		// SE ≤ request SE). Adopt their value so we refresh sooner
 		// than we asked, never later.
-		if peerSE, peerRefresher, _ := session_timer.ParseSessionExpires(resp.GetHeader("Session-Expires")); peerSE > 0 {
+		if peerSE, peerRefresher, _ := session_timer.ParseSessionExpires(resp.GetHeader(stack.HeaderSessionExpires)); peerSE > 0 {
 			r.mu.Lock()
 			if peerSE < r.se {
 				r.se = peerSE
@@ -226,7 +226,7 @@ func (r *outRefresher) handleUPDATEResponse(resp *stack.Message) bool {
 	case st == 422:
 		// Session Interval Too Small. Peer's Min-SE tells us the
 		// floor. RFC 4028 §6: retry with SE ≥ peer's Min-SE.
-		peerMin := session_timer.ParseMinSE(resp.GetHeader("Min-SE"))
+		peerMin := session_timer.ParseMinSE(resp.GetHeader(stack.HeaderMinSE))
 		if peerMin <= 0 || peerMin > session_timer.HardMaxSE {
 			sipMetrics.SessionTimerRefresh(sipMetrics.Refresh422GaveUp)
 			logrus.WithFields(logrus.Fields{"call_id": r.leg.params.CallID, "peer_min_se": peerMin}).Warn("sip outbound refresh got 422 without usable Min-SE; stopping")
@@ -303,26 +303,26 @@ func buildUPDATE(inv inviteParams, toHeader200, requestURI string,
 		IsRequest:  true,
 		Method:     stack.MethodUpdate,
 		RequestURI: reqURI,
-		Version:    "SIP/2.0",
+		Version: stack.SIPVersion,
 	}
-	msg.SetHeader("Via", formatVia(inv.ViaTransport, inv.SIPHost, inv.SIPPort, branch))
-	msg.SetHeader("Max-Forwards", "70")
-	msg.SetHeader("From", formatOutboundFromHeader(inv.FromDisplayName, inv.FromUser,
+	msg.SetHeader(stack.HeaderVia, formatVia(inv.ViaTransport, inv.SIPHost, inv.SIPPort, branch))
+	msg.SetHeader(stack.HeaderMaxForwards, stack.DefaultMaxForwards)
+	msg.SetHeader(stack.HeaderFrom, formatOutboundFromHeader(inv.FromDisplayName, inv.FromUser,
 		inv.SIPHost, inv.SIPPort, inv.FromTag))
 	if strings.TrimSpace(toHeader200) != "" {
-		msg.SetHeader("To", toHeader200)
+		msg.SetHeader(stack.HeaderTo, toHeader200)
 	} else {
-		msg.SetHeader("To", formatToHeader(inv.RequestURI))
+		msg.SetHeader(stack.HeaderTo, formatToHeader(inv.RequestURI))
 	}
-	msg.SetHeader("Call-ID", inv.CallID)
-	msg.SetHeader("CSeq", fmt.Sprintf("%d %s", cseq, stack.MethodUpdate))
-	msg.SetHeader("Contact", formatOutboundContact(inv.FromUser, inv.SIPHost, inv.SIPPort))
-	msg.SetHeader("Allow", "INVITE, ACK, BYE, CANCEL, OPTIONS, UPDATE")
-	msg.SetHeader("Supported", "timer, 100rel, replaces")
-	msg.SetHeader("Session-Expires",
+	msg.SetHeader(stack.HeaderCallID, inv.CallID)
+	msg.SetHeader(stack.HeaderCSeq, fmt.Sprintf("%d %s", cseq, stack.MethodUpdate))
+	msg.SetHeader(stack.HeaderContact, formatOutboundContact(inv.FromUser, inv.SIPHost, inv.SIPPort))
+	msg.SetHeader(stack.HeaderAllow, "INVITE, ACK, BYE, CANCEL, OPTIONS, UPDATE")
+	msg.SetHeader(stack.HeaderSupported, "timer, 100rel, replaces")
+	msg.SetHeader(stack.HeaderSessionExpires,
 		session_timer.FormatSessionExpires(se, session_timer.RefresherUAC))
-	msg.SetHeader("Min-SE", strconv.Itoa(minSE))
-	msg.SetHeader("User-Agent", "SoulNexus-SIP/1.0")
-	msg.SetHeader("Content-Length", "0")
+	msg.SetHeader(stack.HeaderMinSE, strconv.Itoa(minSE))
+	msg.SetHeader(stack.HeaderUserAgent, "SoulNexus-SIP/1.0")
+	msg.SetHeader(stack.HeaderContentLength, "0")
 	return msg
 }

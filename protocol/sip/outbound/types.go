@@ -1,6 +1,8 @@
 package outbound
 
 import (
+	"context"
+	"net"
 	"time"
 
 	"github.com/LingByte/lingllm/protocol/sip/historyinfo"
@@ -48,7 +50,28 @@ type DialRequest struct {
 	Codecs []sdp.Codec
 	// OfferSRTP adds SDES a=crypto to the SDP offer (RTP/SAVPF).
 	OfferSRTP bool
+
+	// CallID optionally pre-allocates the dialog Call-ID (VoiceServer
+	// dial gate / CDR correlation). Empty → generated at Dial time.
+	CallID string
+	// SDPBody when non-empty is used verbatim as the INVITE body,
+	// bypassing auto SDP generation (custom SRTP/DTLS offers).
+	SDPBody string
+	// IdentityHeader is a pre-rendered RFC 8224 Identity header value.
+	IdentityHeader string
 }
+
+// PreAckContext is passed to ManagerConfig.PreAck after a 200 OK INVITE
+// answer is parsed and before the UAC sends ACK.
+type PreAckContext struct {
+	Leg              EstablishedLeg
+	Answer           *sdp.Info
+	ResponseSource   *net.UDPAddr
+}
+
+// PreAckFunc runs media negotiation before ACK. Non-nil error aborts
+// the leg without sending ACK.
+type PreAckFunc func(ctx context.Context, p PreAckContext) error
 
 // EstablishedLeg is delivered after 200 OK + ACK (signaling complete).
 type EstablishedLeg struct {

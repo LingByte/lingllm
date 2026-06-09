@@ -1,14 +1,36 @@
-// Package uas registers inbound (UAS-side) SIP method handlers on stack.Endpoint using typed callbacks.
+// Package uas registers inbound (UAS) SIP method handlers on stack.Endpoint.
 //
-// Media path: after SDP negotiation yields a payload type and codec name (e.g. pcmu, pcma, opus),
-// build RTP↔PCM paths with pkg/media and pkg/media/encoder (CreateEncode / CreateDecode, registry).
-// Do not duplicate G.711/Opus/G.722 logic inside pkg/sip.
+// # Handler wiring
 //
-// Inbound wiring (manual): before your INVITE handler, transaction.Manager.HandleInviteRequest;
-// after sending a final, BeginInviteServer; on ACK, HandleAck.
+// Handlers is a struct of typed callbacks (InviteHandler, SimpleHandler, AckHandler).
+// Attach registers them on stack.Endpoint; AttachWithTransaction also chains the
+// transaction layer (retransmissions, CANCEL, ACK, BeginInviteServer).
 //
-// Composable helpers (see server_tx.go): ChainInviteServerTx, AfterResponseSentBeginInviteServer,
-// WithOnResponseSentAppended, ChainAckServerTx — wire mgr + stack.EndpointConfig.OnResponseSent + Handlers.
+// # Inbound INVITE flow (with transaction binding)
 //
-// See also: pkg/sip/dialog, pkg/sip/session, pkg/sip/transaction (Register stack.MethodCancel → HandleCancelRequest).
+//  1. UDP datagram → stack.Endpoint parses INVITE
+//  2. ChainInviteServerTx: duplicate INVITE → resend stored final (if any)
+//  3. InviteHandler runs → returns 100/180/200 (or nil to suppress auto-send)
+//  4. stack.Endpoint sends response on UDP
+//  5. OnResponseSent → AfterResponseSentBeginServerTx → transaction.BeginInviteServer
+//  6. ACK arrives → ChainAckServerTx → transaction.HandleAck (stops 2xx retransmit)
+//
+// CANCEL before final:
+//
+//  WrapHandlersWithTransaction replaces Cancel handler → HandleCancelRequest (200 to CANCEL)
+//  TU must still answer INVITE with 487 (or similar).
+//
+// # Building responses
+//
+// Use NewResponse / ErrorResponse — they copy stack.CorrelationHeaders from the request
+// and set stack.HeaderContentLength. Provisional responses should add To ;tag= via dialog.AppendTagAfterNameAddr.
+//
+// # Helpers (server_tx.go)
+//
+//   - ChainInviteServerTx / ChainNonInviteServerTx — absorb retransmissions
+//   - AfterResponseSentBeginServerTx — register server transaction after final on wire
+//   - ChainAckServerTx — match ACK to pending INVITE server tx
+//   - WithOnResponseSentAppended — compose OnResponseSent hooks
+//
+// Media (RTP/codec) lives in protocol/sipmedia; dialog tags in protocol/sip/dialog.
 package uas

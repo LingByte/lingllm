@@ -4,7 +4,7 @@ package version
 // SPDX-License-Identifier: AGPL-3.0
 
 // Version 版本号
-var Version = "1.4.2"
+var Version = "1.4.3"
 
 // GitCommit Git提交哈希
 var GitCommit = "unknown"

@@ -28,15 +28,15 @@ func TestNonInviteServer_Retransmit(t *testing.T) {
 		t.Fatal(err)
 	}
 	final := &stack.Message{
-		IsRequest: false, Version: "SIP/2.0", StatusCode: 200, StatusText: "OK",
+		IsRequest: false, Version: stack.SIPVersion, StatusCode: 200, StatusText: "OK",
 		Headers: map[string]string{}, HeadersMulti: map[string][]string{},
 	}
-	final.SetHeader("Via", TopVia(req))
-	final.SetHeader("From", req.GetHeader("From"))
-	final.SetHeader("To", req.GetHeader("To"))
-	final.SetHeader("Call-ID", req.GetHeader("Call-ID"))
-	final.SetHeader("CSeq", req.GetHeader("CSeq"))
-	final.SetHeader("Content-Length", "0")
+	final.SetHeader(stack.HeaderVia, TopVia(req))
+	final.SetHeader(stack.HeaderFrom, req.GetHeader(stack.HeaderFrom))
+	final.SetHeader(stack.HeaderTo, req.GetHeader(stack.HeaderTo))
+	final.SetHeader(stack.HeaderCallID, req.GetHeader(stack.HeaderCallID))
+	final.SetHeader(stack.HeaderCSeq, req.GetHeader(stack.HeaderCSeq))
+	final.SetHeader(stack.HeaderContentLength, "0")
 
 	var sends atomic.Int32
 	send := func(*stack.Message, *net.UDPAddr) error {

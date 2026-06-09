@@ -197,16 +197,16 @@ func buildINVITE(p inviteParams) *stack.Message {
 		IsRequest:  true,
 		Method:     stack.MethodInvite,
 		RequestURI: p.RequestURI,
-		Version:    "SIP/2.0",
+		Version: stack.SIPVersion,
 		Body:       p.SDPBody,
 	}
-	msg.SetHeader("Via", via)
-	msg.SetHeader("Max-Forwards", "70")
-	msg.SetHeader("From", from)
-	msg.SetHeader("To", to)
-	msg.SetHeader("Call-ID", p.CallID)
-	msg.SetHeader("CSeq", fmt.Sprintf("%d INVITE", p.CSeq))
-	msg.SetHeader("Contact", formatOutboundContact(p.FromUser, p.SIPHost, p.SIPPort))
+	msg.SetHeader(stack.HeaderVia, via)
+	msg.SetHeader(stack.HeaderMaxForwards, stack.DefaultMaxForwards)
+	msg.SetHeader(stack.HeaderFrom, from)
+	msg.SetHeader(stack.HeaderTo, to)
+	msg.SetHeader(stack.HeaderCallID, p.CallID)
+	msg.SetHeader(stack.HeaderCSeq, fmt.Sprintf("%d INVITE", p.CSeq))
+	msg.SetHeader(stack.HeaderContact, formatOutboundContact(p.FromUser, p.SIPHost, p.SIPPort))
 	// RFC 3325 P-Asserted-Identity: carrier-validated CLI carried separately
 	// from the (user-claimed) From header. Only emitted when the caller has
 	// explicitly populated AssertedIdentityURI — we do NOT auto-derive PAI
@@ -218,14 +218,14 @@ func buildINVITE(p inviteParams) *stack.Message {
 			DisplayName: strings.TrimSpace(p.AssertedIdentityDisplayName),
 		}.FormatHeader()
 		if hdr != "" {
-			msg.SetHeader("P-Asserted-Identity", hdr)
+			msg.SetHeader(stack.HeaderPAssertedIdentity, hdr)
 		}
 	}
 	// RFC 3323 Privacy: token list (id / header / user / session / critical).
 	// Set "id" to make a withheld-CLI call (carrier still sees PAI inside the
 	// trust domain, but its egress rule strips PAI before handing to PSTN).
 	if pr := identity.FormatPrivacyHeader(p.PrivacyTokens); pr != "" {
-		msg.SetHeader("Privacy", pr)
+		msg.SetHeader(stack.HeaderPrivacy, pr)
 	}
 	// RFC 7044 History-Info / RFC 5806 Diversion: surface the retarget
 	// chain on B2BUA transfer legs. We emit BOTH because the downstream
@@ -233,20 +233,20 @@ func buildINVITE(p inviteParams) *stack.Message {
 	// History-Info, older Yealink/Polycom/Asterisk read Diversion. See
 	// docs/sip_gap_analysis.md §"转接架构说明" for why this matters.
 	if h := historyinfo.FormatChain(p.HistoryInfo); h != "" {
-		msg.SetHeader("History-Info", h)
+		msg.SetHeader(stack.HeaderHistoryInfo, h)
 	}
 	if d := historyinfo.FormatDiversionChain(p.Diversion); d != "" {
-		msg.SetHeader("Diversion", d)
+		msg.SetHeader(stack.HeaderDiversion, d)
 	}
 	// RFC 8224 Identity (SHAKEN). The header value is rendered upstream
 	// by ManagerConfig.STIRSigner; empty means "don't sign this leg"
 	// (signer absent or signing failed soft-fail; see outbound/stir.go).
 	if id := strings.TrimSpace(p.IdentityHeader); id != "" {
-		msg.SetHeader("Identity", id)
+		msg.SetHeader(stack.HeaderIdentity, id)
 	}
-	msg.SetHeader("User-Agent", "LingLLM-SIP/1.0")
-	msg.SetHeader("Content-Type", "application/sdp")
-	msg.SetHeader("Allow", "INVITE, ACK, BYE, CANCEL, OPTIONS, UPDATE")
+	msg.SetHeader(stack.HeaderUserAgent, "LingLLM-SIP/1.0")
+	msg.SetHeader(stack.HeaderContentType, "application/sdp")
+	msg.SetHeader(stack.HeaderAllow, "INVITE, ACK, BYE, CANCEL, OPTIONS, UPDATE")
 	// RFC 4028 — advertise capability for session timers (Supported:
 	// timer). We still don't *propose* Session-Expires in this INVITE
 	// because UAC-side refreshing is opt-in based on peer policy:
@@ -257,8 +257,8 @@ func buildINVITE(p inviteParams) *stack.Message {
 	//     peer owns refresh and we stay passive.
 	// Note: inbound mid-dialog refreshes from peer are NOT yet honored
 	// (outbound connPeer drops mid-dialog requests — see peer.go:223).
-	msg.SetHeader("Supported", "timer, 100rel, replaces")
-	msg.SetHeader("Content-Length", strconv.Itoa(stack.BodyBytesLen(p.SDPBody)))
+	msg.SetHeader(stack.HeaderSupported, "timer, 100rel, replaces")
+	msg.SetHeader(stack.HeaderContentLength, strconv.Itoa(stack.BodyBytesLen(p.SDPBody)))
 	return msg
 }
 

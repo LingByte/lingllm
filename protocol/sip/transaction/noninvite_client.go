@@ -49,7 +49,7 @@ func (tx *nonInviteClientTx) stop() {
 
 func (tx *nonInviteClientTx) sendFrozen() error {
 	if tx.frozen == nil {
-		return fmt.Errorf("sip1/transaction: nil frozen request")
+		return fmt.Errorf("%s: nil frozen request", errPrefix)
 	}
 	return tx.send(tx.frozen, tx.remote)
 }
@@ -130,25 +130,25 @@ type NonInviteClientResult struct {
 // Wire HandleResponse on the same Manager from stack.Endpoint.OnSIPResponse.
 func (m *Manager) RunNonInviteClient(ctx context.Context, req *stack.Message, remote *net.UDPAddr, send SendFunc) (*NonInviteClientResult, error) {
 	if m == nil {
-		return nil, fmt.Errorf("sip1/transaction: nil manager")
+		return nil, fmt.Errorf("%s: nil manager", errPrefix)
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if req == nil || send == nil {
-		return nil, fmt.Errorf("sip1/transaction: nil request or send")
+		return nil, fmt.Errorf("%s: nil request or send", errPrefix)
 	}
 	br := TopBranch(req)
 	if br == "" {
-		return nil, fmt.Errorf("sip1/transaction: request missing Via branch")
+		return nil, fmt.Errorf("%s: request missing Via branch", errPrefix)
 	}
-	callID := strings.TrimSpace(req.GetHeader("Call-ID"))
+	callID := strings.TrimSpace(req.GetHeader(stack.HeaderCallID))
 	if callID == "" {
-		return nil, fmt.Errorf("sip1/transaction: request missing Call-ID")
+		return nil, fmt.Errorf("%s: request missing Call-ID", errPrefix)
 	}
-	n := stack.ParseCSeqNum(req.GetHeader("CSeq"))
-	if n <= 0 {
-		return nil, fmt.Errorf("sip1/transaction: invalid CSeq")
+	n, ok := stack.ParseCSeqNum(req.GetHeader(stack.HeaderCSeq))
+	if !ok || n <= 0 {
+		return nil, fmt.Errorf("%s: invalid CSeq", errPrefix)
 	}
 	frozen, err := stack.Parse(req.String())
 	if err != nil {
@@ -223,9 +223,9 @@ func (m *Manager) dispatchNonInviteClientResponse(resp *stack.Message, src *net.
 		return false
 	}
 	br := TopBranch(resp)
-	callID := strings.TrimSpace(resp.GetHeader("Call-ID"))
-	n := stack.ParseCSeqNum(resp.GetHeader("CSeq"))
-	if br == "" || callID == "" || n <= 0 {
+	callID := strings.TrimSpace(resp.GetHeader(stack.HeaderCallID))
+	n, ok := stack.ParseCSeqNum(resp.GetHeader(stack.HeaderCSeq))
+	if br == "" || callID == "" || !ok || n <= 0 {
 		return false
 	}
 	key := nonInviteClientKey(br, callID, n)

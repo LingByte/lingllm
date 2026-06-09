@@ -15,6 +15,7 @@ func TestEndpoint_OPTIONS_handler(t *testing.T) {
 		Host:         "127.0.0.1",
 		Port:         0,
 		ReadDeadline: 200 * time.Millisecond,
+		SyncHandlers: true,
 	})
 	if err := ep.Open(); err != nil {
 		t.Fatal(err)
@@ -26,15 +27,15 @@ func TestEndpoint_OPTIONS_handler(t *testing.T) {
 	ep.RegisterHandler(MethodOptions, func(msg *Message, addr *net.UDPAddr) *Message {
 		resp := &Message{
 			IsRequest:    false,
-			Version:      "SIP/2.0",
+			Version: SIPVersion,
 			StatusCode:   200,
 			StatusText:   "OK",
 			Headers:      map[string]string{},
 			HeadersMulti: map[string][]string{},
 		}
-		resp.SetHeader("Call-ID", msg.GetHeader("Call-ID"))
-		resp.SetHeader("CSeq", msg.GetHeader("CSeq"))
-		resp.SetHeader("Content-Length", "0")
+		resp.SetHeader(HeaderCallID, msg.GetHeader(HeaderCallID))
+		resp.SetHeader(HeaderCSeq, msg.GetHeader(HeaderCSeq))
+		resp.SetHeader(HeaderContentLength, "0")
 		return resp
 	})
 
@@ -97,6 +98,7 @@ func TestEndpoint_OnResponseSent(t *testing.T) {
 		Host:           "127.0.0.1",
 		Port:           0,
 		ReadDeadline:   200 * time.Millisecond,
+		SyncHandlers:   true,
 		OnResponseSent: func(req, resp *Message, addr *net.UDPAddr) { sent.Add(1) },
 	})
 	if err := ep.Open(); err != nil {
@@ -105,11 +107,11 @@ func TestEndpoint_OnResponseSent(t *testing.T) {
 	defer func() { _ = ep.Close() }()
 	local := ep.ListenAddr().(*net.UDPAddr)
 	ep.RegisterHandler(MethodOptions, func(msg *Message, addr *net.UDPAddr) *Message {
-		resp := &Message{IsRequest: false, Version: "SIP/2.0", StatusCode: 200, StatusText: "OK",
+		resp := &Message{IsRequest: false, Version: SIPVersion, StatusCode: 200, StatusText: "OK",
 			Headers: map[string]string{}, HeadersMulti: map[string][]string{}}
-		resp.SetHeader("Call-ID", msg.GetHeader("Call-ID"))
-		resp.SetHeader("CSeq", msg.GetHeader("CSeq"))
-		resp.SetHeader("Content-Length", "0")
+		resp.SetHeader(HeaderCallID, msg.GetHeader(HeaderCallID))
+		resp.SetHeader(HeaderCSeq, msg.GetHeader(HeaderCSeq))
+		resp.SetHeader(HeaderContentLength, "0")
 		return resp
 	})
 	ctx, cancel := context.WithCancel(context.Background())

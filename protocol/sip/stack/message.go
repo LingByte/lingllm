@@ -9,42 +9,105 @@ import (
 	"strings"
 )
 
-// Message is a parsed SIP message (request or response).
+// SIP/2.0 200 OK
+// Via: SIP/2.0/UDP 192.168.1.100:5060;branch=z9hG4bK12345
+// To: Bob <sip:bob@example.com>;tag=as12345
+// From: Alice <sip:alice@example.com>;tag=1928301774
+// Call-ID: a84b4c76e66710@pc33.atlanta.com
+// CSeq: 314159 INVITE
+// Contact: <sip:bob@192.168.1.100:5060>
+// Content-Type: application/sdp
+// Content-Length: 158
+// v=0
+// o=user2 2890844526 2890844526 IN IP4 192.168.1.100
+// s=Session SDP
+// c=IN IP4 192.168.1.100
+// t=0 0
+// m=audio 3456 RTP/AVP 0
+// a=rtpmap:0 PCMU/8000
+
+// Message is an in-memory representation of one SIP/2.0 request or response.
+//
+// Requests set IsRequest=true and populate Method, RequestURI, and Version
+// (typically "SIP/2.0"). Responses set IsRequest=false and populate StatusCode
+// and StatusText (e.g. 200, "OK").
+//
+// Headers are stored under lowercase canonical keys (see canonicalHeaderKey).
+// HeadersMulti preserves every value for multi-value headers such as Via,
+// Record-Route, and Contact. Headers holds only the first value per name for
+// quick lookup via GetHeader.
+//
+// Body holds the raw message body (usually SDP for INVITE/200, or empty).
+// Call PrepareForSend before transmission to set Content-Length from Body.
 type Message struct {
-	Method       string
-	RequestURI   string
-	StatusCode   int
-	StatusText   string
-	Version      string
-	Headers      map[string]string   // first value per canonical header name
+	Method     string
+	RequestURI string
+	StatusCode int    // 200
+	StatusText string // "OK"
+	Version    string // "SIP/2.0"
+	// Headers = map[string]string{
+	//    "Via":        "SIP/2.0/UDP 192.168.1.100:5060;branch=z9hG4bK12345",
+	//    "To":         "Bob <sip:bob@example.com>;tag=as12345",
+	//    "From":       "Alice <sip:alice@example.com>;tag=1928301774",
+	//    "Call-ID":    "a84b4c76e66710@pc33.atlanta.com",
+	//    "CSeq":       "314159 INVITE",
+	//    "Contact":    "<sip:bob@192.168.1.100:5060>",
+	//    "Content-Type": "application/sdp",
+	//    "Content-Length": "158",
+	//}
+	Headers map[string]string // first value per canonical header name
+	// HeadersMulti = map[string][]string{
+	//    "Via":        {"SIP/2.0/UDP 192.168.1.100:5060;branch=z9hG4bK12345"},
+	//    "To":         {"Bob <sip:bob@example.com>;tag=as12345"},
+	//    "From":       {"Alice <sip:alice@example.com>;tag=1928301774"},
+	//    "Call-ID":    {"a84b4c76e66710@pc33.atlanta.com"},
+	//    "CSeq":       {"314159 INVITE"},
+	//    "Contact":    {"<sip:bob@192.168.1.100:5060>"},
+	//    "Content-Type": {"application/sdp"},
+	//    "Content-Length": {"158"},
+	//}
 	HeadersMulti map[string][]string // all values per canonical header name (e.g. Via)
-	Body         string
-	IsRequest    bool
+	// Body input SDP 会话描述协议
+	// v=0  => SDP Version
+	// o=user2 2890844526 2890844526 	IN 		IP4 	192.168.1.100 会话所有者 / 会话 ID
+	// 用户名 	会话ID 		版本号 	  网络类型  地址类型 		主机地址
+	// s=Session SDP 会话名称
+	// c=IN IP4 192.168.1.100 连接信息-指定媒体流收发地址
+	// t=0 0	会话时长
+	// m=audio 3456 RTP/AVP 0	媒体类型 端口 传输协议 编码格式
+	// a=rtpmap:0 PCMU/8000
+	// rtpmap：RTP 映射说明
+	// 0：对应上面 m 行的负载类型 ID
+	// PCMU：编码格式（G.711 μ 律，传统电话语音编码）
+	// 8000：采样率 8000Hz（标准电话音质）
+	Body      string
+	IsRequest bool
 }
 
 func canonicalHeaderKey(name string) string {
 	return strings.ToLower(strings.TrimSpace(name))
 }
 
-// Parse parses a raw SIP message into a Message.
-// Header lines use ":"; body follows the first empty line. CRLF and bare LF are accepted.
+// Parse decodes a complete SIP message from its on-the-wire text form.
 //
-// Header folding (RFC 3261 continuation lines) is not implemented; folded headers may parse incorrectly.
+// The parser accepts CRLF or bare LF, unfolds RFC 3261 header continuation lines,
+// and trims the body to Content-Length when that header is present.
+// Malformed header lines without ":" are silently skipped.
 func Parse(raw string) (*Message, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return nil, fmt.Errorf("sip1/stack: empty message")
+		return nil, fmt.Errorf("%s: empty message", errPrefix)
 	}
 
 	raw = strings.ReplaceAll(raw, "\r\n", "\n")
 	lines := strings.Split(raw, "\n")
 	if len(lines) == 0 {
-		return nil, fmt.Errorf("sip1/stack: empty message lines")
+		return nil, fmt.Errorf("%s: empty message lines", errPrefix)
 	}
 
 	firstLine := strings.TrimSpace(lines[0])
 	if firstLine == "" {
-		return nil, fmt.Errorf("sip1/stack: empty first line")
+		return nil, fmt.Errorf("%s: empty first line", errPrefix)
 	}
 
 	msg := &Message{
@@ -56,12 +119,12 @@ func Parse(raw string) (*Message, error) {
 		msg.IsRequest = false
 		parts := strings.SplitN(firstLine, " ", 3)
 		if len(parts) < 2 {
-			return nil, fmt.Errorf("sip1/stack: invalid response line: %s", firstLine)
+			return nil, fmt.Errorf("%s: invalid response line: %s", errPrefix, firstLine)
 		}
 		msg.Version = strings.TrimSpace(parts[0])
 		code, err := strconv.Atoi(strings.TrimSpace(parts[1]))
 		if err != nil {
-			return nil, fmt.Errorf("sip1/stack: invalid status code in %q: %w", firstLine, err)
+			return nil, fmt.Errorf("%s: invalid status code in %q: %w", errPrefix, firstLine, err)
 		}
 		msg.StatusCode = code
 		if len(parts) >= 3 {
@@ -71,47 +134,57 @@ func Parse(raw string) (*Message, error) {
 		msg.IsRequest = true
 		parts := strings.SplitN(firstLine, " ", 3)
 		if len(parts) < 2 {
-			return nil, fmt.Errorf("sip1/stack: invalid request line: %s", firstLine)
+			return nil, fmt.Errorf("%s: invalid request line: %s", errPrefix, firstLine)
 		}
 		msg.Method = strings.ToUpper(strings.TrimSpace(parts[0]))
 		msg.RequestURI = strings.TrimSpace(parts[1])
 		if len(parts) >= 3 {
 			msg.Version = strings.TrimSpace(parts[2])
 		} else {
-			msg.Version = "SIP/2.0"
+			msg.Version = SIPVersion
 		}
 	}
 
 	bodyStart := -1
+	var headerSection []string
 	for i := 1; i < len(lines); i++ {
-		line := strings.TrimSpace(lines[i])
-		if line == "" {
+		if lines[i] == "" {
 			bodyStart = i + 1
 			break
 		}
-
-		parts := strings.SplitN(line, ":", 2)
-		if len(parts) == 2 {
-			key := strings.TrimSpace(parts[0])
-			val := strings.TrimSpace(parts[1])
-			if key != "" {
-				ck := canonicalHeaderKey(key)
-				if _, exists := msg.Headers[ck]; !exists {
-					msg.Headers[ck] = val
-				}
-				msg.HeadersMulti[ck] = append(msg.HeadersMulti[ck], val)
-			}
-		}
+		headerSection = append(headerSection, lines[i])
 	}
+	headerLines := unfoldHeaderLines(headerSection)
+	cl, hasCL, err := contentLengthFromHeaders(headerLines)
+	if err != nil {
+		return nil, err
+	}
+	applyHeadersToMessage(msg, headerLines)
 
 	if bodyStart > 0 && bodyStart < len(lines) {
 		msg.Body = strings.Join(lines[bodyStart:], "\n")
+	}
+	if hasCL {
+		msg.Body = trimBodyToContentLength(msg.Body, cl)
 	}
 
 	return msg, nil
 }
 
-// String serializes the message to SIP wire format (CRLF line endings).
+// PrepareForSend sets Content-Length from the normalized body byte length.
+// Call before String() or Endpoint.Send when the body may have changed.
+func (m *Message) PrepareForSend() {
+	if m == nil {
+		return
+	}
+	m.SetHeader(HeaderContentLength, strconv.Itoa(BodyBytesLen(m.Body)))
+}
+
+// String encodes the message for transmission. Line endings are CRLF.
+// Well-known headers are emitted in a stable, SIP-friendly order (Via, From,
+// To, Call-ID, CSeq, …) followed by remaining headers sorted lexicographically.
+// Endpoint.Send calls PrepareForSend automatically; use PrepareForSend yourself
+// when serializing outside Endpoint.
 func (m *Message) String() string {
 	if m == nil {
 		return ""
@@ -124,23 +197,8 @@ func (m *Message) String() string {
 		b.WriteString(fmt.Sprintf("%s %d %s\r\n", m.Version, m.StatusCode, m.StatusText))
 	}
 
-	preferred := []string{
-		"via",
-		"max-forwards",
-		"from",
-		"to",
-		"call-id",
-		"cseq",
-		"contact",
-		"allow",
-		"supported",
-		"user-agent",
-		"content-type",
-		"content-length",
-	}
-
 	emitted := make(map[string]struct{}, 32)
-	for _, k := range preferred {
+	for _, k := range preferredHeaderOrder {
 		vals := m.HeadersMulti[k]
 		if len(vals) == 0 {
 			if v, ok := m.Headers[k]; ok && v != "" {
@@ -214,31 +272,11 @@ func BodyBytesLen(body string) int {
 }
 
 func prettyHeaderName(canonical string) string {
-	switch strings.ToLower(strings.TrimSpace(canonical)) {
-	case "via":
-		return "Via"
-	case "max-forwards":
-		return "Max-Forwards"
-	case "from":
-		return "From"
-	case "to":
-		return "To"
-	case "call-id":
-		return "Call-ID"
-	case "cseq":
-		return "CSeq"
-	case "contact":
-		return "Contact"
-	case "allow":
-		return "Allow"
-	case "supported":
-		return "Supported"
-	case "user-agent":
-		return "User-Agent"
-	case "content-type":
-		return "Content-Type"
-	case "content-length":
-		return "Content-Length"
+	ck := canonicalHeaderKey(canonical)
+	if wire, ok := wireHeaderNames[ck]; ok {
+		return wire
+	}
+	switch ck {
 	default:
 		parts := strings.Split(canonical, "-")
 		for i := range parts {
@@ -301,7 +339,11 @@ func (m *Message) AddHeader(name, value string) {
 	m.HeadersMulti[ck] = append(m.HeadersMulti[ck], value)
 }
 
-// ReadMessage reads one SIP message from r using CRLF framing (Content-Length when body present).
+// ReadMessage reads exactly one SIP message from a byte stream (TCP/TLS).
+//
+// It reads header lines until a blank line (unfolding continuation lines),
+// validates duplicate Content-Length headers, reads exactly Content-Length
+// body octets, then parses. When Content-Length is absent the body is empty.
 func ReadMessage(r *bufio.Reader) (*Message, error) {
 	var hdrLines []string
 	for {
@@ -313,23 +355,28 @@ func ReadMessage(r *bufio.Reader) (*Message, error) {
 		if line == "" {
 			break
 		}
+		if len(line) > 0 && (line[0] == ' ' || line[0] == '\t') {
+			if len(hdrLines) == 0 {
+				return nil, fmt.Errorf("%s: header continuation without prior line", errPrefix)
+			}
+			trimmed := strings.TrimSpace(line)
+			if trimmed != "" {
+				hdrLines[len(hdrLines)-1] += " " + trimmed
+			}
+			continue
+		}
 		hdrLines = append(hdrLines, line)
 	}
 	if len(hdrLines) == 0 {
-		return nil, fmt.Errorf("sip/stack: empty message headers")
+		return nil, fmt.Errorf("%s: empty message headers", errPrefix)
 	}
-	raw := strings.Join(hdrLines, "\n") + "\n\n"
-	cl := 0
-	for _, ln := range hdrLines {
-		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(ln)), "content-length:") {
-			parts := strings.SplitN(ln, ":", 2)
-			if len(parts) == 2 {
-				cl, _ = strconv.Atoi(strings.TrimSpace(parts[1]))
-			}
-			break
-		}
+	unfolded := unfoldHeaderLines(hdrLines)
+	cl, hasCL, err := contentLengthFromHeaders(unfolded)
+	if err != nil {
+		return nil, err
 	}
-	if cl > 0 {
+	raw := strings.Join(unfolded, "\n") + "\n\n"
+	if hasCL && cl > 0 {
 		body := make([]byte, cl)
 		if _, err := io.ReadFull(r, body); err != nil {
 			return nil, err
@@ -339,23 +386,25 @@ func ReadMessage(r *bufio.Reader) (*Message, error) {
 	return Parse(raw)
 }
 
-// ParseRAck parses RAck header value (RFC 3262): "<rseq> <cseq-num> <method>"
+// ParseRAck parses the RAck header from RFC 3262 (reliable provisional responses).
+// Wire format: "<response-num> <cseq-num> <method>", e.g. "1 314159 INVITE".
+// PRACK requests carry RAck so the UAS can match them to a specific 1xx response.
 func ParseRAck(h string) (rseq uint32, cseqNum int, method string, err error) {
 	h = strings.TrimSpace(h)
 	if h == "" {
-		return 0, 0, "", fmt.Errorf("sip/stack: empty RAck")
+		return 0, 0, "", fmt.Errorf("%s: empty RAck", errPrefix)
 	}
 	parts := strings.Fields(h)
 	if len(parts) < 3 {
-		return 0, 0, "", fmt.Errorf("sip/stack: RAck needs rseq cseq method")
+		return 0, 0, "", fmt.Errorf("%s: RAck needs rseq cseq method", errPrefix)
 	}
 	rs, err := strconv.ParseUint(parts[0], 10, 32)
 	if err != nil {
-		return 0, 0, "", fmt.Errorf("sip/stack: RAck rseq: %w", err)
+		return 0, 0, "", fmt.Errorf("%s: RAck rseq: %w", errPrefix, err)
 	}
 	cs, err := strconv.Atoi(parts[1])
 	if err != nil || cs < 0 {
-		return 0, 0, "", fmt.Errorf("sip/stack: RAck cseq")
+		return 0, 0, "", fmt.Errorf("%s: RAck cseq", errPrefix)
 	}
 	return uint32(rs), cs, strings.ToUpper(strings.TrimSpace(parts[2])), nil
 }

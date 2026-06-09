@@ -68,27 +68,28 @@ func (m *Manager) unregisterNonInviteTx(key string) {
 // BeginNonInviteServer registers a UAS non-INVITE transaction after the TU sent a final response (e.g. 200 to OPTIONS/REGISTER).
 func (m *Manager) BeginNonInviteServer(ctx context.Context, req *stack.Message, remote *net.UDPAddr, final *stack.Message, send SendFunc) error {
 	if m == nil {
-		return fmt.Errorf("sip1/transaction: nil manager")
+		return fmt.Errorf("%s: nil manager", errPrefix)
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if req == nil || final == nil || send == nil {
-		return fmt.Errorf("sip1/transaction: nil request, final, or send")
+		return fmt.Errorf("%s: nil request, final, or send", errPrefix)
 	}
 	if !req.IsRequest {
-		return fmt.Errorf("sip1/transaction: not a request")
+		return fmt.Errorf("%s: not a request", errPrefix)
 	}
 	if req.Method == stack.MethodInvite {
-		return fmt.Errorf("sip1/transaction: use BeginInviteServer for INVITE")
+		return fmt.Errorf("%s: use BeginInviteServer for INVITE", errPrefix)
 	}
 	st := final.StatusCode
 	if st < 200 || st > 699 {
-		return fmt.Errorf("sip1/transaction: final status %d is not final", st)
+		return fmt.Errorf("%s: final status %d is not final", errPrefix, st)
 	}
 	key := NonInviteServerKey(req)
-	if key == "" || stack.ParseCSeqNum(req.GetHeader("CSeq")) <= 0 || TopBranch(req) == "" {
-		return fmt.Errorf("sip1/transaction: missing Via branch or CSeq")
+	cseq, cseqOK := stack.ParseCSeqNum(req.GetHeader(stack.HeaderCSeq))
+	if key == "" || !cseqOK || cseq <= 0 || TopBranch(req) == "" {
+		return fmt.Errorf("%s: missing Via branch or CSeq", errPrefix)
 	}
 	fr, err := stack.Parse(final.String())
 	if err != nil {
@@ -109,7 +110,7 @@ func (m *Manager) BeginNonInviteServer(ctx context.Context, req *stack.Message, 
 	}
 	if _, exists := m.nonInvite[key]; exists {
 		m.mu.Unlock()
-		return fmt.Errorf("sip1/transaction: non-invite server tx already exists for %s", key)
+		return fmt.Errorf("%s: non-invite server tx already exists for %s", errPrefix, key)
 	}
 	m.nonInvite[key] = tx
 	m.mu.Unlock()

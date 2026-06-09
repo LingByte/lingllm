@@ -55,18 +55,18 @@ func uasFinalForTx(t *testing.T, inv *stack.Message, status int, reason string) 
 	t.Helper()
 	r := &stack.Message{
 		IsRequest:    false,
-		Version:      "SIP/2.0",
+		Version: stack.SIPVersion,
 		StatusCode:   status,
 		StatusText:   reason,
 		Headers:      map[string]string{},
 		HeadersMulti: map[string][]string{},
 	}
-	r.SetHeader("Via", transaction.TopVia(inv))
-	r.SetHeader("From", inv.GetHeader("From"))
-	r.SetHeader("To", inv.GetHeader("To"))
-	r.SetHeader("Call-ID", inv.GetHeader("Call-ID"))
-	r.SetHeader("CSeq", inv.GetHeader("CSeq"))
-	r.SetHeader("Content-Length", "0")
+	r.SetHeader(stack.HeaderVia, transaction.TopVia(inv))
+	r.SetHeader(stack.HeaderFrom, inv.GetHeader(stack.HeaderFrom))
+	r.SetHeader(stack.HeaderTo, inv.GetHeader(stack.HeaderTo))
+	r.SetHeader(stack.HeaderCallID, inv.GetHeader(stack.HeaderCallID))
+	r.SetHeader(stack.HeaderCSeq, inv.GetHeader(stack.HeaderCSeq))
+	r.SetHeader(stack.HeaderContentLength, "0")
 	return r
 }
 

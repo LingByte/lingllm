@@ -34,7 +34,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/asn1"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -43,6 +42,9 @@ import (
 	"strings"
 	"time"
 )
+
+// maxCompactPassportLen caps JWS size before decode (anti-DoS).
+const maxCompactPassportLen = 16 * 1024
 
 // AlgES256 is the only RFC 8588 SHAKEN-mandated signing algorithm
 // (ECDSA P-256 with SHA-256). RFC 8225 §6.1 permits others, but
@@ -228,6 +230,9 @@ func VerifyPassport(compact string, pub *ecdsa.PublicKey) (*SignedPassport, erro
 	if pub == nil {
 		return nil, errors.New("stir: nil verify key")
 	}
+	if len(compact) > maxCompactPassportLen {
+		return nil, fmt.Errorf("stir: passport exceeds %d bytes", maxCompactPassportLen)
+	}
 	parts := strings.Split(compact, ".")
 	if len(parts) != 3 {
 		return nil, fmt.Errorf("stir: compact form expects 3 segments, got %d", len(parts))
@@ -274,17 +279,6 @@ func VerifyPassport(compact string, pub *ecdsa.PublicKey) (*SignedPassport, erro
 	return &SignedPassport{Compact: compact, Header: hdr, Claims: claims}, nil
 }
 
-// canonicalJSON marshals v with a deterministic key order (Go's
-// encoding/json sorts struct fields by declaration order, which is
-// stable — what we want for reproducible signatures during testing).
-// json.Marshal already escapes < > & for us; we don't want that for
-// SIP because the encoded value is base64 anyway, but leaving it as
-// default keeps the bytes identical to what every other implementor
-// produces.
-func canonicalJSON(v any) ([]byte, error) {
-	return json.Marshal(v)
-}
-
 // b64URLEncode returns the base64url-no-padding encoding (RFC 7515
 // §2 "Base64url Encoding").
 func b64URLEncode(p []byte) []byte {
@@ -312,23 +306,16 @@ func jwsEncodeES256(r, s *big.Int) []byte {
 	return out
 }
 
-// jwsDecodeES256 splits the fixed 64-byte form. We *also* accept
-// the ASN.1 DER form for leniency — a few corner-case implementors
-// produce it (RFC violation) and rejecting outright breaks interop.
+// jwsDecodeES256 splits the RFC 7518 §3.4 fixed 64-byte R||S form.
+// Non-conforming encodings (e.g. ASN.1 DER) are rejected.
 func jwsDecodeES256(sig []byte) (*big.Int, *big.Int, error) {
-	if len(sig) == 64 {
-		r := new(big.Int).SetBytes(sig[:32])
-		s := new(big.Int).SetBytes(sig[32:])
-		return r, s, nil
+	if len(sig) != 64 {
+		return nil, nil, fmt.Errorf("stir: ES256 signature must be 64 bytes, got %d", len(sig))
 	}
-	// ASN.1 DER form: SEQUENCE{ r INTEGER, s INTEGER }
-	type ecdsaSig struct{ R, S *big.Int }
-	var es ecdsaSig
-	if _, err := asn1.Unmarshal(sig, &es); err != nil {
-		return nil, nil, fmt.Errorf("stir: signature is neither 64-byte raw nor ASN.1 DER: %w", err)
+	r := new(big.Int).SetBytes(sig[:32])
+	s := new(big.Int).SetBytes(sig[32:])
+	if r.Sign() <= 0 || s.Sign() <= 0 {
+		return nil, nil, errors.New("stir: invalid ES256 signature component")
 	}
-	if es.R == nil || es.S == nil || es.R.Sign() <= 0 || es.S.Sign() <= 0 {
-		return nil, nil, errors.New("stir: ASN.1 signature has invalid r/s")
-	}
-	return es.R, es.S, nil
+	return r, s, nil
 }

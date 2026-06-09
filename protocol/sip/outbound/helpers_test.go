@@ -1,6 +1,7 @@
 package outbound
 
 import (
+	"net"
 	"strings"
 	"testing"
 
@@ -59,5 +60,20 @@ func TestCallIDLocalPart(t *testing.T) {
 	}
 	if _, ok := callIDLocalPart("nohost"); ok {
 		t.Fatal("expected false")
+	}
+}
+
+func TestUdpAddrString(t *testing.T) {
+	if udpAddrString(nil) != "" {
+		t.Fatal("nil")
+	}
+	if udpAddrString(&net.UDPAddr{IP: net.ParseIP("1.1.1.1"), Port: 9}) == "" {
+		t.Fatal("addr")
+	}
+}
+
+func TestRandomHex(t *testing.T) {
+	if len(randomHex(4)) != 8 {
+		t.Fatalf("hex len %d", len(randomHex(4)))
 	}
 }

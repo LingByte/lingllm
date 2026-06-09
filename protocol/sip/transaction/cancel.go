@@ -13,19 +13,19 @@ import (
 // or automatically when BeginInviteServer runs.
 func (m *Manager) RegisterPendingInviteServer(inv *stack.Message) error {
 	if m == nil || inv == nil || !inv.IsRequest || inv.Method != stack.MethodInvite {
-		return fmt.Errorf("sip1/transaction: need INVITE")
+		return fmt.Errorf("%s: need INVITE", errPrefix)
 	}
-	callID := strings.TrimSpace(inv.GetHeader("Call-ID"))
+	callID := strings.TrimSpace(inv.GetHeader(stack.HeaderCallID))
 	if callID == "" {
-		return fmt.Errorf("sip1/transaction: missing Call-ID")
+		return fmt.Errorf("%s: missing Call-ID", errPrefix)
 	}
 	br := TopBranch(inv)
 	if br == "" {
-		return fmt.Errorf("sip1/transaction: missing Via branch")
+		return fmt.Errorf("%s: missing Via branch", errPrefix)
 	}
-	n := stack.ParseCSeqNum(inv.GetHeader("CSeq"))
-	if n <= 0 || !IsInviteCSeq(inv) {
-		return fmt.Errorf("sip1/transaction: bad INVITE CSeq")
+	n, ok := stack.ParseCSeqNum(inv.GetHeader(stack.HeaderCSeq))
+	if !ok || n <= 0 || !IsInviteCSeq(inv) {
+		return fmt.Errorf("%s: bad INVITE CSeq", errPrefix)
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -53,18 +53,18 @@ func (m *Manager) ClearPendingInviteServer(callID string) {
 func buildCancelOK(cancel *stack.Message) *stack.Message {
 	resp := &stack.Message{
 		IsRequest:    false,
-		Version:      "SIP/2.0",
+		Version: stack.SIPVersion,
 		StatusCode:   200,
 		StatusText:   "OK",
 		Headers:      make(map[string]string),
 		HeadersMulti: make(map[string][]string),
 	}
-	for _, h := range []string{"Via", "From", "To", "Call-ID", "CSeq"} {
+	for _, h := range stack.CorrelationHeaders {
 		if v := cancel.GetHeader(h); v != "" {
 			resp.SetHeader(h, v)
 		}
 	}
-	resp.SetHeader("Content-Length", "0")
+	resp.PrepareForSend()
 	return resp
 }
 
@@ -78,12 +78,12 @@ func (m *Manager) HandleCancelRequest(cancel *stack.Message, addr *net.UDPAddr, 
 	if !IsCancelCSeq(cancel) {
 		return false
 	}
-	callID := strings.TrimSpace(cancel.GetHeader("Call-ID"))
+	callID := strings.TrimSpace(cancel.GetHeader(stack.HeaderCallID))
 	if callID == "" || send == nil {
 		return false
 	}
-	n := stack.ParseCSeqNum(cancel.GetHeader("CSeq"))
-	if n <= 0 {
+	n, ok := stack.ParseCSeqNum(cancel.GetHeader(stack.HeaderCSeq))
+	if !ok || n <= 0 {
 		return false
 	}
 	m.mu.Lock()

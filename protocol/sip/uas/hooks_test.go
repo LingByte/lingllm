@@ -35,7 +35,7 @@ func TestDefaultOptions(t *testing.T) {
 	if err != nil || resp.StatusCode != 200 {
 		t.Fatalf("resp=%v err=%v", resp, err)
 	}
-	if resp.GetHeader("Allow") == "" || resp.GetHeader("Accept") == "" {
+	if resp.GetHeader(stack.HeaderAllow) == "" || resp.GetHeader(stack.HeaderAccept) == "" {
 		t.Fatalf("headers: %+v", resp.Headers)
 	}
 }

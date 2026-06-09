@@ -58,6 +58,9 @@ func LoadES256PrivateKey(pemBytes []byte) (*ecdsa.PrivateKey, error) {
 	if ecKey.Curve == nil || ecKey.Curve.Params().BitSize != 256 {
 		return nil, errors.New("stir: private key curve must be P-256")
 	}
+	if ecKey.D == nil || ecKey.D.Sign() <= 0 {
+		return nil, errors.New("stir: private key scalar is invalid")
+	}
 	return ecKey, nil
 }
 

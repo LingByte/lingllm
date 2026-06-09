@@ -1,7 +1,6 @@
 package stack
 
-// RequestMethod returns the SIP method for events that carry a request (e.g. EventRequestReceived).
-// Empty string if Request is nil.
+// RequestMethod returns e.Request.Method for request-bearing events, or "".
 func (e Event) RequestMethod() string {
 	if e.Request == nil {
 		return ""
@@ -9,8 +8,7 @@ func (e Event) RequestMethod() string {
 	return e.Request.Method
 }
 
-// ResponseStatus returns the SIP status code for events that carry a response (e.g. EventResponseReceived).
-// Zero if Response is nil.
+// ResponseStatus returns e.Response.StatusCode for response-bearing events, or 0.
 func (e Event) ResponseStatus() int {
 	if e.Response == nil {
 		return 0

@@ -15,10 +15,8 @@ package stir
 //   4. Checks the TN Authorization List extension (RFC 8226) against
 //      the `orig.tn` claim — caller decides if number is in scope.
 //
-// We implement 1-3 here. Step 4 (RFC 8226 TN-Auth-List) is left as
-// a follow-up: it requires ASN.1 OID parsing of the X.509 extension
-// (OID 1.3.6.1.5.5.7.1.26) which is small but non-trivial and only
-// matters when verifying TN-scoped certs (most carriers don't yet).
+// We implement 1-3 in fetchOnce. Step 4 (RFC 8226 TN-Auth-List) is
+// enforced in verifier.go after signature verification.
 //
 // Cache: in-memory map keyed by URL with TTL (default 1h, matching
 // the typical STI cert validity / ACME-style rotation cadence).
@@ -29,6 +27,7 @@ package stir
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
@@ -45,6 +44,7 @@ const (
 	defaultCertNegativeTTL = 1 * time.Minute
 	defaultFetchTimeout    = 5 * time.Second
 	maxCertResponseBytes   = 64 * 1024 // STI certs are <10KB; cap to stop DoS
+	maxCertCacheEntries    = 1024
 )
 
 // X5UFetcher retrieves and validates the certificate chain that
@@ -92,11 +92,6 @@ type HTTPFetcher struct {
 	// deterministic tests.
 	Now func() time.Time
 
-	// SkipChainVerify disables chain validation. **Test-only.** When
-	// true, only the PEM parse + key-type check runs. Never set this
-	// in production — it accepts any cert as legitimate.
-	SkipChainVerify bool
-
 	mu    sync.Mutex
 	cache map[string]cachedCert
 }
@@ -109,7 +104,15 @@ type cachedCert struct {
 
 // NewHTTPFetcher returns a fetcher with sensible defaults.
 func NewHTTPFetcher() *HTTPFetcher {
-	return &HTTPFetcher{cache: make(map[string]cachedCert)}
+	return &HTTPFetcher{
+		cache: make(map[string]cachedCert),
+		HTTPClient: &http.Client{
+			Timeout: defaultFetchTimeout,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
+			},
+		},
+	}
 }
 
 // Fetch implements X5UFetcher.
@@ -175,6 +178,21 @@ func (f *HTTPFetcher) cachePut(url string, cert *x509.Certificate, err error, no
 			ttl = defaultCertNegativeTTL
 		}
 	}
+	if len(f.cache) >= maxCertCacheEntries {
+		// Drop one arbitrary expired-or-oldest entry; bounded memory.
+		for k, e := range f.cache {
+			if now.After(e.expiresAt) {
+				delete(f.cache, k)
+				break
+			}
+		}
+		if len(f.cache) >= maxCertCacheEntries {
+			for k := range f.cache {
+				delete(f.cache, k)
+				break
+			}
+		}
+	}
 	f.cache[url] = cachedCert{cert: cert, err: err, expiresAt: now.Add(ttl)}
 }
 
@@ -234,10 +252,6 @@ func (f *HTTPFetcher) fetchOnce(ctx context.Context, url string, now time.Time) 
 		return nil, fmt.Errorf("stir: leaf cert expired (NotAfter=%s)", leaf.NotAfter)
 	}
 
-	if f.SkipChainVerify {
-		return leaf, nil
-	}
-
 	// Chain validation.
 	intermediates := f.IntermediateCAs
 	if len(inlineIntermediates) > 0 {
@@ -255,7 +269,11 @@ func (f *HTTPFetcher) fetchOnce(ctx context.Context, url string, now time.Time) 
 		Roots:         f.RootCAs,
 		Intermediates: intermediates,
 		CurrentTime:   now,
-		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+		// STI signing certs must not be generic TLS server certs.
+		KeyUsages: []x509.ExtKeyUsage{
+			x509.ExtKeyUsageEmailProtection,
+			x509.ExtKeyUsageCodeSigning,
+		},
 	}
 	if _, err := leaf.Verify(opts); err != nil {
 		return nil, fmt.Errorf("stir: chain verify: %w", err)

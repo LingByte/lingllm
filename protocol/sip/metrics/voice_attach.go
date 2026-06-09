@@ -3,8 +3,6 @@
 
 package metrics
 
-import "github.com/LingByte/lingllm/protocol/sip/observability"
-
 // Voice attach observability surface (PR-8b).
 //
 // These metrics close the loop on PR-7's mode-honesty work: every
@@ -92,9 +90,9 @@ var (
 // init registers the label whitelist for the voice-attach metrics so
 // the soft cardinality defense kicks in before any producer call.
 func init() {
-	metrics.RegisterLabels(MetricVoiceAttachTotal, "mode", "result")
-	metrics.RegisterLabels(MetricVoiceAttachModeFallbackTotal, "from", "to")
-	metrics.RegisterLabels(MetricVoiceAttachNativeTotal, "result")
+	RegisterLabels(MetricVoiceAttachTotal, "mode", "result")
+	RegisterLabels(MetricVoiceAttachModeFallbackTotal, "from", "to")
+	RegisterLabels(MetricVoiceAttachNativeTotal, "result")
 }
 
 // VoiceAttach bumps the voice-attach counter for one OnACK dispatch.
@@ -119,7 +117,7 @@ func VoiceAttach(mode string, ok bool) {
 	default:
 		return
 	}
-	metrics.Default.IncCounter(MetricVoiceAttachTotal,
+	Default.IncCounter(MetricVoiceAttachTotal,
 		"Voice attach attempts at SIP OnACK, classified by resolved engine.Mode and outcome.",
 		labels)
 }
@@ -130,7 +128,7 @@ func VoiceAttach(mode string, ok bool) {
 // would add new pre-allocated label maps and a switch arm.
 func VoiceAttachModeFallback(from, to string) {
 	if from == VoiceAttachModeCascaded && to == VoiceAttachModeRealtime {
-		metrics.Default.IncCounter(MetricVoiceAttachModeFallbackTotal,
+		Default.IncCounter(MetricVoiceAttachModeFallbackTotal,
 			"Implicit voice-mode fallbacks made by ResolveAttachMode (e.g. pipeline→realtime when pipeline creds missing).",
 			labelsVoiceAttachFallbackPL2RT)
 		return
@@ -146,7 +144,7 @@ func VoiceAttachNative(ok bool) {
 	if ok {
 		labels = labelsVoiceAttachNativeOK
 	}
-	metrics.Default.IncCounter(MetricVoiceAttachNativeTotal,
+	Default.IncCounter(MetricVoiceAttachNativeTotal,
 		"Native cascaded engine attach decisions (PR-9d feature flag).",
 		labels)
 }

@@ -34,18 +34,18 @@ func uasInvite(t *testing.T) *stack.Message {
 func uasFinal(inv *stack.Message, status int, reason string) *stack.Message {
 	resp := &stack.Message{
 		IsRequest:    false,
-		Version:      "SIP/2.0",
+		Version: stack.SIPVersion,
 		StatusCode:   status,
 		StatusText:   reason,
 		Headers:      map[string]string{},
 		HeadersMulti: map[string][]string{},
 	}
-	resp.SetHeader("Via", TopVia(inv))
-	resp.SetHeader("From", inv.GetHeader("From"))
-	resp.SetHeader("To", inv.GetHeader("To")+";tag=rem")
-	resp.SetHeader("Call-ID", inv.GetHeader("Call-ID"))
-	resp.SetHeader("CSeq", inv.GetHeader("CSeq"))
-	resp.SetHeader("Content-Length", "0")
+	resp.SetHeader(stack.HeaderVia, TopVia(inv))
+	resp.SetHeader(stack.HeaderFrom, inv.GetHeader(stack.HeaderFrom))
+	resp.SetHeader(stack.HeaderTo, inv.GetHeader(stack.HeaderTo)+";tag=rem")
+	resp.SetHeader(stack.HeaderCallID, inv.GetHeader(stack.HeaderCallID))
+	resp.SetHeader(stack.HeaderCSeq, inv.GetHeader(stack.HeaderCSeq))
+	resp.SetHeader(stack.HeaderContentLength, "0")
 	return resp
 }
 

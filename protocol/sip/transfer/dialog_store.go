@@ -37,16 +37,16 @@ func (s *DialogStore) Remember(callID string, remote *net.UDPAddr, inv *stack.Me
 	if s == nil || callID == "" || inv == nil || remote == nil {
 		return
 	}
-	reqURI := requestURIFromContact(inv.GetHeader("Contact"))
+	reqURI := requestURIFromContact(inv.GetHeader(stack.HeaderContact))
 	if reqURI == "" {
 		reqURI = strings.TrimSpace(inv.RequestURI)
 	}
 	st := &DialogState{
 		Remote:     cloneUDP(remote),
 		From:       strings.TrimSpace(ourToWithTag),
-		To:         inv.GetHeader("From"),
+		To:         inv.GetHeader(stack.HeaderFrom),
 		RequestURI: reqURI,
-		NextCSeq:   parseInviteCSeqNext(inv.GetHeader("CSeq")),
+		NextCSeq:   parseInviteCSeqNext(inv.GetHeader(stack.HeaderCSeq)),
 	}
 	s.mu.Lock()
 	if s.byID == nil {
@@ -108,19 +108,19 @@ func (s *DialogStore) BuildNotify(callID, localIP string, localPort int, sipfrag
 		IsRequest:  true,
 		Method:     stack.MethodNotify,
 		RequestURI: reqURI,
-		Version:    "SIP/2.0",
+		Version: stack.SIPVersion,
 	}
-	msg.SetHeader("Via", via)
-	msg.SetHeader("Max-Forwards", "70")
-	msg.SetHeader("From", from)
-	msg.SetHeader("To", to)
-	msg.SetHeader("Call-ID", callID)
-	msg.SetHeader("CSeq", fmt.Sprintf("%d NOTIFY", cseq))
-	msg.SetHeader("Event", "refer")
-	msg.SetHeader("Subscription-State", subscriptionState)
-	msg.SetHeader("Content-Type", "message/sipfrag;version=2.0")
+	msg.SetHeader(stack.HeaderVia, via)
+	msg.SetHeader(stack.HeaderMaxForwards, stack.DefaultMaxForwards)
+	msg.SetHeader(stack.HeaderFrom, from)
+	msg.SetHeader(stack.HeaderTo, to)
+	msg.SetHeader(stack.HeaderCallID, callID)
+	msg.SetHeader(stack.HeaderCSeq, fmt.Sprintf("%d NOTIFY", cseq))
+	msg.SetHeader(stack.HeaderEvent, "refer")
+	msg.SetHeader(stack.HeaderSubscriptionState, subscriptionState)
+	msg.SetHeader(stack.HeaderContentType, "message/sipfrag;version=2.0")
 	msg.Body = strings.TrimRight(strings.TrimSpace(sipfragBody), "\r\n") + "\r\n"
-	msg.SetHeader("Content-Length", strconv.Itoa(stack.BodyBytesLen(msg.Body)))
+	msg.SetHeader(stack.HeaderContentLength, strconv.Itoa(stack.BodyBytesLen(msg.Body)))
 	return msg, remote, nil
 }
 
@@ -152,15 +152,15 @@ func (s *DialogStore) BuildBye(callID, localIP string, localPort int) (*stack.Me
 		IsRequest:  true,
 		Method:     stack.MethodBye,
 		RequestURI: reqURI,
-		Version:    "SIP/2.0",
+		Version: stack.SIPVersion,
 	}
-	msg.SetHeader("Via", via)
-	msg.SetHeader("Max-Forwards", "70")
-	msg.SetHeader("From", from)
-	msg.SetHeader("To", to)
-	msg.SetHeader("Call-ID", callID)
-	msg.SetHeader("CSeq", fmt.Sprintf("%d BYE", cseq))
-	msg.SetHeader("Content-Length", "0")
+	msg.SetHeader(stack.HeaderVia, via)
+	msg.SetHeader(stack.HeaderMaxForwards, stack.DefaultMaxForwards)
+	msg.SetHeader(stack.HeaderFrom, from)
+	msg.SetHeader(stack.HeaderTo, to)
+	msg.SetHeader(stack.HeaderCallID, callID)
+	msg.SetHeader(stack.HeaderCSeq, fmt.Sprintf("%d BYE", cseq))
+	msg.SetHeader(stack.HeaderContentLength, "0")
 	return msg, remote, nil
 }
 

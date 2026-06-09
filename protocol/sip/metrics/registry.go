@@ -1,21 +1,9 @@
 // Copyright (c) 2026 LinByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
 
-// Package metrics is a tiny, dependency-free Prometheus exposition
-// backend tailored to VoiceServer's needs. It provides:
-//
-//   - counters (monotonic, label-keyed)
-//   - gauges   (up/down, label-keyed)
-//   - summary-style histograms with P50/P90/P95/P99 quantiles
-//
-// We deliberately avoid pulling in prometheus/client_golang — it adds
-// ~100 transitive deps for features (proto, gRPC, exemplars, …) we
-// don't use. The text exposition format is small and stable.
-//
-// Concurrency: every method on Registry is safe for concurrent use.
-// Latency cost per observation: one atomic add (counters / gauges) or
-// one RWLock + append (histograms) — both below 200 ns on modern x86,
-// which is irrelevant compared to the network latencies we measure.
+// Registry is a tiny, dependency-free Prometheus exposition backend.
+// It provides counters, gauges, and summary-style histograms with
+// P50/P90/P95/P99 quantiles. See package doc in metrics.go.
 package metrics
 
 import (

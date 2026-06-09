@@ -156,6 +156,9 @@ func (v *Verifier) Verify(ctx context.Context, identityHeader string, opts Verif
 	if v == nil || v.Fetcher == nil {
 		return Verdict{}, errors.New("stir: verifier missing fetcher")
 	}
+	if len(identityHeader) > maxCompactPassportLen+512 {
+		return Verdict{Code: VerdictBadIdentity, Reason: "Identity header too large"}, nil
+	}
 
 	// Step 1: parse the Identity header.
 	hdr, err := ParseIdentityHeader(identityHeader)
@@ -177,6 +180,18 @@ func (v *Verifier) Verify(ctx context.Context, identityHeader string, opts Verif
 	signed, err := VerifyPassport(hdr.Passport, pub)
 	if err != nil {
 		return Verdict{Code: VerdictBadIdentity, Reason: err.Error(), Header: &hdr}, nil
+	}
+
+	// Step 3b: RFC 8226 TN Authorization List (when extension present).
+	if strings.TrimSpace(signed.Claims.Orig.TN) != "" {
+		if err := CertAuthorizesOrigTN(cert, signed.Claims.Orig.TN); err != nil {
+			return Verdict{
+				Code:     VerdictMismatch,
+				Reason:   err.Error(),
+				Header:   &hdr,
+				Passport: signed,
+			}, nil
+		}
 	}
 
 	// Step 4: info= MUST match the JWS x5u (RFC 8224 §6.2.3).
@@ -285,22 +300,33 @@ func urlEqual(a, b string) bool {
 	return strings.EqualFold(strings.TrimSpace(a), strings.TrimSpace(b))
 }
 
-// tnEqual compares two E.164 TNs leniently. We strip common
-// punctuation that some From-header renderers introduce (`-`, ` `,
-// `(`, `)`) so `+1 (555) 123-4567` matches `+15551234567`.
+// tnEqual compares two E.164 TNs after strict canonicalization.
 func tnEqual(a, b string) bool {
-	return canonicalTN(a) == canonicalTN(b)
+	return CanonicalE164(a) == CanonicalE164(b)
 }
 
-func canonicalTN(s string) string {
+// CanonicalE164 strips display punctuation and requires a leading +
+// followed by at least three digits (minimal E.164 sanity check).
+func CanonicalE164(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
 	var b strings.Builder
 	b.Grow(len(s))
-	for _, r := range s {
-		if r == '+' || (r >= '0' && r <= '9') {
+	for i, r := range s {
+		switch {
+		case r == '+' && i == 0:
+			b.WriteRune(r)
+		case r >= '0' && r <= '9':
 			b.WriteRune(r)
 		}
 	}
-	return b.String()
+	out := b.String()
+	if !strings.HasPrefix(out, "+") || len(out) < 4 {
+		return ""
+	}
+	return out
 }
 
 // uriEqual compares SIP URIs case-insensitively on the scheme + host

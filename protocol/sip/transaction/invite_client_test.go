@@ -34,22 +34,22 @@ func testInvite(t *testing.T) *stack.Message {
 
 func testResponse(inv *stack.Message, status int, reason string) *stack.Message {
 	via := TopVia(inv)
-	callID := inv.GetHeader("Call-ID")
-	cseq := inv.GetHeader("CSeq")
+	callID := inv.GetHeader(stack.HeaderCallID)
+	cseq := inv.GetHeader(stack.HeaderCSeq)
 	resp := &stack.Message{
 		IsRequest:    false,
-		Version:      "SIP/2.0",
+		Version: stack.SIPVersion,
 		StatusCode:   status,
 		StatusText:   reason,
 		Headers:      map[string]string{},
 		HeadersMulti: map[string][]string{},
 	}
-	resp.SetHeader("Via", via)
-	resp.SetHeader("From", inv.GetHeader("From"))
-	resp.SetHeader("To", inv.GetHeader("To")+";tag=remote")
-	resp.SetHeader("Call-ID", callID)
-	resp.SetHeader("CSeq", cseq)
-	resp.SetHeader("Content-Length", "0")
+	resp.SetHeader(stack.HeaderVia, via)
+	resp.SetHeader(stack.HeaderFrom, inv.GetHeader(stack.HeaderFrom))
+	resp.SetHeader(stack.HeaderTo, inv.GetHeader(stack.HeaderTo)+";tag=remote")
+	resp.SetHeader(stack.HeaderCallID, callID)
+	resp.SetHeader(stack.HeaderCSeq, cseq)
+	resp.SetHeader(stack.HeaderContentLength, "0")
 	return resp
 }
 

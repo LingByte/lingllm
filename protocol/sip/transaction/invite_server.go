@@ -127,31 +127,31 @@ func (m *Manager) unregisterInviteServerTx(key string) {
 // For 2xx, Timer G retransmits until HandleAck sees the matching ACK.
 func (m *Manager) BeginInviteServer(ctx context.Context, invite *stack.Message, remote *net.UDPAddr, final *stack.Message, send SendFunc) error {
 	if m == nil {
-		return fmt.Errorf("sip1/transaction: nil manager")
+		return fmt.Errorf("%s: nil manager", errPrefix)
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if invite == nil || final == nil || send == nil {
-		return fmt.Errorf("sip1/transaction: nil invite, final, or send")
+		return fmt.Errorf("%s: nil invite, final, or send", errPrefix)
 	}
 	if !invite.IsRequest || invite.Method != stack.MethodInvite {
-		return fmt.Errorf("sip1/transaction: not an INVITE request")
+		return fmt.Errorf("%s: not an INVITE request", errPrefix)
 	}
 	if !IsInviteCSeq(invite) {
-		return fmt.Errorf("sip1/transaction: invite CSeq is not INVITE")
+		return fmt.Errorf("%s: invite CSeq is not INVITE", errPrefix)
 	}
 	st := final.StatusCode
 	if st < 200 || st > 699 {
-		return fmt.Errorf("sip1/transaction: final status %d is not final", st)
+		return fmt.Errorf("%s: final status %d is not final", errPrefix, st)
 	}
 	br := TopBranch(invite)
 	if br == "" {
-		return fmt.Errorf("sip1/transaction: invite missing Via branch")
+		return fmt.Errorf("%s: invite missing Via branch", errPrefix)
 	}
-	callID := strings.TrimSpace(invite.GetHeader("Call-ID"))
+	callID := strings.TrimSpace(invite.GetHeader(stack.HeaderCallID))
 	if callID == "" {
-		return fmt.Errorf("sip1/transaction: invite missing Call-ID")
+		return fmt.Errorf("%s: invite missing Call-ID", errPrefix)
 	}
 
 	fr, err := stack.Parse(final.String())
@@ -160,9 +160,9 @@ func (m *Manager) BeginInviteServer(ctx context.Context, invite *stack.Message, 
 	}
 
 	key := inviteClientKey(br, callID)
-	cseq := stack.ParseCSeqNum(invite.GetHeader("CSeq"))
-	if cseq <= 0 {
-		return fmt.Errorf("sip1/transaction: invalid INVITE CSeq")
+	cseq, ok := stack.ParseCSeqNum(invite.GetHeader(stack.HeaderCSeq))
+	if !ok || cseq <= 0 {
+		return fmt.Errorf("%s: invalid INVITE CSeq", errPrefix)
 	}
 
 	tx := &inviteServerTx{
@@ -182,7 +182,7 @@ func (m *Manager) BeginInviteServer(ctx context.Context, invite *stack.Message, 
 	}
 	if _, exists := m.inviteServer[key]; exists {
 		m.mu.Unlock()
-		return fmt.Errorf("sip1/transaction: invite server tx already exists for branch/call-id")
+		return fmt.Errorf("%s: invite server tx already exists for branch/call-id", errPrefix)
 	}
 	m.inviteServer[key] = tx
 	m.mu.Unlock()
@@ -206,7 +206,7 @@ func (m *Manager) HandleInviteRequest(req *stack.Message, addr *net.UDPAddr) boo
 	if !IsInviteCSeq(req) {
 		return false
 	}
-	key := inviteClientKey(TopBranch(req), req.GetHeader("Call-ID"))
+	key := inviteClientKey(TopBranch(req), req.GetHeader(stack.HeaderCallID))
 	m.mu.Lock()
 	tx := m.inviteServer[key]
 	m.mu.Unlock()
@@ -225,9 +225,9 @@ func (m *Manager) HandleAck(ack *stack.Message, _ *net.UDPAddr) bool {
 	if !IsAckCSeq(ack) {
 		return false
 	}
-	key := inviteClientKey(TopBranch(ack), ack.GetHeader("Call-ID"))
-	n := stack.ParseCSeqNum(ack.GetHeader("CSeq"))
-	if n <= 0 {
+	key := inviteClientKey(TopBranch(ack), ack.GetHeader(stack.HeaderCallID))
+	n, ok := stack.ParseCSeqNum(ack.GetHeader(stack.HeaderCSeq))
+	if !ok || n <= 0 {
 		return false
 	}
 	m.mu.Lock()

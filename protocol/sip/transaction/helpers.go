@@ -7,12 +7,12 @@ import (
 	"github.com/LingByte/lingllm/protocol/sip/stack"
 )
 
-// TopVia returns the first Via header field-value (SIP message order: top-most Via).
+// TopVia returns the first Via header field-value (top-most in SIP message order).
 func TopVia(m *stack.Message) string {
 	if m == nil {
 		return ""
 	}
-	vs := m.GetHeaders("Via")
+	vs := m.GetHeaders(stack.HeaderVia)
 	if len(vs) == 0 {
 		return ""
 	}
@@ -44,38 +44,44 @@ func TopBranch(m *stack.Message) string {
 	return BranchParam(TopVia(m))
 }
 
-// IsInviteCSeq reports whether the CSeq header refers to method INVITE.
+// CSeqMethod returns the method token from a CSeq header (e.g. "314159 INVITE" → "INVITE").
+// Empty string when the header is missing or malformed.
+func CSeqMethod(m *stack.Message) string {
+	if m == nil {
+		return ""
+	}
+	parts := strings.Fields(strings.TrimSpace(m.GetHeader(stack.HeaderCSeq)))
+	if len(parts) < 2 {
+		return ""
+	}
+	return strings.ToUpper(parts[1])
+}
+
+// IsInviteCSeq reports whether the CSeq method is INVITE.
 func IsInviteCSeq(m *stack.Message) bool {
-	if m == nil {
-		return false
-	}
-	return strings.Contains(strings.ToUpper(strings.TrimSpace(m.GetHeader("CSeq"))), "INVITE")
+	return CSeqMethod(m) == stack.MethodInvite
 }
 
-// IsAckCSeq reports whether the CSeq header refers to method ACK.
+// IsAckCSeq reports whether the CSeq method is ACK.
 func IsAckCSeq(m *stack.Message) bool {
-	if m == nil {
-		return false
-	}
-	return strings.Contains(strings.ToUpper(strings.TrimSpace(m.GetHeader("CSeq"))), "ACK")
+	return CSeqMethod(m) == stack.MethodAck
 }
 
-// IsCancelCSeq reports whether the CSeq header refers to method CANCEL.
+// IsCancelCSeq reports whether the CSeq method is CANCEL.
 func IsCancelCSeq(m *stack.Message) bool {
-	if m == nil {
-		return false
-	}
-	return strings.Contains(strings.ToUpper(strings.TrimSpace(m.GetHeader("CSeq"))), "CANCEL")
+	return CSeqMethod(m) == stack.MethodCancel
 }
 
-// NonInviteServerKey builds a stable key for a non-INVITE request (branch + Call-ID + method + CSeq number).
+// NonInviteServerKey builds a stable key for a non-INVITE server transaction
+// (branch + Call-ID + method + CSeq number).
 func NonInviteServerKey(req *stack.Message) string {
 	if req == nil {
 		return ""
 	}
-	return inviteClientKey(TopBranch(req), req.GetHeader("Call-ID")) + "\x01" +
+	cseq, _ := stack.ParseCSeqNum(req.GetHeader(stack.HeaderCSeq))
+	return inviteClientKey(TopBranch(req), req.GetHeader(stack.HeaderCallID)) + "\x01" +
 		strings.ToUpper(strings.TrimSpace(req.Method)) + "\x01" +
-		strconv.Itoa(stack.ParseCSeqNum(req.GetHeader("CSeq")))
+		strconv.Itoa(cseq)
 }
 
 func inviteClientKey(branch, callID string) string {

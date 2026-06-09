@@ -36,6 +36,16 @@ func TestIsAckCSeq(t *testing.T) {
 	}
 }
 
+func TestCSeqMethodDoesNotSubstringMatch(t *testing.T) {
+	m := &stack.Message{Headers: map[string]string{"cseq": "1 PACKAGE"}}
+	if IsAckCSeq(m) {
+		t.Fatal("PACKAGE should not match ACK")
+	}
+	if CSeqMethod(m) != "PACKAGE" {
+		t.Fatalf("method %q", CSeqMethod(m))
+	}
+}
+
 func TestTopBranch(t *testing.T) {
 	raw := strings.Join([]string{
 		"SIP/2.0 100 Trying",

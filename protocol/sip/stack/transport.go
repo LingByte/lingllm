@@ -6,8 +6,9 @@ import (
 	"net"
 )
 
-// DatagramTransport is SIP message I/O over connectionless datagrams.
-// Implementations must be safe for use from one reader and concurrent writers unless documented otherwise.
+// DatagramTransport abstracts connectionless SIP I/O (typically one UDP socket
+// shared by UAS and UAC on the same host). One goroutine should call ReadFrom;
+// multiple goroutines may call WriteTo concurrently.
 type DatagramTransport interface {
 	ReadFrom(ctx context.Context, buf []byte) (n int, addr *net.UDPAddr, err error)
 	WriteTo(ctx context.Context, p []byte, addr *net.UDPAddr) (n int, err error)
@@ -39,7 +40,7 @@ func (t *UDPTransport) LocalAddr() net.Addr {
 // (requires SetReadDeadline on the conn by the caller, or Endpoint sets deadlines each iteration).
 func (t *UDPTransport) ReadFrom(ctx context.Context, buf []byte) (int, *net.UDPAddr, error) {
 	if t == nil || t.conn == nil {
-		return 0, nil, fmt.Errorf("sip1/stack: udp transport not started")
+		return 0, nil, fmt.Errorf("%s: udp transport not started", errPrefix)
 	}
 	if ctx != nil {
 		select {
@@ -53,7 +54,7 @@ func (t *UDPTransport) ReadFrom(ctx context.Context, buf []byte) (int, *net.UDPA
 
 func (t *UDPTransport) WriteTo(ctx context.Context, p []byte, addr *net.UDPAddr) (int, error) {
 	if t == nil || t.conn == nil {
-		return 0, fmt.Errorf("sip1/stack: udp transport not started")
+		return 0, fmt.Errorf("%s: udp transport not started", errPrefix)
 	}
 	if ctx != nil {
 		select {
@@ -72,9 +73,10 @@ func (t *UDPTransport) Close() error {
 	return t.conn.Close()
 }
 
-// IsSignalingNoiseDatagram reports payloads that are never valid SIP but often hit a UDP
-// signaling port: NAT / CRLF keepalives (e.g. "\r\n\r\n", RFC 5626 style), or whitespace-only pings.
-// Parsing them yields "empty message" noise; callers may skip them silently.
+// IsSignalingNoiseDatagram reports tiny payloads that are not SIP but commonly
+// arrive on port 5060: CRLF keepalives (RFC 5626 double-CRLF), NAT binding
+// refreshes, or whitespace pings. Endpoint skips them before Parse to avoid
+// log spam. Payloads longer than 64 bytes are never classified as noise.
 func IsSignalingNoiseDatagram(b []byte) bool {
 	if len(b) == 0 || len(b) > 64 {
 		return false

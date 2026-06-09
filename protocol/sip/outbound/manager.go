@@ -33,7 +33,11 @@ type ManagerConfig struct {
 	OnEvent               func(DialEvent)
 	OnDialogCallIDAdopted func(oldID, newID, correlationID string)
 	OnSignalingSent       func(*stack.Message, *net.UDPAddr)
-	TLSConfig             *tls.Config
+	// PreAck runs after 200 OK SDP parse, before ACK (media binding).
+	PreAck PreAckFunc
+	// OnLegRemoved fires when a signaling leg is torn down (any cause).
+	OnLegRemoved func(callID string)
+	TLSConfig    *tls.Config
 }
 
 // Manager owns outbound SIP legs keyed by Call-ID.
@@ -115,7 +119,7 @@ func (m *Manager) HandleSIPResponse(resp *stack.Message, addr *net.UDPAddr) {
 		return
 	}
 	txKey := txKeyFromResponse(resp)
-	callID := strings.TrimSpace(resp.GetHeader("Call-ID"))
+	callID := strings.TrimSpace(resp.GetHeader(stack.HeaderCallID))
 	m.mu.Lock()
 	leg := (*outLeg)(nil)
 	if txKey != "" {
@@ -134,8 +138,8 @@ func (m *Manager) HandleSIPResponse(resp *stack.Message, addr *net.UDPAddr) {
 		}).Debug("sip outbound unmatched response")
 		return
 	}
-	cseqHdr := strings.ToUpper(strings.TrimSpace(resp.GetHeader("CSeq")))
-	if strings.Contains(cseqHdr, "INVITE") && resp.StatusCode < 300 {
+	cseqHdr := strings.ToUpper(strings.TrimSpace(resp.GetHeader(stack.HeaderCSeq)))
+	if strings.Contains(cseqHdr, "INVITE") && resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		m.adoptOutboundDialogCallIDIfNeeded(leg, resp)
 	}
 	leg.handleResponse(context.Background(), resp, addr)
@@ -164,7 +168,10 @@ func (m *Manager) Dial(ctx context.Context, req DialRequest) (callID string, err
 	if localSDP == "" {
 		localSDP = sigHost
 	}
-	callID = newCallID(sigHost)
+	callID = strings.TrimSpace(req.CallID)
+	if callID == "" {
+		callID = newCallID(sigHost)
+	}
 
 	addr, err := net.ResolveUDPAddr("udp", req.Target.SignalingAddr)
 	if err != nil {
@@ -177,34 +184,40 @@ func (m *Manager) Dial(ctx context.Context, req DialRequest) (callID string, err
 		localPort = 5060
 	}
 
-	rtpPort := req.RTPPort
-	if rtpPort <= 0 {
-		rtpPort = m.cfg.DefaultRTPPort
-	}
-	codecs := req.Codecs
-	if len(codecs) == 0 {
-		codecs = sdp.DefaultOutboundOfferCodecs()
-	}
-
-	mediaProto := "RTP/AVP"
-	var sdpExtras []string
-	if req.OfferSRTP {
-		mediaProto = "RTP/SAVPF"
-		mkey := make([]byte, 16)
-		msalt := make([]byte, 14)
-		if _, err := rand.Read(mkey); err != nil {
-			return "", fmt.Errorf("sip/outbound: SRTP master key: %w", err)
+	sdpBody := strings.TrimSpace(req.SDPBody)
+	if sdpBody == "" {
+		rtpPort := req.RTPPort
+		if rtpPort <= 0 {
+			rtpPort = m.cfg.DefaultRTPPort
 		}
-		if _, err := rand.Read(msalt); err != nil {
-			return "", fmt.Errorf("sip/outbound: SRTP master salt: %w", err)
+		codecs := req.Codecs
+		if len(codecs) == 0 {
+			codecs = sdp.DefaultOutboundOfferCodecs()
 		}
-		cryptoLine, cerr := sdp.FormatCryptoLine(1, sdp.SuiteAESCM128HMACSHA180, mkey, msalt)
-		if cerr != nil {
-			return "", cerr
+		mediaProto := "RTP/AVP"
+		var sdpExtras []string
+		if req.OfferSRTP {
+			mediaProto = "RTP/SAVPF"
+			mkey := make([]byte, 16)
+			msalt := make([]byte, 14)
+			if _, err := rand.Read(mkey); err != nil {
+				return "", fmt.Errorf("sip/outbound: SRTP master key: %w", err)
+			}
+			if _, err := rand.Read(msalt); err != nil {
+				return "", fmt.Errorf("sip/outbound: SRTP master salt: %w", err)
+			}
+			cryptoLine, cerr := sdp.FormatCryptoLine(1, sdp.SuiteAESCM128HMACSHA180, mkey, msalt)
+			if cerr != nil {
+				return "", cerr
+			}
+			sdpExtras = []string{cryptoLine}
 		}
-		sdpExtras = []string{cryptoLine}
+		sdpBody = sdp.GenerateWithProtoExtras(localSDP, rtpPort, mediaProto, codecs, sdpExtras)
 	}
-	sdpBody := sdp.GenerateWithProtoExtras(localSDP, rtpPort, mediaProto, codecs, sdpExtras)
+	localRTPPort := req.RTPPort
+	if localRTPPort <= 0 {
+		localRTPPort = m.cfg.DefaultRTPPort
+	}
 
 	fromUser := m.cfg.FromUser
 	fromDisp := m.cfg.FromDisplayName
@@ -225,7 +238,7 @@ func (m *Manager) Dial(ctx context.Context, req DialRequest) (callID string, err
 		FromTag:                     randomHex(8),
 		Branch:                      randomHex(10),
 		CSeq:                        1,
-		LocalRTPPort:                rtpPort,
+		LocalRTPPort:                localRTPPort,
 		SDPBody:                     sdpBody,
 		FromUser:                    fromUser,
 		FromDisplayName:             fromDisp,
@@ -235,6 +248,7 @@ func (m *Manager) Dial(ctx context.Context, req DialRequest) (callID string, err
 		HistoryInfo:                 req.HistoryInfo,
 		Diversion:                   req.Diversion,
 		ViaTransport:                transport,
+		IdentityHeader:              strings.TrimSpace(req.IdentityHeader),
 	}
 
 	invite := buildINVITE(params)
@@ -301,7 +315,10 @@ func (m *Manager) adoptOutboundDialogCallIDIfNeeded(leg *outLeg, resp *stack.Mes
 	if m == nil || leg == nil || resp == nil {
 		return
 	}
-	newCID := strings.TrimSpace(resp.GetHeader("Call-ID"))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return
+	}
+	newCID := strings.TrimSpace(resp.GetHeader(stack.HeaderCallID))
 	oldCID := strings.TrimSpace(leg.params.CallID)
 	if newCID == "" || newCID == oldCID {
 		return
@@ -329,6 +346,36 @@ func (m *Manager) adoptOutboundDialogCallIDIfNeeded(leg *outLeg, resp *stack.Mes
 		"invite_call_id": oldCID,
 		"dialog_call_id": newCID,
 	}).Info("sip outbound: dialog call-id adopted")
+}
+
+// DropLeg removes local signaling state without sending SIP. Use after
+// CANCEL was sent locally and the transaction should be torn down immediately.
+func (m *Manager) DropLeg(callID string) bool {
+	callID = strings.TrimSpace(callID)
+	if m == nil || callID == "" {
+		return false
+	}
+	leg := m.legByCallIDOrHostRewrite(callID)
+	if leg == nil {
+		return false
+	}
+	leg.cleanupLeg()
+	return true
+}
+
+// IsLegEstablished reports whether the outbound dialog reached 200 OK + ACK.
+func (m *Manager) IsLegEstablished(callID string) bool {
+	callID = strings.TrimSpace(callID)
+	if m == nil || callID == "" {
+		return false
+	}
+	leg := m.legByCallIDOrHostRewrite(callID)
+	if leg == nil {
+		return false
+	}
+	leg.mu.Lock()
+	defer leg.mu.Unlock()
+	return leg.established
 }
 
 func (m *Manager) legByCallIDOrHostRewrite(callID string) *outLeg {

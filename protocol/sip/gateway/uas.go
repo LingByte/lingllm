@@ -30,8 +30,7 @@ type UASConfig struct {
 // UAS is a minimal inbound SIP server on UDP.
 type UAS struct {
 	cfg      UASConfig
-	ep       *stack.Endpoint
-	mgr      *transaction.Manager
+	shell    *SignalingShell
 	outbound *outbound.Manager
 	send     transaction.SendFunc
 }
@@ -45,10 +44,6 @@ func NewUAS(cfg UASConfig) *UAS {
 		cfg.Port = 5060
 	}
 	s := &UAS{cfg: cfg}
-	s.mgr = transaction.NewManager()
-	s.send = func(msg *stack.Message, addr *net.UDPAddr) error {
-		return s.ep.Send(msg, addr)
-	}
 	return s
 }
 
@@ -62,38 +57,34 @@ func (s *UAS) AttachOutbound(m *outbound.Manager) {
 
 // Manager returns the transaction manager (for advanced wiring or tests).
 func (s *UAS) Manager() *transaction.Manager {
-	if s == nil {
+	if s == nil || s.shell == nil {
 		return nil
 	}
-	return s.mgr
+	return s.shell.TxManager()
 }
 
 // Endpoint returns the underlying stack endpoint after Open.
 func (s *UAS) Endpoint() *stack.Endpoint {
-	if s == nil {
+	if s == nil || s.shell == nil {
 		return nil
 	}
-	return s.ep
+	return s.shell.Endpoint()
+}
+
+// SIPPort returns the configured or bound UDP signaling port.
+func (s *UAS) SIPPort() int {
+	if s == nil || s.shell == nil {
+		return 5060
+	}
+	return s.shell.SIPPort()
 }
 
 // LocalIP returns the configured or detected IPv4 used in SDP answers.
 func (s *UAS) LocalIP() string {
-	if s == nil {
+	if s == nil || s.shell == nil {
 		return ""
 	}
-	if ip := strings.TrimSpace(s.cfg.LocalIP); ip != "" {
-		return ip
-	}
-	if s.ep != nil {
-		if la := s.ep.ListenAddr(); la != nil {
-			if host, _, err := net.SplitHostPort(la.String()); err == nil {
-				if host != "" && host != "0.0.0.0" && host != "::" {
-					return host
-				}
-			}
-		}
-	}
-	return "127.0.0.1"
+	return s.shell.LocalIP()
 }
 
 // Open binds the UDP socket and registers handlers.
@@ -120,7 +111,7 @@ func (s *UAS) Open() error {
 			}
 			logrus.WithFields(logrus.Fields{
 				"method":  req.Method,
-				"call_id": req.GetHeader("Call-ID"),
+				"call_id": req.GetHeader(stack.HeaderCallID),
 				"remote":  addr.String(),
 			}).Info("sip: request")
 		},
@@ -130,7 +121,7 @@ func (s *UAS) Open() error {
 			}
 			logrus.WithFields(logrus.Fields{
 				"status":  resp.StatusCode,
-				"call_id": resp.GetHeader("Call-ID"),
+				"call_id": resp.GetHeader(stack.HeaderCallID),
 				"remote":  addr.String(),
 			}).Debug("sip: response received")
 		},
@@ -144,7 +135,7 @@ func (s *UAS) Open() error {
 			}
 			if req != nil {
 				fields["method"] = req.Method
-				fields["call_id"] = req.GetHeader("Call-ID")
+				fields["call_id"] = req.GetHeader(stack.HeaderCallID)
 			}
 			logrus.WithFields(fields).Info("sip: response sent")
 		},
@@ -152,30 +143,28 @@ func (s *UAS) Open() error {
 			if s.outbound != nil {
 				s.outbound.HandleSIPResponse(resp, addr)
 			}
-			if s.mgr != nil {
-				_ = s.mgr.HandleResponse(resp, addr)
+			if s.shell != nil && s.shell.TxManager() != nil {
+				_ = s.shell.TxManager().HandleResponse(resp, addr)
 			}
 		},
 	}
-	s.ep = stack.NewEndpoint(epCfg)
-	if err := s.ep.Open(); err != nil {
+	s.shell = NewSignalingShell(SignalingShellConfig{UASConfig: s.cfg, Hooks: epCfg})
+	if err := s.shell.Open(); err != nil {
 		return err
 	}
-	if s.cfg.LocalIP == "" {
-		if ip := detectOutboundIP(); ip != "" {
-			s.cfg.LocalIP = ip
-		}
+	s.send = func(msg *stack.Message, addr *net.UDPAddr) error {
+		return s.shell.Send(msg, addr)
 	}
 	binding := uas.TransactionBinding{
-		Mgr:  s.mgr,
+		Mgr:  s.shell.TxManager(),
 		Send: s.send,
 	}
-	if err := s.cfg.Handlers.AttachWithTransaction(s.ep, binding); err != nil {
-		_ = s.ep.Close()
+	if err := s.cfg.Handlers.AttachWithTransaction(s.shell.Endpoint(), binding); err != nil {
+		_ = s.shell.Close()
 		return err
 	}
 	logrus.WithFields(logrus.Fields{
-		"listen": s.ep.ListenAddr().String(),
+		"listen": s.shell.ListenAddr().String(),
 		"local":  s.LocalIP(),
 	}).Info("sip: uas listening")
 	return nil
@@ -183,26 +172,26 @@ func (s *UAS) Open() error {
 
 // Serve runs until ctx is cancelled or a fatal read error occurs.
 func (s *UAS) Serve(ctx context.Context) error {
-	if s == nil || s.ep == nil {
+	if s == nil || s.shell == nil {
 		return fmt.Errorf("sip/gateway: not open")
 	}
-	return s.ep.Serve(ctx)
+	return s.shell.Serve(ctx)
 }
 
 // Send writes a SIP message to addr on the bound UDP socket.
 func (s *UAS) Send(msg *stack.Message, addr *net.UDPAddr) error {
-	if s == nil || s.ep == nil {
+	if s == nil || s.shell == nil {
 		return fmt.Errorf("sip/gateway: not open")
 	}
-	return s.ep.Send(msg, addr)
+	return s.shell.Send(msg, addr)
 }
 
 // Close shuts down the UDP socket.
 func (s *UAS) Close() error {
-	if s == nil || s.ep == nil {
+	if s == nil || s.shell == nil {
 		return nil
 	}
-	return s.ep.Close()
+	return s.shell.Close()
 }
 
 // NewTag returns a random SIP dialog tag (RFC 3261 style).

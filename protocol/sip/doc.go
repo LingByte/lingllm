@@ -32,8 +32,7 @@
 //	protocol/sip/stir         STIR/SHAKEN passport header helpers
 //	protocol/sip/hooks        Lifecycle + recording sink interfaces (no ORM)
 //	protocol/sip/signalinglog Optional logrus SIP message audit hook
-//	protocol/sip/metrics      SIP-layer counters
-//	protocol/sip/observability dependency-free Prometheus-style registry
+//	protocol/sip/metrics      Prometheus registry + SIP-layer counters
 //
 // RTP, codec negotiation, media sessions, and transfer bridging:
 //

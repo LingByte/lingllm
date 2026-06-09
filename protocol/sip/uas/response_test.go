@@ -35,11 +35,11 @@ func TestNewResponse_Basic(t *testing.T) {
 	if resp.StatusCode != 200 || resp.Body == "" {
 		t.Fatalf("%+v", resp)
 	}
-	if resp.GetHeader("Call-ID") != "cid1" {
-		t.Fatal(resp.GetHeader("Call-ID"))
+	if resp.GetHeader(stack.HeaderCallID) != "cid1" {
+		t.Fatal(resp.GetHeader(stack.HeaderCallID))
 	}
-	if resp.GetHeader("Content-Type") != "application/sdp" {
-		t.Fatal(resp.GetHeader("Content-Type"))
+	if resp.GetHeader(stack.HeaderContentType) != "application/sdp" {
+		t.Fatal(resp.GetHeader(stack.HeaderContentType))
 	}
 }
 
@@ -56,6 +56,42 @@ func TestNewResponse_Invalid(t *testing.T) {
 	}
 	if _, err := NewResponse(reqOPTIONS(), 700, "x", "", ""); err == nil {
 		t.Fatal("bad status high")
+	}
+}
+
+func TestNewResponse_MultiVia(t *testing.T) {
+	raw := strings.Join([]string{
+		"INVITE sip:u@h SIP/2.0",
+		"Via: SIP/2.0/UDP 10.0.0.2;branch=z9hG4bKouter",
+		"Via: SIP/2.0/UDP 10.0.0.1;branch=z9hG4bKinner",
+		"From: <sip:a@b>;tag=1",
+		"To: <sip:a@b>",
+		"Call-ID: cid-via",
+		"CSeq: 1 INVITE",
+		"Content-Length: 0",
+		"",
+		"",
+	}, "\r\n")
+	req, err := stack.Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := NewResponse(req, 100, "Trying", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	vias := resp.GetHeaders(stack.HeaderVia)
+	if len(vias) != 2 || vias[0] != "SIP/2.0/UDP 10.0.0.2;branch=z9hG4bKouter" {
+		t.Fatalf("vias: %v", vias)
+	}
+}
+
+func TestFormatContact(t *testing.T) {
+	if got := FormatContact("10.0.0.1", 5080, ""); got != "<sip:10.0.0.1:5080>" {
+		t.Fatalf("got %q", got)
+	}
+	if got := FormatContact("10.0.0.1", 0, "server"); got != "<sip:server@10.0.0.1:5060>" {
+		t.Fatalf("got %q", got)
 	}
 }
 

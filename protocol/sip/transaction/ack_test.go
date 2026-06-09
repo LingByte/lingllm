@@ -47,7 +47,8 @@ func TestBuildAckForInvite_2xx(t *testing.T) {
 	if ack.Method != stack.MethodAck {
 		t.Fatalf("method %q", ack.Method)
 	}
-	if stack.ParseCSeqNum(ack.GetHeader("CSeq")) != 7 || !strings.Contains(ack.GetHeader("CSeq"), "ACK") {
-		t.Fatalf("cseq %q", ack.GetHeader("CSeq"))
+	cseq, ok := stack.ParseCSeqNum(ack.GetHeader(stack.HeaderCSeq))
+	if !ok || cseq != 7 || !strings.Contains(ack.GetHeader(stack.HeaderCSeq), "ACK") {
+		t.Fatalf("cseq %q", ack.GetHeader(stack.HeaderCSeq))
 	}
 }

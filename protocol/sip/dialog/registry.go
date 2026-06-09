@@ -22,11 +22,11 @@ func NewRegistry() *Registry {
 // Put registers d under its Call-ID (must be non-empty).
 func (r *Registry) Put(d *Dialog) error {
 	if r == nil || d == nil {
-		return fmt.Errorf("sip1/dialog: nil registry or dialog")
+		return fmt.Errorf("%s: nil registry or dialog", errPrefix)
 	}
 	id := strings.TrimSpace(d.CallID)
 	if id == "" {
-		return fmt.Errorf("sip1/dialog: empty Call-ID")
+		return fmt.Errorf("%s: empty Call-ID", errPrefix)
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()

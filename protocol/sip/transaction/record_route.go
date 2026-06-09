@@ -12,7 +12,7 @@ func RouteHeadersForDialog(resp *stack.Message) []string {
 	if resp == nil {
 		return nil
 	}
-	rr := resp.GetHeaders("Record-Route")
+	rr := resp.GetHeaders(stack.HeaderRecordRoute)
 	if len(rr) == 0 {
 		return nil
 	}

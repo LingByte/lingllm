@@ -47,11 +47,11 @@ func txKeyFromResponse(resp *stack.Message) string {
 	if resp == nil {
 		return ""
 	}
-	cseqNum := stack.ParseCSeqNum(strings.TrimSpace(resp.GetHeader("CSeq")))
-	if cseqNum <= 0 {
+	cseqNum, ok := stack.ParseCSeqNum(strings.TrimSpace(resp.GetHeader(stack.HeaderCSeq)))
+	if !ok || cseqNum <= 0 {
 		return ""
 	}
-	via := strings.TrimSpace(resp.GetHeader("Via"))
+	via := strings.TrimSpace(resp.GetHeader(stack.HeaderVia))
 	if via == "" {
 		return ""
 	}

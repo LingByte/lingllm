@@ -55,18 +55,21 @@ func TestPickCodec_CustomPrefer(t *testing.T) {
 
 func TestInviteAnswer(t *testing.T) {
 	req := sampleINVITE()
-	resp, dlg, err := InviteAnswer(req, "10.0.0.9", 20000, sdp.Codec{PayloadType: 8, Name: "PCMA", ClockRate: 8000, Channels: 1}, "localtag")
+	resp, dlg, err := InviteAnswer(req, "10.0.0.9", 5080, 20000, sdp.Codec{PayloadType: 8, Name: "PCMA", ClockRate: 8000, Channels: 1}, "localtag")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if resp.StatusCode != 200 || dlg == nil || dlg.CallID != "gw-test-call" {
 		t.Fatalf("resp=%d dlg=%+v", resp.StatusCode, dlg)
 	}
-	if !strings.Contains(resp.GetHeader("To"), "localtag") {
-		t.Fatalf("to: %q", resp.GetHeader("To"))
+	if !strings.Contains(resp.GetHeader(stack.HeaderTo), "localtag") {
+		t.Fatalf("to: %q", resp.GetHeader(stack.HeaderTo))
 	}
 	if !strings.Contains(resp.Body, "10.0.0.9") {
 		t.Fatal("sdp missing local ip")
+	}
+	if !strings.Contains(resp.GetHeader(stack.HeaderContact), ":5080>") {
+		t.Fatalf("contact: %q", resp.GetHeader(stack.HeaderContact))
 	}
 }
 
@@ -75,7 +78,7 @@ func TestRinging(t *testing.T) {
 	if err != nil || resp.StatusCode != 180 {
 		t.Fatalf("ringing: %v %d", err, resp.StatusCode)
 	}
-	if !strings.Contains(resp.GetHeader("To"), "ringtag") {
+	if !strings.Contains(resp.GetHeader(stack.HeaderTo), "ringtag") {
 		t.Fatal("missing tag on 180")
 	}
 }

@@ -1,13 +1,20 @@
 // Copyright (c) 2026 LinByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
 
-// Package metrics is the SIP-signaling-layer observability surface.
+// Package metrics is the SIP stack observability surface: a
+// dependency-free Prometheus registry plus typed SIP counters.
 //
-// Scope: counters and histograms covering the protocol behaviour
-// itself (INVITE rate, response classes, transaction timeouts,
-// session-timer refresh outcomes, STIR/DTLS handshake results, RTCP
-// per-call QoS roll-up). The package never holds per-call state and
-// every call site is O(1).
+// Registry (registry.go, labels.go, async.go, app.go):
+//
+//   - counters, gauges, summary-style histograms
+//   - cardinality whitelist via RegisterLabels
+//   - optional async ObserveAsync drain for hot paths
+//   - VoiceServer app helpers (CallStarted, Handler, …)
+//
+// SIP helpers (metrics.go, voice_attach.go):
+//
+//   - INVITE/BYE/transaction/session-timer/STIR/DTLS/QoS counters
+//   - voice-attach counters at the OnACK seam
 //
 // Cardinality discipline:
 //
@@ -16,7 +23,7 @@
 //     (Call-ID, phone, SSRC) are NEVER labelled — those belong in
 //     the CDR record, not the metrics registry.
 //   - Each metric declares its allowed keys via RegisterLabels in
-//     init(); the underlying metrics package enforces this softly.
+//     init(); the registry enforces this softly.
 //
 // Hot-path discipline:
 //
@@ -25,11 +32,7 @@
 //     site, zero allocation in the steady state.
 package metrics
 
-import (
-	"strconv"
-
-	metrics "github.com/LingByte/lingllm/protocol/sip/observability"
-)
+import "strconv"
 
 // Metric names. Single source of truth so dashboards can grep.
 const (
@@ -71,17 +74,17 @@ const (
 // soft defense kicks in even if no producer calls a helper before
 // the first scrape.
 func init() {
-	metrics.RegisterLabels(MetricInviteResultTotal, "direction", "class")
-	metrics.RegisterLabels(MetricByeTotal, "direction", "by", "reason_class")
-	metrics.RegisterLabels(MetricTransactionTimeoutTotal, "method")
-	metrics.RegisterLabels(MetricSessionTimerRefreshTotal, "result")
-	metrics.RegisterLabels(MetricDTLSHandshakeTotal, "result")
-	metrics.RegisterLabels(MetricSTIRVerifyTotal, "result")
+	RegisterLabels(MetricInviteResultTotal, "direction", "class")
+	RegisterLabels(MetricByeTotal, "direction", "by", "reason_class")
+	RegisterLabels(MetricTransactionTimeoutTotal, "method")
+	RegisterLabels(MetricSessionTimerRefreshTotal, "result")
+	RegisterLabels(MetricDTLSHandshakeTotal, "result")
+	RegisterLabels(MetricSTIRVerifyTotal, "result")
 	// Histograms don't have labels in our package today.
-	metrics.RegisterLabels(MetricCallRTTMs)
-	metrics.RegisterLabels(MetricCallJitterMs)
-	metrics.RegisterLabels(MetricCallLossFraction)
-	metrics.RegisterLabels(MetricCallMOSEstimate)
+	RegisterLabels(MetricCallRTTMs)
+	RegisterLabels(MetricCallJitterMs)
+	RegisterLabels(MetricCallLossFraction)
+	RegisterLabels(MetricCallMOSEstimate)
 }
 
 // ---- Pre-allocated label maps ----
@@ -112,7 +115,7 @@ func InviteResult(direction string, code int) {
 		return
 	}
 	labels := inviteLabels(direction, code)
-	metrics.Default.IncCounter(MetricInviteResultTotal,
+	Default.IncCounter(MetricInviteResultTotal,
 		"INVITE results by direction and response class (1xx..6xx)",
 		labels)
 }
@@ -244,7 +247,7 @@ func BYE(direction, by, reasonClass string) {
 			labels = map[string]string{"direction": "outbound", "by": by, "reason_class": reasonClass}
 		}
 	}
-	metrics.Default.IncCounter(MetricByeTotal, "BYE events", labels)
+	Default.IncCounter(MetricByeTotal, "BYE events", labels)
 }
 
 // Bye is the outbound-default shim. Kept for existing callers that
@@ -278,7 +281,7 @@ func TransactionTimeout(method string) {
 	default:
 		labels = labelsTimeoutOTHER
 	}
-	metrics.Default.IncCounter(MetricTransactionTimeoutTotal,
+	Default.IncCounter(MetricTransactionTimeoutTotal,
 		"SIP transaction timeouts (timer B/F fired)", labels)
 }
 
@@ -319,7 +322,7 @@ func SessionTimerRefresh(result string) {
 	default:
 		labels = map[string]string{"result": result}
 	}
-	metrics.Default.IncCounter(MetricSessionTimerRefreshTotal,
+	Default.IncCounter(MetricSessionTimerRefreshTotal,
 		"RFC 4028 session-timer refresh outcomes", labels)
 }
 
@@ -354,7 +357,7 @@ func DTLSHandshake(result string) {
 	default:
 		labels = map[string]string{"result": result}
 	}
-	metrics.Default.IncCounter(MetricDTLSHandshakeTotal,
+	Default.IncCounter(MetricDTLSHandshakeTotal,
 		"DTLS-SRTP handshake outcomes", labels)
 }
 
@@ -389,7 +392,7 @@ func STIRVerify(result string) {
 	default:
 		labels = map[string]string{"result": result}
 	}
-	metrics.Default.IncCounter(MetricSTIRVerifyTotal,
+	Default.IncCounter(MetricSTIRVerifyTotal,
 		"STIR/SHAKEN verification outcomes", labels)
 }
 
@@ -404,19 +407,19 @@ func STIRVerify(result string) {
 // Cardinality? Zero labels — these are global distributions.
 func ObserveCallQoS(rttMs uint32, jitterMs float64, lossFraction float64, mosEstimate float64) {
 	if rttMs > 0 {
-		metrics.Default.Observe(MetricCallRTTMs,
+		Default.Observe(MetricCallRTTMs,
 			"per-call round-trip time at call end (ms)", float64(rttMs))
 	}
 	if jitterMs > 0 {
-		metrics.Default.Observe(MetricCallJitterMs,
+		Default.Observe(MetricCallJitterMs,
 			"per-call interarrival jitter at call end (ms)", jitterMs)
 	}
 	if lossFraction >= 0 && lossFraction <= 1 {
-		metrics.Default.Observe(MetricCallLossFraction,
+		Default.Observe(MetricCallLossFraction,
 			"per-call peer-reported loss fraction at call end (0..1)", lossFraction)
 	}
 	if mosEstimate >= 1 && mosEstimate <= 5 {
-		metrics.Default.Observe(MetricCallMOSEstimate,
+		Default.Observe(MetricCallMOSEstimate,
 			"per-call E-Model MOS estimate at call end (1..5)", mosEstimate)
 	}
 }

@@ -40,7 +40,7 @@ func TestDialogStore_RememberAndNotify(t *testing.T) {
 	if msg.Method != stack.MethodNotify || dst.String() != remote.String() {
 		t.Fatalf("notify: method=%s dst=%s", msg.Method, dst)
 	}
-	if msg.GetHeader("Event") != "refer" || !strings.Contains(msg.Body, "100 Trying") {
+	if msg.GetHeader(stack.HeaderEvent) != "refer" || !strings.Contains(msg.Body, "100 Trying") {
 		t.Fatalf("notify headers/body: %+v", msg.Headers)
 	}
 }

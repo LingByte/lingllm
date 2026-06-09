@@ -52,7 +52,7 @@ func (leg *outLeg) handleResponse(ctx context.Context, resp *stack.Message, from
 		return
 	}
 	st := resp.StatusCode
-	cseqAll := strings.ToUpper(resp.GetHeader("CSeq"))
+	cseqAll := strings.ToUpper(resp.GetHeader(stack.HeaderCSeq))
 
 	if strings.Contains(cseqAll, "BYE") {
 		if st >= 200 && st < 300 {
@@ -146,6 +146,32 @@ func (leg *outLeg) handleResponse(ctx context.Context, resp *stack.Message, from
 
 	leg.m.adoptOutboundDialogCallIDIfNeeded(leg, resp)
 
+	if leg.m.cfg.PreAck != nil {
+		fromH := formatOutboundFromHeader(leg.params.FromDisplayName, leg.params.FromUser,
+			leg.params.SIPHost, leg.params.SIPPort, leg.params.FromTag)
+		if err := leg.m.cfg.PreAck(ctx, PreAckContext{
+			Leg: EstablishedLeg{
+				CallID:              leg.params.CallID,
+				Scenario:            leg.req.Scenario,
+				CorrelationID:       leg.req.CorrelationID,
+				FromHeader:          fromH,
+				ToHeader:            resp.GetHeader(stack.HeaderTo),
+				RemoteSignalingAddr: udpAddrString(leg.dst),
+				CSeqInvite:          fmt.Sprintf("%d INVITE", leg.params.CSeq),
+				Answer:              answer,
+			},
+			Answer:         answer,
+			ResponseSource: from,
+		}); err != nil {
+			logrus.WithFields(logrus.Fields{
+				"call_id": leg.params.CallID,
+				"error":   err,
+			}).Warn("sip outbound pre-ack hook failed")
+			leg.cleanupLeg()
+			return
+		}
+	}
+
 	ackURI := ackRequestURI(resp, leg.params.RequestURI)
 	ack := buildACK(leg.params, resp, ackURI)
 	if ack == nil {
@@ -159,7 +185,7 @@ func (leg *outLeg) handleResponse(ctx context.Context, resp *stack.Message, from
 	}
 
 	leg.sigMu.Lock()
-	leg.byeToHeader = resp.GetHeader("To")
+	leg.byeToHeader = resp.GetHeader(stack.HeaderTo)
 	leg.byeRequestURI = ackRequestURI(resp, leg.params.RequestURI)
 	if from != nil {
 		leg.byeRemote = cloneUDPAddr(from)
@@ -174,7 +200,7 @@ func (leg *outLeg) handleResponse(ctx context.Context, resp *stack.Message, from
 	leg.answer = answer
 	leg.mu.Unlock()
 
-	if peerSE, peerRefresher, _ := session_timer.ParseSessionExpires(resp.GetHeader("Session-Expires")); peerSE > 0 {
+	if peerSE, peerRefresher, _ := session_timer.ParseSessionExpires(resp.GetHeader(stack.HeaderSessionExpires)); peerSE > 0 {
 		leg.startRefresherIfUAC(peerSE, peerRefresher)
 	}
 
@@ -187,7 +213,7 @@ func (leg *outLeg) handleResponse(ctx context.Context, resp *stack.Message, from
 			CorrelationID:       leg.req.CorrelationID,
 			CreatedAt:           time.Now(),
 			FromHeader:          fromH,
-			ToHeader:            resp.GetHeader("To"),
+			ToHeader:            resp.GetHeader(stack.HeaderTo),
 			RemoteSignalingAddr: udpAddrString(leg.dst),
 			CSeqInvite:          fmt.Sprintf("%d INVITE", leg.params.CSeq),
 			Answer:              answer,
@@ -243,4 +269,7 @@ func (leg *outLeg) cleanupLeg() {
 	leg.peerMu.Lock()
 	leg.peer = nil
 	leg.peerMu.Unlock()
+	if m.cfg.OnLegRemoved != nil {
+		m.cfg.OnLegRemoved(callID)
+	}
 }

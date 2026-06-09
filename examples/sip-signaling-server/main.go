@@ -77,7 +77,7 @@ func main() {
 		LocalIP: localIP,
 		Handlers: uas.Handlers{
 			Invite: func(req *stack.Message, addr *net.UDPAddr) (*stack.Message, error) {
-				callID := req.GetHeader("Call-ID")
+				callID := req.GetHeader(stack.HeaderCallID)
 				tag := gateway.NewTag()
 				tags[callID] = tag
 
@@ -103,14 +103,14 @@ func main() {
 					}
 				}
 
-				resp, dlg, err := gateway.InviteAnswer(req, prepared.MediaIP, prepared.MediaPort, codec, tag)
+				resp, dlg, err := gateway.InviteAnswer(req, prepared.MediaIP, srv.SIPPort(), prepared.MediaPort, codec, tag)
 				if err != nil {
 					_ = pool.Delete(callID)
 					logrus.WithError(err).Error("invite: answer failed")
 					return uas.ErrorResponse(req, 500, "Server Internal Error")
 				}
 				_ = registry.Put(dlg)
-				dialogs.Remember(callID, addr, req, resp.GetHeader("To"))
+				dialogs.Remember(callID, addr, req, resp.GetHeader(stack.HeaderTo))
 
 				logrus.WithFields(logrus.Fields{
 					"call_id":   callID,
@@ -124,7 +124,7 @@ func main() {
 				return resp, nil
 			},
 			Ack: func(req *stack.Message, addr *net.UDPAddr) error {
-				callID := req.GetHeader("Call-ID")
+				callID := req.GetHeader(stack.HeaderCallID)
 				if d := registry.Get(callID); d != nil {
 					d.Confirm()
 				}
@@ -136,7 +136,7 @@ func main() {
 				return nil
 			},
 			Bye: func(req *stack.Message, addr *net.UDPAddr) (*stack.Message, error) {
-				callID := req.GetHeader("Call-ID")
+				callID := req.GetHeader(stack.HeaderCallID)
 				registry.Delete(callID)
 				dialogs.Forget(callID)
 				delete(tags, callID)
@@ -151,7 +151,7 @@ func main() {
 				if err != nil {
 					return nil, err
 				}
-				resp.SetHeader("Expires", "3600")
+				resp.SetHeader(stack.HeaderExpires, "3600")
 				return resp, nil
 			},
 		},

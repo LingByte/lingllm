@@ -38,28 +38,28 @@ type Dialog struct {
 // NewUASFromINVITE builds dialog state from an inbound INVITE (early). Parses Call-ID, branch, INVITE CSeq, remote From tag.
 func NewUASFromINVITE(inv *stack.Message) (*Dialog, error) {
 	if inv == nil || !inv.IsRequest || inv.Method != stack.MethodInvite {
-		return nil, fmt.Errorf("sip1/dialog: need INVITE request")
+		return nil, fmt.Errorf("%s: need INVITE request", errPrefix)
 	}
-	callID := strings.TrimSpace(inv.GetHeader("Call-ID"))
+	callID := strings.TrimSpace(inv.GetHeader(stack.HeaderCallID))
 	br := transaction.TopBranch(inv)
 	if callID == "" || br == "" {
-		return nil, fmt.Errorf("sip1/dialog: missing Call-ID or Via branch")
+		return nil, fmt.Errorf("%s: missing Call-ID or Via branch", errPrefix)
 	}
-	n := stack.ParseCSeqNum(inv.GetHeader("CSeq"))
-	if n <= 0 || !transaction.IsInviteCSeq(inv) {
-		return nil, fmt.Errorf("sip1/dialog: invalid INVITE CSeq")
+	n, ok := stack.ParseCSeqNum(inv.GetHeader(stack.HeaderCSeq))
+	if !ok || n <= 0 || !transaction.IsInviteCSeq(inv) {
+		return nil, fmt.Errorf("%s: invalid INVITE CSeq", errPrefix)
 	}
 	d := &Dialog{
 		CallID:       callID,
 		InviteBranch: br,
 		CSeqInvite:   n,
-		RemoteTag:    TagFromHeader(inv.GetHeader("From")),
+		RemoteTag:    TagFromHeader(inv.GetHeader(stack.HeaderFrom)),
 		state:        StateEarly,
 	}
 	return d, nil
 }
 
-// InviteTransactionKey returns the same key used by pkg/sip1/transaction for INVITE server/client maps.
+// InviteTransactionKey returns the same key used by protocol/sip/transaction INVITE maps.
 func (d *Dialog) InviteTransactionKey() string {
 	if d == nil {
 		return ""
@@ -150,17 +150,18 @@ func (d *Dialog) MatchACK(ack *stack.Message) bool {
 	if d == nil || ack == nil || !ack.IsRequest || ack.Method != stack.MethodAck {
 		return false
 	}
-	if strings.TrimSpace(ack.GetHeader("Call-ID")) != d.CallID {
+	if strings.TrimSpace(ack.GetHeader(stack.HeaderCallID)) != d.CallID {
 		return false
 	}
 	if !transaction.IsAckCSeq(ack) {
 		return false
 	}
-	if stack.ParseCSeqNum(ack.GetHeader("CSeq")) != d.CSeqInvite {
+	ackCSeq, ok := stack.ParseCSeqNum(ack.GetHeader(stack.HeaderCSeq))
+	if !ok || ackCSeq != d.CSeqInvite {
 		return false
 	}
-	fromTag := TagFromHeader(ack.GetHeader("From"))
-	toTag := TagFromHeader(ack.GetHeader("To"))
+	fromTag := TagFromHeader(ack.GetHeader(stack.HeaderFrom))
+	toTag := TagFromHeader(ack.GetHeader(stack.HeaderTo))
 	d.mu.RLock()
 	rt, lt := d.RemoteTag, d.LocalTag
 	d.mu.RUnlock()

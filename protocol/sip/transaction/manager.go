@@ -8,7 +8,14 @@ import (
 	"github.com/LingByte/lingllm/protocol/sip/stack"
 )
 
-// Manager routes SIP responses to UAC client transactions and tracks UAS INVITE / non-INVITE server transactions.
+// Manager is the central registry for SIP client and server transactions on one UDP socket.
+//
+// Client side: RunInviteClient / RunNonInviteClient register txs; HandleResponse dispatches
+// inbound responses from stack.Endpoint.OnSIPResponse.
+//
+// Server side: RegisterPendingInviteServer + HandleCancelRequest; BeginInviteServer /
+// BeginNonInviteServer after finals; HandleInviteRequest / HandleNonInviteRequest /
+// HandleAck for retransmissions and ACK absorption.
 type Manager struct {
 	mu              sync.Mutex
 	inviteTx        map[string]*inviteClientTx
@@ -104,7 +111,7 @@ func (m *Manager) HandleResponse(resp *stack.Message, src *net.UDPAddr) bool {
 		return false
 	}
 	if IsInviteCSeq(resp) {
-		key := inviteClientKey(TopBranch(resp), resp.GetHeader("Call-ID"))
+		key := inviteClientKey(TopBranch(resp), resp.GetHeader(stack.HeaderCallID))
 		m.mu.Lock()
 		tx := m.inviteTx[key]
 		m.mu.Unlock()

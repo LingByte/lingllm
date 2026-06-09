@@ -23,6 +23,7 @@ type inviteClientTx struct {
 	frozen *stack.Message
 
 	t1 time.Duration
+	t2 time.Duration
 
 	mu           sync.Mutex
 	finalSeen    bool
@@ -60,7 +61,7 @@ func (tx *inviteClientTx) stopRetransmit() {
 
 func (tx *inviteClientTx) sendFrozen() error {
 	if tx.frozen == nil {
-		return fmt.Errorf("sip1/transaction: nil frozen invite")
+		return fmt.Errorf("%s: nil frozen invite", errPrefix)
 	}
 	return tx.send(tx.frozen, tx.remote)
 }
@@ -84,8 +85,11 @@ func (tx *inviteClientTx) retransmitLoop() {
 		case <-timer.C:
 		}
 		_ = tx.sendFrozen()
-		if next < 32*time.Second {
+		if next < tx.t2 {
 			next *= 2
+			if next > tx.t2 {
+				next = tx.t2
+			}
 		}
 	}
 }
@@ -138,21 +142,21 @@ type InviteClientResult struct {
 // Wire HandleResponse on the same Manager from stack.Endpoint.OnSIPResponse.
 func (m *Manager) RunInviteClient(ctx context.Context, invite *stack.Message, remote *net.UDPAddr, send SendFunc, onProvisional func(*stack.Message)) (*InviteClientResult, error) {
 	if m == nil {
-		return nil, fmt.Errorf("sip1/transaction: nil manager")
+		return nil, fmt.Errorf("%s: nil manager", errPrefix)
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if invite == nil || send == nil {
-		return nil, fmt.Errorf("sip1/transaction: nil invite or send")
+		return nil, fmt.Errorf("%s: nil invite or send", errPrefix)
 	}
 	br := TopBranch(invite)
 	if br == "" {
-		return nil, fmt.Errorf("sip1/transaction: invite missing Via branch")
+		return nil, fmt.Errorf("%s: invite missing Via branch", errPrefix)
 	}
-	callID := strings.TrimSpace(invite.GetHeader("Call-ID"))
+	callID := strings.TrimSpace(invite.GetHeader(stack.HeaderCallID))
 	if callID == "" {
-		return nil, fmt.Errorf("sip1/transaction: invite missing Call-ID")
+		return nil, fmt.Errorf("%s: invite missing Call-ID", errPrefix)
 	}
 	frozen, err := stack.Parse(invite.String())
 	if err != nil {
@@ -167,6 +171,7 @@ func (m *Manager) RunInviteClient(ctx context.Context, invite *stack.Message, re
 		remote:        remote,
 		frozen:        frozen,
 		t1:            m.t1Duration(),
+		t2:            m.t2Duration(),
 		stopRetxCh:    make(chan struct{}),
 		finalCh:       make(chan *stack.Message, 1),
 		onProvisional: onProvisional,

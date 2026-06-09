@@ -30,7 +30,8 @@ func PickCodec(offer *sdp.Info, prefer ...string) (sdp.Codec, bool) {
 }
 
 // InviteAnswer builds a 200 OK INVITE response with an SDP answer and UAS To tag.
-func InviteAnswer(req *stack.Message, localIP string, localRTPPort int, codec sdp.Codec, localTag string) (*stack.Message, *dialog.Dialog, error) {
+// localSIPPort is the signaling Contact port (defaults to 5060 when <= 0).
+func InviteAnswer(req *stack.Message, localIP string, localSIPPort, localRTPPort int, codec sdp.Codec, localTag string) (*stack.Message, *dialog.Dialog, error) {
 	if req == nil || !req.IsRequest || req.Method != stack.MethodInvite {
 		return nil, nil, fmt.Errorf("sip/gateway: need INVITE request")
 	}
@@ -57,9 +58,9 @@ func InviteAnswer(req *stack.Message, localIP string, localRTPPort int, codec sd
 	if err != nil {
 		return nil, nil, err
 	}
-	to := dialog.AppendTagAfterNameAddr(req.GetHeader("To"), localTag)
-	resp.SetHeader("To", to)
-	resp.SetHeader("Contact", fmt.Sprintf("<sip:%s:%d>", localIP, 5060))
+	to := dialog.AppendTagAfterNameAddr(req.GetHeader(stack.HeaderTo), localTag)
+	resp.SetHeader(stack.HeaderTo, to)
+	resp.SetHeader(stack.HeaderContact, uas.FormatContact(localIP, localSIPPort, ""))
 	return resp, dlg, nil
 }
 
@@ -72,7 +73,7 @@ func Ringing(req *stack.Message, localTag string) (*stack.Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	to := dialog.AppendTagAfterNameAddr(req.GetHeader("To"), localTag)
-	resp.SetHeader("To", to)
+	to := dialog.AppendTagAfterNameAddr(req.GetHeader(stack.HeaderTo), localTag)
+	resp.SetHeader(stack.HeaderTo, to)
 	return resp, nil
 }

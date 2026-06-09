@@ -139,7 +139,10 @@ func runOneTCPConn(ctx context.Context, conn net.Conn, ep *stack.Endpoint) {
 		}
 		resp := ep.DispatchRequest(msg, udpAddr)
 		if resp != nil {
-			_, _ = conn.Write([]byte(resp.String()))
+			resp.PrepareForSend()
+			if _, err := conn.Write([]byte(resp.String())); err == nil {
+				ep.NotifyResponseDelivered(msg, resp, udpAddr)
+			}
 		}
 	}
 }

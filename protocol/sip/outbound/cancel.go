@@ -49,15 +49,15 @@ func buildCANCEL(inv inviteParams) *stack.Message {
 		IsRequest:  true,
 		Method:     stack.MethodCancel,
 		RequestURI: inv.RequestURI,
-		Version:    "SIP/2.0",
+		Version: stack.SIPVersion,
 	}
-	msg.SetHeader("Via", formatVia(inv.ViaTransport, inv.SIPHost, inv.SIPPort, inv.Branch))
-	msg.SetHeader("Max-Forwards", "70")
-	msg.SetHeader("From", formatOutboundFromHeader(inv.FromDisplayName, inv.FromUser, inv.SIPHost, inv.SIPPort, inv.FromTag))
-	msg.SetHeader("To", formatToHeader(inv.RequestURI))
-	msg.SetHeader("Call-ID", inv.CallID)
-	msg.SetHeader("CSeq", fmt.Sprintf("%d %s", inv.CSeq, stack.MethodCancel))
-	msg.SetHeader("Content-Length", "0")
+	msg.SetHeader(stack.HeaderVia, formatVia(inv.ViaTransport, inv.SIPHost, inv.SIPPort, inv.Branch))
+	msg.SetHeader(stack.HeaderMaxForwards, stack.DefaultMaxForwards)
+	msg.SetHeader(stack.HeaderFrom, formatOutboundFromHeader(inv.FromDisplayName, inv.FromUser, inv.SIPHost, inv.SIPPort, inv.FromTag))
+	msg.SetHeader(stack.HeaderTo, formatToHeader(inv.RequestURI))
+	msg.SetHeader(stack.HeaderCallID, inv.CallID)
+	msg.SetHeader(stack.HeaderCSeq, fmt.Sprintf("%d %s", inv.CSeq, stack.MethodCancel))
+	msg.SetHeader(stack.HeaderContentLength, "0")
 	return msg
 }
 

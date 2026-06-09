@@ -70,14 +70,14 @@ func (c *Coordinator) HandleRefer(req *stack.Message, addr *net.UDPAddr) (*stack
 	if c == nil || req == nil {
 		return nil, fmt.Errorf("sip/transfer: nil refer handler")
 	}
-	callID := normCallID(req.GetHeader("Call-ID"))
+	callID := normCallID(req.GetHeader(stack.HeaderCallID))
 	if callID == "" {
 		return uas.ErrorResponse(req, 400, "Bad Request")
 	}
 	if c.Dialogs.Get(callID) == nil {
 		return uas.ErrorResponse(req, 481, "Call/Transaction Does Not Exist")
 	}
-	referTo := strings.TrimSpace(req.GetHeader("Refer-To"))
+	referTo := strings.TrimSpace(req.GetHeader(stack.HeaderReferTo))
 	if referTo == "" {
 		return uas.ErrorResponse(req, 400, "Bad Request")
 	}
@@ -86,7 +86,7 @@ func (c *Coordinator) HandleRefer(req *stack.Message, addr *net.UDPAddr) (*stack
 	if err != nil {
 		return nil, err
 	}
-	resp.SetHeader("Content-Length", "0")
+	resp.SetHeader(stack.HeaderContentLength, "0")
 	return resp, nil
 }
 
