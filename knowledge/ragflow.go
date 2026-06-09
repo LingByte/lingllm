@@ -15,7 +15,7 @@ import (
 )
 
 // Copyright (c) 2026 LingByte
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: AGPL-3.0
 
 // RAGFlowHandler implements KnowledgeHandler using RAGFlow.
 // RAGFlow is an open-source RAG engine that provides document management,
