@@ -1,10 +1,10 @@
 package media
 
 // Copyright (c) 2026 LingByte
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: AGPL-3.0
 //
 // audio_util.go provides small audio helpers shared by synthesizer / recognizer.
-// They were moved here from pkg/utils so that pkg/utils can stay free of
+// They were moved here from utils so that utils can stay free of
 // audio-specific concerns.
 
 import (

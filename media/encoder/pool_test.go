@@ -68,7 +68,7 @@ var sink []int16
 // On Apple M1 the pooled version runs ~10× faster than fresh make()
 // once the sink keeps the optimiser honest.
 //
-//	go test -bench=BenchmarkPool -benchmem ./pkg/media/encoder/
+//	go test -bench=BenchmarkPool -benchmem ./media/encoder/
 func BenchmarkPool_Allocate(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		buf := make([]int16, 1920)

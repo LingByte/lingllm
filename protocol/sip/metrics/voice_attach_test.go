@@ -77,7 +77,7 @@ func TestVoiceAttachModeFallback_DropsUnknownPair(t *testing.T) {
 // can't share a type because the import would be a cycle, but they
 // MUST stringify identically.
 //
-// engine.Mode values are tested in pkg/dialog/engine. Here we just
+// engine.Mode values are tested in protocol/voice/dialog. Here we just
 // pin the strings — if engine.Mode ever changes its values, both
 // tests fail, and the fix is to update either side.
 func TestVoiceAttachConstants_PinStringValues(t *testing.T) {

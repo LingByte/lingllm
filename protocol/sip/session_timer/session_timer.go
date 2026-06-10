@@ -14,7 +14,7 @@
 //     trivially unit-testable)
 //   - Constants for default intervals + the standard expiry Reason
 //
-// What lives OUTSIDE this package (in pkg/sip/server and outbound):
+// What lives OUTSIDE this package (in protocol/sip/uas and protocol/sip/outbound):
 //
 //   - The watchdog goroutine that actually fires BYE on expiry
 //   - The hook from handleReInvite / handleUpdate that bumps the

@@ -19,7 +19,7 @@ package aliyunomni
 //   - DashScope ships a Python SDK only for this endpoint.
 //   - The wire format is small (~10 event types we care about) and stable.
 //   - We already wrote a sibling client for Qwen-TTS realtime
-//     (`pkg/synthesizer/aliyun.go`); the connection/auth/commit shape is
+//     (`synthesizer/aliyun.go`); the connection/auth/commit shape is
 //     identical so the cost of a second client is low.
 //
 // Mapping to realtime.Agent events:

@@ -25,8 +25,8 @@
 //     Yealink/Polycom phones and older Asterisk read Diversion.
 //
 // This package does parsing/formatting only. The wiring into INVITE
-// emission lives in pkg/sip/outbound; the wiring into the transfer
-// chain lives in pkg/sip/conversation.
+// emission lives in protocol/sip/outbound; the wiring into the transfer
+// chain lives in protocol/sip/transfer.
 package historyinfo
 
 import (
@@ -149,7 +149,7 @@ func ParseChain(raw string) []Entry {
 }
 
 // splitTopLevelCommas splits on commas not inside <...> or quoted
-// strings. Same pattern as pkg/sip/identity but inlined here so the
+// strings. Same pattern as protocol/sip/identity but inlined here so the
 // two packages stay independent.
 func splitTopLevelCommas(s string) []string {
 	var (

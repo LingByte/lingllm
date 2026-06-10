@@ -1,4 +1,4 @@
-// Package siprealtime wires pkg/realtime agents into SIP RTP call legs.
+// Package siprealtime wires realtime agents into SIP RTP call legs.
 package siprealtime
 
 import (

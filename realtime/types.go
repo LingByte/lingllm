@@ -11,9 +11,9 @@ package realtime
 // voice model. Caller PCM goes in, AI PCM/text/transcription events come out
 // over the same WebSocket. This is a peer abstraction to:
 //
-//   pkg/recognizer    — ASR only
-//   pkg/llm           — text-in / text-out chat
-//   pkg/synthesizer   — TTS only
+//   recognizer        — ASR only
+//   protocol          — text-in / text-out chat
+//   synthesizer       — TTS only
 //
 // The realtime layer collapses ASR+LLM+TTS into a single end-to-end stream
 // (Qwen-Omni realtime, GPT-4o realtime, Gemini Live, …). Plugging it into any

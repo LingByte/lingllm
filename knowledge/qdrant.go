@@ -17,7 +17,7 @@ import (
 )
 
 // Copyright (c) 2026 LingByte
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: AGPL-3.0
 
 type QdrantHandler struct {
 	BaseURL    string

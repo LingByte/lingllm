@@ -35,7 +35,7 @@ const (
 const (
 	// ModePipeline: ASR + dialog-plane WebSocket (LLM) + TTS.
 	ModePipeline = "pipeline"
-	// ModeRealtime: pkg/realtime multimodal agent (e.g. Qwen-Omni).
+	// ModeRealtime: realtime multimodal agent (e.g. Qwen-Omni).
 	ModeRealtime = "realtime"
 )
 

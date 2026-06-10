@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// realtimeOutPacer buffers assistant PCM from pkg/realtime and emits
+// realtimeOutPacer buffers assistant PCM from realtime and emits
 // fixed-size frames to the device at wall-clock rate.
 type realtimeOutPacer struct {
 	s *wsSession

@@ -27,7 +27,7 @@ func CanRawDatagramRelay(a, b media.CodecConfig) bool {
 	case "pcmu", "pcma":
 		return a.SampleRate == 8000 && a.Channels == 1
 	case "g722":
-		// Matches pkg/sip/session CallSession wiring (16 kHz PCM path; SDP clock remains 8000).
+		// Matches protocol/sipmedia/session CallSession wiring (16 kHz PCM path; SDP clock remains 8000).
 		return a.Channels == 1 && a.SampleRate == 16000
 	case "opus":
 		if a.Channels != 1 && a.Channels != 2 {

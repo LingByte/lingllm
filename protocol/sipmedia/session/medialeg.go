@@ -22,7 +22,7 @@ type MediaLegConfig struct {
 	AllowUplinkEcho   bool // if false (default), set media.KeySIPSuppressUplinkEcho
 }
 
-// MediaLeg is one RTP leg wired to a MediaSession (decode uplink / encode downlink) using pkg/media/encoder.
+// MediaLeg is one RTP leg wired to a MediaSession (decode uplink / encode downlink) using media/encoder.
 type MediaLeg struct {
 	callID   string
 	rtpSess  *siprtp.Session
@@ -173,7 +173,7 @@ func (l *MediaLeg) DTMFPayloadType() uint8 {
 }
 
 // StopMediaPreserveRTP stops the MediaSession and RTP transport loops but keeps the UDP socket
-// open so new SIPRTPTransport instances can attach for a two-leg bridge (same idea as pkg/sip/session.CallSession).
+// open so new SIPRTPTransport instances can attach for a two-leg bridge (same idea as protocol/sipmedia/session.CallSession).
 func (l *MediaLeg) StopMediaPreserveRTP() {
 	if l == nil {
 		return

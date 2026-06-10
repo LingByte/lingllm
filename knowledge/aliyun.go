@@ -13,7 +13,7 @@ import (
 )
 
 // Copyright (c) 2026 LingByte
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: AGPL-3.0
 
 // AliyunHandler implements KnowledgeHandler using Alibaba Bailian.
 // Alibaba Bailian is a cloud-based RAG service with document management,

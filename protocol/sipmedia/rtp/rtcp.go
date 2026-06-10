@@ -9,7 +9,7 @@ package rtp
 //
 //   - A separate UDP socket bound on RTP-port + 1 to receive RTCP
 //     (matches the `a=rtcp:<port+1>` line we already advertise in
-//     the SDP offer/answer; see pkg/sip/sdp/sdp.go). RTCP-MUX (RFC
+//     the SDP offer/answer; see protocol/sip/sdp/sdp.go). RTCP-MUX (RFC
 //     5761) is NOT implemented yet — it's a follow-up.
 //   - A periodic transmitter that fires a compound packet
 //     [SR | RR] + SDES(CNAME) every ~5s (RFC 3550 §6.2 default,

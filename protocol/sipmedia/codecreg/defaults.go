@@ -5,7 +5,7 @@ package codecreg
 
 // defaults.go ——内置 codec 描述符。
 //
-// 这里把原来 pkg/sip/session/negotiate.go 里 switch 的每个 case 改写成一份
+// 这里把原来 protocol/sipmedia/session/negotiate.go 里 switch 的每个 case 改写成一份
 // Descriptor。新加 codec 只需要在这个文件里追加一份描述符，无需修改协商代码。
 //
 // 偏好顺序保持与历史一致：pcma > pcmu > g722 > opus。

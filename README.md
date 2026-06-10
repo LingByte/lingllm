@@ -1,21 +1,43 @@
 # LingLLM
 
-A universal Go library for building LLM applications with support for multiple providers, tools, chains, and streaming.
+A Go framework for building LLM applications and real-time voice agents. It combines a
+provider-agnostic LLM core, a full RAG stack, and an extensive real-time speech and
+telephony layer (ASR, TTS, VAD, voice cloning, voiceprint, WebRTC/SIP) behind unified,
+strongly-typed interfaces.
+
+Version: 1.4.3 · Go 1.26 · ~77k lines of code with ~37k lines of tests.
 
 ## Features
 
-- **Multi-Provider Support**: Unified interface for OpenAI, Anthropic, and other LLM providers
-- **Tool/Function Calling**: Built-in support for tool execution and management
-- **Streaming**: Full support for streaming responses with event-based processing
-- **Chain Architecture**: Composable chain-based processing pipeline for complex workflows
-- **Tool Chains**: Automatic tool calling and result collection with configurable rounds
-- **Metrics**: Built-in metrics collection for monitoring API calls and performance
-- **Type-Safe**: Strongly typed Go interfaces and implementations
-- **Embeddings**: Multi-provider text embedding (OpenAI, Ollama, Nvidia, DashScope, Local)
-- **Full-Text Search**: Bleve-powered search with facets, highlighting, and suggestions
-- **Document Retrieval**: Multi-strategy retrieval (vector, keyword, hybrid) with reranking
-- **Chunking**: Intelligent document chunking with multiple strategies
-- **Knowledge Base**: Integrated knowledge management with vector databases (Qdrant, Milvus)
+**LLM core**
+- Multi-provider chat behind one interface — OpenAI, Anthropic, Ollama
+- Tool / function calling with automatic multi-round execution
+- Streaming responses with event-based processing
+- Composable chain pipeline for multi-step workflows
+- Conversation memory and prompt management
+- Built-in metrics for latency, token usage, and error rates
+
+**Retrieval (RAG)**
+- Multi-provider embeddings — OpenAI, Ollama, Nvidia, DashScope, Local
+- Bleve-powered full-text search with facets, highlighting, suggestions
+- Multi-strategy retrieval — vector, keyword, hybrid — with reranking
+- Document chunking with multiple strategies
+- Knowledge base over Qdrant and Milvus
+- Document parsing (PDF, Office, OCR via gosseract)
+
+**Real-time voice**
+- ASR (speech-to-text) — 13+ engines: AWS, Baidu, Deepgram, FunASR, Gladia, Google,
+  Tencent Cloud, Volcengine, Whisper, and more
+- TTS (text-to-speech) — 16+ engines: Azure, AWS, Google, OpenAI, ElevenLabs, MiniMax,
+  FishAudio, Coqui, Volcengine, Xunfei, Aliyun, Tencent, Qiniu, Baidu, and local
+- VAD (voice activity detection) — Volcengine, Xunfei
+- Voice cloning and voiceprint (speaker) recognition
+- Real-time conversational agents — Aliyun Omni, Volcengine dialogue
+- Audio media pipeline — codecs, resampling, denoise (RNNoise), low-pass, routing, event bus
+
+**Telephony**
+- SIP signaling stack and SIP media handling
+- WebRTC / RTP / SRTP / DTLS transport built on pion
 
 ## Installation
 
@@ -23,7 +45,50 @@ A universal Go library for building LLM applications with support for multiple p
 go get github.com/LingByte/lingllm
 ```
 
-## Quick Start
+## Project Structure
+
+```
+lingllm/
+├── protocol/        # Core LLM types, provider clients, and the SIP/voice stack
+│   ├── types.go     # ChatRequest, ChatResponse, Message, Tool, ChatStream
+│   ├── factory.go   # Provider factory
+│   ├── stream.go    # Streaming utilities and transformers
+│   ├── openai/      # OpenAI client
+│   ├── anthropic/   # Anthropic client
+│   ├── ollama/      # Ollama client
+│   ├── voice/       # Voice session protocol
+│   ├── sip/         # SIP signaling stack
+│   └── sipmedia/    # SIP media handling
+├── chain/           # Chain-based processing pipeline
+├── tools/           # Tool definitions, executors, and tool chains
+├── prompt/          # Prompt templates and management
+├── memory/          # Conversation memory (single and layered)
+├── metrics/         # Call metrics and monitoring
+│
+├── embedder/        # Text embedding providers (OpenAI, Ollama, Nvidia, DashScope, Local)
+├── search/          # Bleve full-text search engine
+├── retrieve/        # Multi-strategy retrieval (vector, keyword, hybrid)
+├── rerank/          # Document reranking
+├── chunk/           # Document chunking strategies
+├── knowledge/       # Knowledge base over Qdrant / Milvus
+├── parser/          # Document parsing (PDF, Office, OCR)
+├── cache/           # Caching layer
+│
+├── recognizer/      # ASR engines (speech-to-text)
+├── synthesizer/     # TTS engines (text-to-speech)
+├── vad/             # Voice activity detection
+├── voiceclone/      # Voice cloning
+├── voiceprint/      # Speaker (voiceprint) recognition
+├── realtime/        # Real-time conversational agents
+├── media/           # Audio media pipeline (codec, resample, denoise, routing)
+│
+├── utils/           # Shared text/audio utilities
+├── shared/          # Shared helpers
+├── examples/        # Runnable demos for each module
+└── version/         # Build version info
+```
+
+## LLM Core
 
 ### Basic Chat
 
@@ -33,546 +98,351 @@ package main
 import (
 	"context"
 	"fmt"
+
 	"github.com/LingByte/lingllm/protocol"
 )
 
 func main() {
-	// Create a chat request
 	req := protocol.NewChatRequest(
 		"gpt-4",
 		protocol.UserMessage("What is the capital of France?"),
 	)
 
-	// Call your model implementation
+	// Call your provider implementation:
 	// resp, err := model.Chat(context.Background(), *req)
-	// if err != nil {
-	//     panic(err)
-	// }
 	// fmt.Println(resp.FirstContent())
+	_ = req
+	_ = context.Background
+	_ = fmt.Println
 }
+```
+
+Build requests fluently:
+
+```go
+req := protocol.NewChatRequest("gpt-4",
+	protocol.SystemMessage("You are a helpful assistant"),
+	protocol.UserMessage("Hello"),
+).
+	WithMaxTokens(1000).
+	WithTemperature(0.7).
+	WithTopP(0.9).
+	WithStop("END")
 ```
 
 ### Tool Calling
 
 ```go
-package main
+executor := tools.NewSimpleToolExecutor()
 
-import (
-	"context"
-	"encoding/json"
-	"fmt"
-	"github.com/LingByte/lingllm/protocol"
-	"github.com/LingByte/lingllm/tools"
-)
+weatherTool := tools.WeatherTool()
+executor.RegisterTool(weatherTool, func(args json.RawMessage) (string, error) {
+	return "Sunny, 72°F", nil
+})
 
-func main() {
-	// Create a tool executor
-	executor := tools.NewSimpleToolExecutor()
+toolChain := tools.NewToolChain(model, executor)
+toolChain.WithMaxRounds(5)
 
-	// Register a tool
-	weatherTool := tools.WeatherTool()
-	executor.RegisterTool(weatherTool, func(args json.RawMessage) (string, error) {
-		// Implement weather lookup
-		return "Sunny, 72°F", nil
-	})
+req := protocol.NewChatRequest("gpt-4",
+	protocol.UserMessage("What's the weather in San Francisco?"))
 
-	// Create a tool chain
-	toolChain := tools.NewToolChain(model, executor)
-	toolChain.WithMaxRounds(5)
-
-	// Execute with tools
-	req := protocol.NewChatRequest(
-		"gpt-4",
-		protocol.UserMessage("What's the weather in San Francisco?"),
-	)
-	resp, err := toolChain.ExecuteWithTools(context.Background(), *req)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(resp.FirstContent())
+resp, err := toolChain.ExecuteWithTools(context.Background(), *req)
+if err != nil {
+	panic(err)
 }
+fmt.Println(resp.FirstContent())
 ```
 
 ### Streaming
 
 ```go
-package main
+stream, err := model.StreamChat(context.Background(), *req)
+if err != nil {
+	panic(err)
+}
+defer stream.Close()
 
-import (
-	"context"
-	"fmt"
-	"io"
-	"github.com/LingByte/lingllm/protocol"
-)
-
-func main() {
-	req := protocol.NewChatRequest(
-		"gpt-4",
-		protocol.UserMessage("Write a poem about Go programming"),
-	)
-
-	stream, err := model.StreamChat(context.Background(), *req)
+for {
+	chunk, err := stream.Recv()
+	if err == io.EOF {
+		break
+	}
 	if err != nil {
 		panic(err)
 	}
-	defer stream.Close()
-
-	for {
-		chunk, err := stream.Recv()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			panic(err)
-		}
-		fmt.Print(chunk.Delta)
-	}
+	fmt.Print(chunk.Delta)
 }
 ```
 
 ### Chains
 
 ```go
-package main
+c := chain.NewBuilder("my-chain").
+	AddModel("model1", model1).
+	AddProcessor("processor1", func(ctx context.Context, resp *protocol.ChatResponse) (*protocol.ChatResponse, error) {
+		return resp, nil
+	}).
+	AddModel("model2", model2).
+	Build()
 
-import (
-	"context"
-	"github.com/LingByte/lingllm/chain"
-	"github.com/LingByte/lingllm/protocol"
-)
-
-func main() {
-	// Build a chain with multiple models/processors
-	c := chain.NewBuilder("my-chain").
-		AddModel("model1", model1).
-		AddProcessor("processor1", func(ctx context.Context, resp *protocol.ChatResponse) (*protocol.ChatResponse, error) {
-			// Process response
-			return resp, nil
-		}).
-		AddModel("model2", model2).
-		Build()
-
-	req := protocol.NewChatRequest(
-		"gpt-4",
-		protocol.UserMessage("Hello"),
-	)
-
-	resp, err := c.Invoke(context.Background(), *req)
-	if err != nil {
-		panic(err)
-	}
-	println(resp.FirstContent())
+resp, err := c.Invoke(context.Background(), *protocol.NewChatRequest("gpt-4", protocol.UserMessage("Hello")))
+if err != nil {
+	panic(err)
 }
+println(resp.FirstContent())
 ```
+
+## Retrieval (RAG)
 
 ### Embeddings
 
 ```go
-package main
-
-import (
-	"context"
-	"github.com/LingByte/lingllm/embedder"
-)
-
-func main() {
-	// Create embedder with OpenAI
-	cfg := &embedder.Config{
-		Provider: "openai",
-		Model:    "text-embedding-3-small",
-		APIKey:   os.Getenv("OPENAI_API_KEY"),
-	}
-	
-	emb, err := embedder.Create(context.Background(), cfg)
-	if err != nil {
-		panic(err)
-	}
-	defer emb.Close()
-
-	// Single embedding
-	vec, err := emb.EmbedSingle(context.Background(), "Hello world")
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("Vector dimension: %d\n", len(vec))
-
-	// Batch embedding
-	vecs, err := emb.Embed(context.Background(), []string{
-		"Hello world",
-		"Goodbye world",
-	})
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("Embedded %d texts\n", len(vecs))
+cfg := &embedder.Config{
+	Provider: "openai",
+	Model:    "text-embedding-3-small",
+	APIKey:   os.Getenv("OPENAI_API_KEY"),
 }
+
+emb, err := embedder.Create(context.Background(), cfg)
+if err != nil {
+	panic(err)
+}
+defer emb.Close()
+
+vec, _ := emb.EmbedSingle(context.Background(), "Hello world")
+vecs, _ := emb.Embed(context.Background(), []string{"Hello world", "Goodbye world"})
+fmt.Printf("dim=%d, batch=%d\n", len(vec), len(vecs))
 ```
 
 ### Full-Text Search
 
 ```go
-package main
-
-import (
-	"context"
-	"github.com/LingByte/lingllm/search"
-)
-
-func main() {
-	// Create search engine
-	cfg := search.Config{
-		IndexPath:           "./search_index",
-		DefaultAnalyzer:     "standard",
-		DefaultSearchFields: []string{"title", "body"},
-	}
-	
-	m := search.BuildIndexMapping("standard")
-	engine, err := search.New(cfg, m)
-	if err != nil {
-		panic(err)
-	}
-	defer engine.Close()
-
-	// Index documents
-	docs := []search.Doc{
-		{
-			ID:   "1",
-			Type: "article",
-			Fields: map[string]interface{}{
-				"title": "Go Programming",
-				"body":  "Go is a fast and efficient language",
-			},
-		},
-	}
-	engine.IndexBatch(context.Background(), docs)
-
-	// Search
-	result, err := engine.Search(context.Background(), search.SearchRequest{
-		Keyword: "Go",
-		Size:    10,
-	})
-	if err != nil {
-		panic(err)
-	}
-	
-	fmt.Printf("Found %d results\n", result.Total)
-	for _, hit := range result.Hits {
-		fmt.Printf("- %s (score: %.2f)\n", hit.Fields["title"], hit.Score)
-	}
+cfg := search.Config{
+	IndexPath:           "./search_index",
+	DefaultAnalyzer:     "standard",
+	DefaultSearchFields: []string{"title", "body"},
 }
-```
-
-### Document Retrieval
-
-```go
-package main
-
-import (
-	"context"
-	"github.com/LingByte/lingllm/retrieve"
-)
-
-func main() {
-	// Create hybrid retriever
-	retriever, err := retrieve.New(retrieve.Config{
-		Strategy:     retrieve.StrategyHybrid,
-		Vector:       vectorStore,
-		Search:       searchEngine,
-		TopK:         10,
-		VectorWeight: 0.65,
-	})
-	if err != nil {
-		panic(err)
-	}
-
-	// Retrieve documents
-	docs, err := retriever.Retrieve(context.Background(), "machine learning", 10)
-	if err != nil {
-		panic(err)
-	}
-	
-	for i, doc := range docs {
-		fmt.Printf("%d. %s (score: %.2f)\n", i+1, doc.Content, doc.Score)
-	}
-}
-```
-
-### Knowledge Base
-
-```go
-package main
-
-import (
-	"context"
-	"github.com/LingByte/lingllm/knowledge"
-	"github.com/LingByte/lingllm/embedder"
-	"github.com/LingByte/lingllm/search"
-)
-
-func main() {
-	// Create embedder
-	emb, _ := embedder.Create(context.Background(), &embedder.Config{
-		Provider: "openai",
-		Model:    "text-embedding-3-small",
-		APIKey:   os.Getenv("OPENAI_API_KEY"),
-	})
-
-	// Create search engine
-	searchCfg := search.Config{
-		IndexPath:           "./search_index",
-		DefaultSearchFields: []string{"title", "content"},
-	}
-	m := search.BuildIndexMapping("standard")
-	searcher, _ := search.New(searchCfg, m)
-
-	// Create vector database handler
-	handler, _ := knowledge.NewKnowledgeHandler(knowledge.HandlerFactoryParams{
-		Provider: knowledge.ProviderQdrant,
-		QdrantConfig: &knowledge.QdrantConfig{
-			BaseURL: "http://localhost:6333",
-			APIKey:  "your-api-key",
-		},
-	})
-
-	// Create knowledge base
-	kb, _ := knowledge.NewKnowledgeBase(knowledge.KnowledgeBaseConfig{
-		Handler:  handler,
-		Embedder: emb,
-		Searcher: searcher,
-	})
-	defer kb.Close()
-
-	// Add document
-	kb.AddDocument(context.Background(), "doc1", "Title", "Content...", nil)
-
-	// Query
-	results, _ := kb.Query(context.Background(), "search query", 10)
-	for _, result := range results {
-		fmt.Printf("%s (score: %.2f)\n", result.Record.Title, result.Score)
-	}
-}
-```
-
-## Project Structure
-
-```
-lingllm/
-├── protocol/          # Core protocol definitions and interfaces
-│   ├── types.go       # ChatRequest, ChatResponse, Message, Tool definitions
-│   ├── factory.go     # Provider factory for creating clients
-│   ├── stream.go      # Streaming utilities and transformers
-│   └── ...
-├── tools/             # Tool execution and management
-│   ├── tools.go       # Tool definitions, executors, and chains
-│   └── ...
-├── chain/             # Chain-based processing pipeline
-│   ├── chain.go       # Chain composition and execution
-│   └── ...
-├── metrics/           # Metrics collection
-│   └── metrics.go     # Call metrics and monitoring
-├── embedder/          # Text embedding providers
-│   ├── types.go       # Core types and interfaces
-│   ├── local.go       # Local MD5-based embedder
-│   ├── openai.go      # OpenAI embeddings
-│   ├── ollama.go      # Ollama local embeddings
-│   ├── nvidia.go      # Nvidia enterprise embeddings
-│   ├── dashscope.go   # Alibaba DashScope embeddings
-│   ├── factory.go     # Embedder factory pattern
-│   └── *_test.go      # Comprehensive tests (80%+ coverage)
-├── search/            # Full-text search engine
-│   ├── types.go       # Search types and interfaces
-│   ├── engine.go      # Bleve-based search engine
-│   ├── mapping.go     # Index mapping configuration
-│   ├── query_builder.go # Query construction
-│   └── *_test.go      # Tests (96.1% coverage)
-├── retrieve/          # Multi-strategy document retrieval
-│   ├── types.go       # Retrieval types
-│   ├── config.go      # Configuration and factory
-│   ├── retriever.go   # Retrieval logic
-│   └── *_test.go      # Tests (80.6% coverage)
-├── chunk/             # Document chunking strategies
-│   └── ...
-├── knowledge/         # Knowledge base management
-│   ├── types.go       # Core types and interfaces
-│   ├── integration.go # KnowledgeBase integration
-│   ├── qdrant.go      # Qdrant vector database handler
-│   ├── milvus.go      # Milvus vector database handler
-│   ├── embedding.go   # Embedding client (Nvidia)
-│   ├── doc_type_detector.go # Document type detection
-│   ├── README.md      # Knowledge base documentation
-│   └── *_test.go      # Tests (40+ tests)
-├── utils/             # Shared utilities
-│   ├── clean.go       # Text cleaning utilities
-│   └── *_test.go      # Tests
-├── shared/            # Shared utilities
-├── examples/          # Example implementations
-│   ├── embedder-demo/ # Multi-provider embedding demo
-│   ├── search-demo/   # Full-text search demo
-│   └── ...
-└── go.mod
-```
-
-## Core Concepts
-
-### Protocol
-
-The `protocol` package defines the core interfaces and types:
-
-- **ChatModel**: Interface for language models
-- **ChatRequest**: Unified request format
-- **ChatResponse**: Normalized response format
-- **ChatStream**: Streaming interface
-- **Tool**: Tool/function definitions
-
-### Tools
-
-The `tools` package provides:
-
-- **ToolExecutor**: Interface for executing tools
-- **SimpleToolExecutor**: Basic implementation using function maps
-- **ToolChain**: Automatic tool calling with conversation management
-- **ToolCallParser**: Parse tool calls from model responses (ReAct, JSON formats)
-
-### Chains
-
-The `chain` package enables:
-
-- **Chain**: Sequential composition of nodes
-- **Node**: Composable units (models, processors, stream processors)
-- **Builder**: Fluent API for building chains
-- **ProcessingStream**: Stream transformation pipeline
-
-### Metrics
-
-The `metrics` package tracks:
-
-- API call latency
-- Token usage
-- Error rates
-- Provider-specific metrics
-
-### Embeddings
-
-The `embedder` package provides multi-provider text embeddings:
-
-- **OpenAI**: High-quality embeddings (1536 dimensions)
-- **Ollama**: Local deployment support (384 dimensions)
-- **Nvidia**: Enterprise-grade embeddings (1024+ dimensions)
-- **DashScope**: Alibaba's native API (64-2048 dimensions)
-- **Local**: MD5-based deterministic embeddings (384 dimensions)
-
-Features:
-- Unified interface across providers
-- Batch processing support
-- Configurable dimensions
-- Vector normalization
-- Factory pattern for easy provider switching
-
-### Search
-
-The `search` package provides full-text search powered by Bleve:
-
-- **Full-Text Search**: Keyword and phrase matching
-- **Advanced Queries**: Match, phrase, prefix, wildcard, regex, fuzzy
-- **Faceted Search**: Category aggregation and counting
-- **Highlighting**: Query term highlighting with HTML formatting
-- **Suggestions**: Autocomplete and search suggestions
-- **Pagination**: Offset-based result pagination
-- **Sorting**: Multi-field sorting support
-
-### Retrieval
-
-The `retrieve` package implements multi-strategy document retrieval:
-
-- **Vector Strategy**: Dense vector similarity search
-- **Keyword Strategy**: Full-text search
-- **Hybrid Strategy**: Combines vector and keyword with configurable weights
-- **Reranking**: Optional document re-scoring
-- **Min Score Filtering**: Quality control for results
-
-### Knowledge Base
-
-The `knowledge` package provides integrated knowledge management:
-
-- **Multi-Backend Support**: Qdrant and Milvus vector databases
-- **Intelligent Chunking**: Automatic document type detection and optimal chunking
-- **Semantic Search**: Vector-based similarity with embeddings
-- **Full-Text Search**: Keyword-based search integration
-- **Hybrid Retrieval**: Combine vector and keyword search
-- **Document Management**: Add, query, delete, and list documents
-- **Metadata Support**: Flexible metadata storage and filtering
-- **Document Type Detection**: Structured, Table/KV, Unstructured
-
-Features:
-- Automatic document chunking based on type
-- Embedding generation for semantic search
-- Integration with search engines
-- Multi-tenancy with namespaces
-- Health checks and monitoring
-
-## Supported Providers
-
-The library provides a unified interface for:
-
-- OpenAI (GPT-4, GPT-3.5, etc.)
-- Anthropic (Claude)
-- Local models (via compatible APIs)
-- Custom implementations
-
-## Message Types
-
-```go
-// Create messages
-msg := protocol.UserMessage("Hello")
-msg := protocol.SystemMessage("You are a helpful assistant")
-msg := protocol.AssistantMessage("Hi there!")
-msg := protocol.ToolMessage("Result", "tool_call_id")
-
-// Build requests
-req := protocol.NewChatRequest("gpt-4", msg1, msg2, msg3)
-req.WithMaxTokens(1000).
-    WithTemperature(0.7).
-    WithTopP(0.9).
-    WithStop("END")
-```
-
-## Error Handling
-
-```go
-resp, err := model.Chat(ctx, req)
+engine, err := search.New(cfg, search.BuildIndexMapping("standard"))
 if err != nil {
-	// Handle error
-	fmt.Printf("Error: %v\n", err)
+	panic(err)
+}
+defer engine.Close()
+
+engine.IndexBatch(context.Background(), []search.Doc{{
+	ID:   "1",
+	Type: "article",
+	Fields: map[string]interface{}{
+		"title": "Go Programming",
+		"body":  "Go is a fast and efficient language",
+	},
+}})
+
+result, _ := engine.Search(context.Background(), search.SearchRequest{Keyword: "Go", Size: 10})
+fmt.Printf("Found %d results\n", result.Total)
+```
+
+### Hybrid Retrieval
+
+```go
+retriever, err := retrieve.New(retrieve.Config{
+	Strategy:     retrieve.StrategyHybrid,
+	Vector:       vectorStore,
+	Search:       searchEngine,
+	TopK:         10,
+	VectorWeight: 0.65,
+})
+if err != nil {
+	panic(err)
+}
+
+docs, _ := retriever.Retrieve(context.Background(), "machine learning", 10)
+for i, doc := range docs {
+	fmt.Printf("%d. %s (score: %.2f)\n", i+1, doc.Content, doc.Score)
 }
 ```
 
-## Configuration
-
-Configure clients using provider-specific implementations:
+### Knowledge Base
 
 ```go
-// Example with environment variables
-apiKey := os.Getenv("OPENAI_API_KEY")
-// Create your provider-specific client
+emb, _ := embedder.Create(context.Background(), &embedder.Config{
+	Provider: "openai",
+	Model:    "text-embedding-3-small",
+	APIKey:   os.Getenv("OPENAI_API_KEY"),
+})
+
+searcher, _ := search.New(search.Config{
+	IndexPath:           "./search_index",
+	DefaultSearchFields: []string{"title", "content"},
+}, search.BuildIndexMapping("standard"))
+
+handler, _ := knowledge.NewKnowledgeHandler(knowledge.HandlerFactoryParams{
+	Provider: knowledge.ProviderQdrant,
+	QdrantConfig: &knowledge.QdrantConfig{
+		BaseURL: "http://localhost:6333",
+		APIKey:  "your-api-key",
+	},
+})
+
+kb, _ := knowledge.NewKnowledgeBase(knowledge.KnowledgeBaseConfig{
+	Handler:  handler,
+	Embedder: emb,
+	Searcher: searcher,
+})
+defer kb.Close()
+
+kb.AddDocument(context.Background(), "doc1", "Title", "Content...", nil)
+
+results, _ := kb.Query(context.Background(), "search query", 10)
+for _, r := range results {
+	fmt.Printf("%s (score: %.2f)\n", r.Record.Title, r.Score)
+}
 ```
+
+## Real-time Voice
+
+### Speech Recognition (ASR)
+
+All ASR engines implement `recognizer.SpeechRecognitionEngine`, created through a factory
+keyed by vendor. Recognition is callback-driven: you feed audio bytes in and receive
+transcript results as they arrive.
+
+```go
+// SpeechRecognitionEngine interface:
+//   Init(resultCb SpeechRecognitionResult, errorCb RecognitionError)
+//   Vendor() string
+//   ConnAndReceive(dialogId string) error
+//   SendAudioBytes(data []byte) error
+//   SendEnd() error
+//   StopConn() error
+
+factory := recognizer.NewTranscriberFactory()
+
+cfg, _ := recognizer.NewTranscriberConfigFromMap("qcloud", map[string]interface{}{
+	"appId":     "your-app-id",
+	"secretId":  "your-secret-id",
+	"secretKey": "your-secret-key",
+})
+
+engine, err := factory.CreateTranscriber(cfg)
+if err != nil {
+	panic(err)
+}
+
+engine.Init(
+	func(text string, isLast bool, duration time.Duration, uuid string) {
+		fmt.Printf("[%v] %s (final=%t)\n", duration, text, isLast)
+	},
+	func(err error, isFatal bool) {
+		fmt.Printf("asr error (fatal=%t): %v\n", isFatal, err)
+	},
+)
+
+if err := engine.ConnAndReceive("dialog-1"); err != nil {
+	panic(err)
+}
+
+engine.SendAudioBytes(pcmFrame) // feed 16kHz PCM frames
+engine.SendEnd()
+engine.StopConn()
+```
+
+Supported vendors: `qcloud`, `google`, `aws`, `baidu`, `deepgram`, `gladia`, `whisper`,
+`funasr`, `funasr_realtime`, `volcengine`, `volcengine_llm`, and more. Call
+`factory.GetSupportedVendors()` for the full list at runtime.
+
+### Speech Synthesis (TTS)
+
+TTS engines implement `synthesizer.AudioSynthesisEngine` and stream audio through an
+`AudioSynthesisHandler` callback.
+
+```go
+// AudioSynthesisEngine interface:
+//   Provider() TTSProvider
+//   Format() media.StreamFormat
+//   Synthesize(ctx, handler AudioSynthesisHandler, text string) error
+//   Close() error
+
+engine, err := synthesizer.NewAudioSynthesisEngine("elevenlabs", map[string]any{
+	"apiKey":  os.Getenv("ELEVENLABS_API_KEY"),
+	"voiceId": "your-voice-id",
+})
+if err != nil {
+	panic(err)
+}
+defer engine.Close()
+
+err = engine.Synthesize(context.Background(), myHandler, "Hello from LingLLM")
+```
+
+`myHandler` implements:
+
+```go
+type AudioSynthesisHandler interface {
+	OnMessage([]byte)                    // receive audio chunks
+	OnTimestamp(ts SentenceTimestamp)    // receive word/sentence timing
+}
+```
+
+Supported providers: `qiniu`, `xunfei`, `aliyun`, `qcloud`, `baidu`, `azure`, `google`,
+`aws`, `openai`, `elevenlabs`, `minimax`, `fishspeech`, `fishaudio`, `coqui`,
+`volcengine`, `volcengine_clone`, `local`, `local_gospeech`.
+
+### Other Voice Modules
+
+- **VAD** — `vad.NewDefaultFactory(logger)` creates voice-activity detectors (Volcengine, Xunfei).
+- **Voice cloning** — `voiceclone.NewFactory()` for clone workflows (Volcengine, Xunfei).
+- **Voiceprint** — `voiceprint.NewService(config, cache)` for speaker enrollment and identification.
+- **Real-time agents** — `realtime.NewAgentFromCredential(cfg, opts)` for full-duplex
+  conversational agents (Aliyun Omni, Volcengine dialogue).
+- **Media pipeline** — the `media` package provides codecs, resampling, RNNoise denoise,
+  low-pass filtering, routing, and an event bus for assembling audio processing stages.
+
+## Examples
+
+Runnable demos live under [`examples/`](examples/):
+
+| Demo | Covers |
+| --- | --- |
+| `anthropic-demo`, `openai-demo`, `ollama-demo` | Provider chat clients |
+| `tools-demo` | Tool / function calling |
+| `chain-demo` | Chain pipelines |
+| `prompt-demo` | Prompt templates |
+| `memory-demo`, `memory-layers-demo` | Conversation memory |
+| `embedder-demo` | Multi-provider embeddings |
+| `search-demo` | Full-text search |
+| `chunk-demo` | Document chunking |
+| `knowledge-demo`, `qdrant-demo` | Knowledge base |
+| `response-demo`, `batch-processing-demo` | Response handling / batching |
+| `voice-demo` | Voice session |
+| `voiceclone-volcengine-demo`, `voiceclone-xunfei-demo` | Voice cloning |
+| `sip-uas-demo`, `sip-outbound-demo`, `sip-signaling-server`, `sip-rtp-server`, `sip-split` | SIP telephony |
+
+## Core Interfaces
+
+| Interface | Package | Purpose |
+| --- | --- | --- |
+| `ChatModel` | `protocol` | Language model abstraction |
+| `ChatStream` | `protocol` | Streaming responses |
+| `Tool` / `ToolExecutor` | `tools` | Tool definitions and execution |
+| `Chain` / `Node` | `chain` | Composable processing pipeline |
+| `Embedder` | `embedder` | Text embedding |
+| `SpeechRecognitionEngine` | `recognizer` | ASR engines |
+| `AudioSynthesisEngine` | `synthesizer` | TTS engines |
+| `Agent` | `realtime` | Real-time conversational agents |
 
 ## Testing
 
-Run tests:
-
 ```bash
-go test ./...
+go test ./...           # run all tests
+go test -cover ./...    # with coverage
 ```
 
-Run tests with coverage:
-
-```bash
-go test -cover ./...
-```
+The `embedder`, `search`, `retrieve`, and `knowledge` modules carry high coverage
+(80%+, search at 96%+). Voice and SIP modules include extensive integration tests.
 
 ## Contributing
 
-Contributions are welcome! Please:
+Contributions are welcome:
 
 1. Fork the repository
 2. Create a feature branch
@@ -581,54 +451,4 @@ Contributions are welcome! Please:
 
 ## License
 
-MIT License - see LICENSE file for details
-
-## Modules Status
-
-### ✅ Completed
-
-- **Embedder Module** (80%+ coverage)
-  - 5 providers: OpenAI, Ollama, Nvidia, DashScope, Local
-  - Batch processing, vector normalization
-  - Comprehensive tests and demo
-
-- **Search Module** (96.1% coverage)
-  - Bleve-powered full-text search
-  - Advanced query types
-  - Facets, highlighting, suggestions
-  - 60+ tests
-
-- **Retrieve Module** (80.6% coverage)
-  - 3 strategies: Vector, Keyword, Hybrid
-  - Reranking support
-  - 26 tests
-
-- **Knowledge Base Module** (40+ tests)
-  - Multi-backend support (Qdrant, Milvus)
-  - Intelligent document chunking
-  - Semantic and keyword search
-  - Document type detection
-  - Metadata support
-  - Health checks
-
-- **Chunk Module**
-  - Multiple chunking strategies
-  - Configurable chunk sizes
-  - Overlap support
-
-### 📋 Roadmap
-
-- [ ] Official OpenAI provider implementation
-- [ ] Official Anthropic provider implementation
-- [ ] MCP (Model Context Protocol) integration
-- [ ] Caching layer for responses and embeddings
-- [ ] Advanced prompt engineering utilities
-- [ ] Evaluation framework
-- [ ] More tool examples and templates
-- [ ] Vector database integration (Qdrant, Milvus)
-- [ ] Knowledge base management utilities
-- [ ] RAG (Retrieval-Augmented Generation) pipeline
-
-## Support
-
-For issues, questions, or suggestions, please open an issue on GitHub.
+GNU Affero General Public License v3.0 (AGPL-3.0) — see the [LICENSE](LICENSE) file for details.
