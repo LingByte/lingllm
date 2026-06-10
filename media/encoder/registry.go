@@ -19,6 +19,8 @@ const (
 )
 
 func init() {
+	// Register OPUS codec when build tag is enabled
+	RegisterCodec(CodecOPUS, createOPUSEncode, createOPUSDecode)
 	RegisterCodec(CodecPCMU, createPCMUEncode, createPCMUDecode)
 	RegisterCodec(CodecPCMA, createPCMAEncode, createPCMADecode)
 	RegisterCodec(CodecPCM, PcmToPcm, PcmToPcm)
