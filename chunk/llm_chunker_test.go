@@ -2,7 +2,10 @@ package chunk
 
 import (
 	"context"
+	"errors"
 	"testing"
+
+	"github.com/LingByte/lingllm/protocol"
 )
 
 // Copyright (c) 2026 LingByte. All rights reserved.
@@ -38,6 +41,59 @@ func TestLLMChunker_ChunkEmptyText(t *testing.T) {
 	_, err := chunker.Chunk(context.Background(), "", nil)
 	if err != ErrEmptyText {
 		t.Errorf("expected ErrEmptyText, got %v", err)
+	}
+}
+
+type stubChatModel struct {
+	lastReq protocol.ChatRequest
+	resp    string
+}
+
+func (m *stubChatModel) Name() string { return "stub" }
+
+func (m *stubChatModel) Chat(ctx context.Context, req protocol.ChatRequest) (*protocol.ChatResponse, error) {
+	m.lastReq = req
+	return &protocol.ChatResponse{
+		Choices: []protocol.Choice{{
+			Message: protocol.Message{Role: protocol.RoleAssistant, Content: m.resp},
+		}},
+	}, nil
+}
+
+func (m *stubChatModel) StreamChat(ctx context.Context, req protocol.ChatRequest) (protocol.ChatStream, error) {
+	return nil, errors.New("not implemented")
+}
+
+func TestLLMChunker_UsesConfigModel(t *testing.T) {
+	model := &stubChatModel{
+		resp: `[{"text": "chunk 1", "title": "title 1"}]`,
+	}
+	chunker := NewLLMChunker(&Config{
+		Model:     "claude-3-5-sonnet-20241022",
+		ChatModel: model,
+	})
+
+	_, err := chunker.Chunk(context.Background(), "test text", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if model.lastReq.Model != "claude-3-5-sonnet-20241022" {
+		t.Errorf("expected configured model, got %q", model.lastReq.Model)
+	}
+}
+
+func TestLLMChunker_MissingModel(t *testing.T) {
+	chunker := NewLLMChunker(&Config{
+		ChatModel: &stubChatModel{},
+	})
+
+	_, err := chunker.Chunk(context.Background(), "test text", nil)
+	if err == nil {
+		t.Fatal("expected error for missing model")
+	}
+	if err.Error() != "Model is required" {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
 

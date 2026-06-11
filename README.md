@@ -5,7 +5,7 @@ provider-agnostic LLM core, a full RAG stack, and an extensive real-time speech 
 telephony layer (ASR, TTS, VAD, voice cloning, voiceprint, WebRTC/SIP) behind unified,
 strongly-typed interfaces.
 
-Version: 1.4.3 · Go 1.26 · ~77k lines of code with ~37k lines of tests.
+Version: 1.4.5 · Go 1.26 · ~77k lines of code with ~37k lines of tests.
 
 ## Features
 

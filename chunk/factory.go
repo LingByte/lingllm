@@ -105,6 +105,9 @@ func (f *LLMChunkerFactory) Create(ctx context.Context, cfg *Config) (Chunker, e
 	if cfg.ChatModel == nil {
 		return nil, fmt.Errorf("ChatModel is required for LLM chunker")
 	}
+	if cfg.Model == "" {
+		return nil, fmt.Errorf("Model is required for LLM chunker")
+	}
 
 	return NewLLMChunker(cfg), nil
 }

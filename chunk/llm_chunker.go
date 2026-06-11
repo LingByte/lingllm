@@ -72,12 +72,17 @@ func (c *LLMChunker) Chunk(ctx context.Context, text string, opts *ChunkOptions)
 		docTitle = strings.TrimSpace(opts.DocumentTitle)
 	}
 
+	model, err := c.resolveModel()
+	if err != nil {
+		return nil, err
+	}
+
 	// 构建提示词
 	prompt := buildChunkPrompt(text, docTitle, maxChars, overlap, minChars)
 
 	// 调用 LLM
 	req := protocol.ChatRequest{
-		Model: "gpt-4",
+		Model: model,
 		Messages: []protocol.Message{
 			{
 				Role:    protocol.RoleUser,
@@ -108,6 +113,15 @@ func (c *LLMChunker) Chunk(ctx context.Context, text string, opts *ChunkOptions)
 	}
 
 	return chunks, nil
+}
+
+func (c *LLMChunker) resolveModel() (string, error) {
+	if c.config != nil {
+		if model := strings.TrimSpace(c.config.Model); model != "" {
+			return model, nil
+		}
+	}
+	return "", errors.New("Model is required")
 }
 
 // buildChunkPrompt 构建分块提示词
