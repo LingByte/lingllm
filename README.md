@@ -8,7 +8,9 @@ Version: 1.4.5 · Go 1.26
 ## Features
 
 **LLM core**
-- Multi-provider chat behind one interface — OpenAI, Anthropic, Ollama
+- Multi-provider chat behind one interface — OpenAI, Anthropic, Ollama, Azure OpenAI,
+  Gemini, DashScope, Cohere, plus OpenAI-compatible presets (xAI, Mistral, Volcengine Ark,
+  Hunyuan, ERNIE, vLLM, LM Studio, LocalAI)
 - Tool / function calling with automatic multi-round execution
 - Streaming responses with event-based processing
 - Composable chain pipeline for multi-step workflows
@@ -37,9 +39,14 @@ lingllm/
 │   ├── types.go     # ChatRequest, ChatResponse, Message, Tool, ChatStream
 │   ├── factory.go   # Provider factory
 │   ├── stream.go    # Streaming utilities and transformers
-│   ├── openai/      # OpenAI client
+│   ├── openai/      # OpenAI + OpenAI-compatible client
 │   ├── anthropic/   # Anthropic client
-│   └── ollama/      # Ollama client
+│   ├── ollama/      # Ollama client
+│   ├── azure/       # Azure OpenAI client
+│   ├── gemini/      # Google Gemini client
+│   ├── dashscope/   # Alibaba DashScope native client
+│   ├── cohere/      # Cohere Chat v2 client
+│   └── compat/      # OpenAI-compatible provider presets
 ├── chain/           # Chain-based processing pipeline
 ├── tools/           # Tool definitions, executors, and tool chains
 ├── prompt/          # Prompt templates and management
@@ -89,6 +96,43 @@ func main() {
 	_ = fmt.Println
 }
 ```
+
+### Providers
+
+Blank-import the provider package to register it, then create a client via the factory:
+
+```go
+import (
+	"github.com/LingByte/lingllm/protocol"
+	_ "github.com/LingByte/lingllm/protocol/gemini"
+	_ "github.com/LingByte/lingllm/protocol/compat" // xai, mistral, volcengine, hunyuan, ernie, vllm, ...
+)
+
+client, err := protocol.NewClient(protocol.ClientConfig{
+	Provider: protocol.ProviderGemini,
+	APIKey:   os.Getenv("GEMINI_API_KEY"),
+})
+
+// Azure OpenAI
+azure, err := protocol.NewClient(protocol.ClientConfig{
+	Provider:   protocol.ProviderAzure,
+	APIKey:     os.Getenv("AZURE_OPENAI_API_KEY"),
+	BaseURL:    "https://YOUR_RESOURCE.openai.azure.com",
+	APIVersion: "2024-10-21",
+	Deployment: "gpt-4o",
+})
+
+// DashScope native (enable thinking via metadata)
+ds, err := protocol.NewClient(protocol.ClientConfig{
+	Provider: protocol.ProviderDashScope,
+	APIKey:   os.Getenv("DASHSCOPE_API_KEY"),
+})
+req := protocol.NewChatRequest("qwen-plus", protocol.UserMessage("hi")).
+	WithMetadata("enable_thinking", "true")
+```
+
+OpenAI-compatible presets use default BaseURLs (override with `BaseURL`):
+`xai`, `mistral`, `volcengine`, `hunyuan`, `ernie`, `vllm`, `lmstudio`, `localai`.
 
 Build requests fluently:
 

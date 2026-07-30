@@ -18,11 +18,13 @@ const defaultBaseURL = "https://api.openai.com/v1"
 
 // Config configures the OpenAI-compatible chat client.
 type Config struct {
-	APIKey       string
-	BaseURL      string
-	HTTPClient   *http.Client
-	Organization string
-	Project      string
+	APIKey           string
+	BaseURL          string
+	HTTPClient       *http.Client
+	Organization     string
+	Project          string
+	Name             string // provider name for metrics; defaults to "openai"
+	AllowEmptyAPIKey bool   // local OpenAI-compatible servers may omit the key
 }
 
 // Client implements llm.ChatModel for OpenAI's /chat/completions endpoint.
@@ -33,12 +35,16 @@ type Client struct {
 
 // NewClient constructs a client with sane defaults.
 func NewClient(cfg Config) (*Client, error) {
-	if cfg.APIKey == "" {
+	if cfg.APIKey == "" && !cfg.AllowEmptyAPIKey {
 		return nil, fmt.Errorf("openai api key is required")
 	}
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = defaultBaseURL
 	}
+	if cfg.Name == "" {
+		cfg.Name = "openai"
+	}
+	cfg.BaseURL = strings.TrimRight(cfg.BaseURL, "/")
 	client := cfg.HTTPClient
 	if client == nil {
 		client = &http.Client{Timeout: 30 * time.Second}
@@ -46,7 +52,25 @@ func NewClient(cfg Config) (*Client, error) {
 	return &Client{cfg: cfg, httpClient: client}, nil
 }
 
-func (c *Client) Name() string { return "openai" }
+func (c *Client) Name() string { return c.cfg.Name }
+
+// RegisterCompatible registers an OpenAI-compatible provider preset with a default BaseURL.
+func RegisterCompatible(provider protocol.ProviderType, defaultBaseURL string, allowEmptyAPIKey bool) {
+	protocol.RegisterFactory(provider, func(cfg protocol.ClientConfig) (protocol.ChatModel, error) {
+		base := cfg.BaseURL
+		if base == "" {
+			base = defaultBaseURL
+		}
+		return NewClient(Config{
+			APIKey:           cfg.APIKey,
+			BaseURL:          base,
+			Organization:     cfg.Organization,
+			Project:          cfg.Project,
+			Name:             string(provider),
+			AllowEmptyAPIKey: allowEmptyAPIKey,
+		})
+	})
+}
 
 func init() {
 	protocol.RegisterFactory(protocol.ProviderOpenAI, func(cfg protocol.ClientConfig) (protocol.ChatModel, error) {
@@ -55,6 +79,7 @@ func init() {
 			BaseURL:      cfg.BaseURL,
 			Organization: cfg.Organization,
 			Project:      cfg.Project,
+			Name:         "openai",
 		})
 	})
 }
@@ -92,8 +117,10 @@ func (c *Client) Chat(ctx context.Context, req protocol.ChatRequest) (*protocol.
 	if err != nil {
 		return nil, fmt.Errorf("build openai request: %w", err)
 	}
-	reqHTTP.Header.Set("Authorization", "Bearer "+c.cfg.APIKey)
 	reqHTTP.Header.Set("Content-Type", "application/json")
+	if c.cfg.APIKey != "" {
+		reqHTTP.Header.Set("Authorization", "Bearer "+c.cfg.APIKey)
+	}
 	if c.cfg.Organization != "" {
 		reqHTTP.Header.Set("OpenAI-Organization", c.cfg.Organization)
 	}
@@ -175,9 +202,11 @@ func (c *Client) StreamChat(ctx context.Context, req protocol.ChatRequest) (prot
 	if err != nil {
 		return nil, fmt.Errorf("build openai request: %w", err)
 	}
-	reqHTTP.Header.Set("Authorization", "Bearer "+c.cfg.APIKey)
 	reqHTTP.Header.Set("Content-Type", "application/json")
 	reqHTTP.Header.Set("Accept", "text/event-stream")
+	if c.cfg.APIKey != "" {
+		reqHTTP.Header.Set("Authorization", "Bearer "+c.cfg.APIKey)
+	}
 	if c.cfg.Organization != "" {
 		reqHTTP.Header.Set("OpenAI-Organization", c.cfg.Organization)
 	}
@@ -200,6 +229,7 @@ func (c *Client) StreamChat(ctx context.Context, req protocol.ChatRequest) (prot
 		body:         httpResp.Body,
 		startAt:      start,
 		model:        req.Model,
+		provider:     c.Name(),
 		httpStatus:   httpResp.StatusCode,
 		requestBytes: len(body),
 	}
@@ -239,6 +269,7 @@ type openAIStream struct {
 	firstAt       time.Time
 	endAt         time.Time
 	model         string
+	provider      string
 	usage         protocol.TokenUsage
 	chunks        int
 	bytes         int
@@ -333,8 +364,12 @@ func (s *openAIStream) Close() error {
 }
 
 func (s *openAIStream) Metrics() metrics.CallMetrics {
+	provider := s.provider
+	if provider == "" {
+		provider = "openai"
+	}
 	return metrics.CallMetrics{
-		Provider:         "openai",
+		Provider:         provider,
 		Model:            s.model,
 		StartAt:          s.startAt,
 		FirstAt:          s.firstAt,

@@ -10,6 +10,22 @@ const (
 	ProviderAnthropic      ProviderType = "anthropic"
 	ProviderOllama         ProviderType = "ollama"
 	ProviderOpenAIResponse ProviderType = "openai-response"
+
+	// Native protocol clients.
+	ProviderAzure     ProviderType = "azure"
+	ProviderGemini    ProviderType = "gemini"
+	ProviderDashScope ProviderType = "dashscope"
+	ProviderCohere    ProviderType = "cohere"
+
+	// OpenAI-compatible presets (reuse protocol/openai with default BaseURL).
+	ProviderXAI      ProviderType = "xai"
+	ProviderMistral  ProviderType = "mistral"
+	ProviderVolcArk  ProviderType = "volcengine"
+	ProviderHunyuan  ProviderType = "hunyuan"
+	ProviderErnie    ProviderType = "ernie"
+	ProviderVLLM     ProviderType = "vllm"
+	ProviderLMStudio ProviderType = "lmstudio"
+	ProviderLocalAI  ProviderType = "localai"
 )
 
 // ClientConfig holds configuration for creating LLM clients
@@ -19,6 +35,10 @@ type ClientConfig struct {
 	BaseURL      string
 	Organization string // OpenAI only
 	Project      string // OpenAI only
+	// APIVersion is used by Azure OpenAI (e.g. "2024-10-21").
+	APIVersion string
+	// Deployment is the Azure OpenAI deployment name. When empty, ChatRequest.Model is used.
+	Deployment string
 }
 
 // ClientFactory is a function that creates ChatModel instances

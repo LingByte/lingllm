@@ -150,17 +150,28 @@ func TestChoice(t *testing.T) {
 }
 
 func TestProviderConstants(t *testing.T) {
-	if string(ProviderOpenAI) != "openai" {
-		t.Errorf("ProviderOpenAI should be 'openai'")
+	want := map[ProviderType]string{
+		ProviderOpenAI:         "openai",
+		ProviderAnthropic:      "anthropic",
+		ProviderOllama:         "ollama",
+		ProviderOpenAIResponse: "openai-response",
+		ProviderAzure:          "azure",
+		ProviderGemini:         "gemini",
+		ProviderDashScope:      "dashscope",
+		ProviderCohere:         "cohere",
+		ProviderXAI:            "xai",
+		ProviderMistral:        "mistral",
+		ProviderVolcArk:        "volcengine",
+		ProviderHunyuan:        "hunyuan",
+		ProviderErnie:          "ernie",
+		ProviderVLLM:           "vllm",
+		ProviderLMStudio:       "lmstudio",
+		ProviderLocalAI:        "localai",
 	}
-	if string(ProviderAnthropic) != "anthropic" {
-		t.Errorf("ProviderAnthropic should be 'anthropic'")
-	}
-	if string(ProviderOllama) != "ollama" {
-		t.Errorf("ProviderOllama should be 'ollama'")
-	}
-	if string(ProviderOpenAIResponse) != "openai-response" {
-		t.Errorf("ProviderOpenAIResponse should be 'openai-response'")
+	for p, s := range want {
+		if string(p) != s {
+			t.Errorf("%v should be %q, got %q", p, s, string(p))
+		}
 	}
 }
 
