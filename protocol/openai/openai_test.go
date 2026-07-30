@@ -296,3 +296,171 @@ func TestOpenAIStreamSkipsNonDataLines(t *testing.T) {
 		t.Fatalf("Recv failed: chunk=%+v err=%v", chunk, err)
 	}
 }
+
+func TestRegisterCompatibleAndEmptyAPIKey(t *testing.T) {
+	const provider protocol.ProviderType = "openai-compat-test-provider"
+	RegisterCompatible(provider, "http://127.0.0.1:9/v1", true)
+	client, err := protocol.NewClient(protocol.ClientConfig{Provider: provider})
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	if client.Name() != string(provider) {
+		t.Fatalf("name=%q", client.Name())
+	}
+
+	c, err := NewClient(Config{AllowEmptyAPIKey: true, Name: "local", BaseURL: "http://127.0.0.1:9/v1/"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Name() != "local" || c.cfg.BaseURL != "http://127.0.0.1:9/v1" {
+		t.Fatalf("client=%+v", c.cfg)
+	}
+}
+
+func TestChatWithoutAuthorizationHeader(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "" {
+			t.Fatalf("unexpected auth header %q", r.Header.Get("Authorization"))
+		}
+		fmt.Fprint(w, `{"id":"1","created":1,"model":"m","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{}}`)
+	}))
+	defer server.Close()
+	client, _ := NewClient(Config{AllowEmptyAPIKey: true, BaseURL: server.URL, Name: "vllm"})
+	resp, err := client.Chat(context.Background(), *protocol.NewChatRequest("m", protocol.UserMessage("hi")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Metrics.Provider != "vllm" {
+		t.Fatalf("provider=%q", resp.Metrics.Provider)
+	}
+}
+
+func TestToOpenAIMessagesToolRole(t *testing.T) {
+	out := toOpenAIMessages([]protocol.Message{
+		{Role: protocol.RoleTool, Content: "result"},
+		{Role: protocol.RoleUser, Content: "hi"},
+	})
+	if out[0].Role != "tool" || out[1].Role != "user" {
+		t.Fatalf("roles=%+v", out)
+	}
+}
+
+func TestOpenAIStreamMetricsDefaultProvider(t *testing.T) {
+	m := (&openAIStream{model: "m"}).Metrics()
+	if m.Provider != "openai" {
+		t.Fatalf("provider=%q", m.Provider)
+	}
+}
+
+type failRoundTripper struct{}
+
+func (failRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, io.ErrUnexpectedEOF
+}
+
+func TestTransportErrors(t *testing.T) {
+	client, _ := NewClient(Config{
+		APIKey: "k", HTTPClient: &http.Client{Transport: failRoundTripper{}},
+	})
+	req := *protocol.NewChatRequest("m", protocol.UserMessage("hi"))
+	if _, err := client.Chat(context.Background(), req); err == nil {
+		t.Fatal("expected chat transport error")
+	}
+	if _, err := client.StreamChat(context.Background(), req); err == nil {
+		t.Fatal("expected stream transport error")
+	}
+}
+
+func TestStreamChatWithoutAuthAndOrg(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "" {
+			t.Fatalf("unexpected auth")
+		}
+		fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"z\"}}]}\n\ndata: [DONE]\n\n")
+	}))
+	defer server.Close()
+	client, _ := NewClient(Config{AllowEmptyAPIKey: true, BaseURL: server.URL, Name: "localai"})
+	stream, err := client.StreamChat(context.Background(), *protocol.NewChatRequest("m", protocol.UserMessage("hi")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stream.Close()
+	chunk, err := stream.Recv()
+	if err != nil || chunk.Delta != "z" {
+		t.Fatalf("chunk=%+v err=%v", chunk, err)
+	}
+	m := stream.Metrics()
+	if m.Provider != "localai" {
+		t.Fatalf("provider=%q", m.Provider)
+	}
+}
+
+type errBody struct{}
+
+func (errBody) Read([]byte) (int, error) { return 0, io.ErrUnexpectedEOF }
+func (errBody) Close() error             { return nil }
+
+type errBodyRoundTripper struct{}
+
+func (errBodyRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	return &http.Response{StatusCode: 200, Body: errBody{}, Header: make(http.Header)}, nil
+}
+
+func TestChatReadBodyError(t *testing.T) {
+	client, _ := NewClient(Config{
+		APIKey: "k", BaseURL: "https://example.invalid",
+		HTTPClient: &http.Client{Transport: errBodyRoundTripper{}},
+	})
+	if _, err := client.Chat(context.Background(), *protocol.NewChatRequest("m", protocol.UserMessage("hi"))); err == nil {
+		t.Fatal("expected read error")
+	}
+}
+
+func TestChatDecodeError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("{"))
+	}))
+	defer server.Close()
+	client, _ := NewClient(Config{APIKey: "k", BaseURL: server.URL})
+	if _, err := client.Chat(context.Background(), *protocol.NewChatRequest("m", protocol.UserMessage("hi"))); err == nil {
+		t.Fatal("expected decode error")
+	}
+}
+
+func TestStreamChatOrgProjectHeaders(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("OpenAI-Organization") != "org" || r.Header.Get("OpenAI-Project") != "proj" {
+			t.Fatalf("headers org=%q proj=%q", r.Header.Get("OpenAI-Organization"), r.Header.Get("OpenAI-Project"))
+		}
+		fmt.Fprint(w, "data: [DONE]\n\n")
+	}))
+	defer server.Close()
+	client, _ := NewClient(Config{APIKey: "k", BaseURL: server.URL, Organization: "org", Project: "proj"})
+	stream, err := client.StreamChat(context.Background(), *protocol.NewChatRequest("m", protocol.UserMessage("hi")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stream.Close()
+	if _, err := stream.Recv(); err != io.EOF {
+		t.Fatalf("want EOF got %v", err)
+	}
+}
+
+type boomReader struct{}
+
+func (boomReader) Read([]byte) (int, error) { return 0, fmt.Errorf("boom") }
+func (boomReader) Close() error             { return nil }
+
+func TestStreamRecvNonEOFReadError(t *testing.T) {
+	s := &openAIStream{body: boomReader{}}
+	if _, err := s.Recv(); err == nil || err.Error() != "boom" {
+		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestInvalidURL(t *testing.T) {
+	client, _ := NewClient(Config{APIKey: "k", BaseURL: "http://example.com/" + string([]byte{0x7f})})
+	req := *protocol.NewChatRequest("m", protocol.UserMessage("hi"))
+	_, _ = client.Chat(context.Background(), req)
+	_, _ = client.StreamChat(context.Background(), req)
+}

@@ -79,13 +79,13 @@ func (c *Client) endpoint(deployment string) string {
 // Chat executes a non-streaming chat completion.
 func (c *Client) Chat(ctx context.Context, req protocol.ChatRequest) (*protocol.ChatResponse, error) {
 	start := time.Now()
+	if req.Model == "" && c.cfg.Deployment != "" {
+		req.Model = c.cfg.Deployment
+	}
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
 	deployment := c.deployment(req)
-	if deployment == "" {
-		return nil, fmt.Errorf("azure deployment is required (set ClientConfig.Deployment or ChatRequest.Model)")
-	}
 
 	payload := map[string]any{
 		"messages": toMessages(req.Messages),
@@ -156,13 +156,13 @@ func (c *Client) Chat(ctx context.Context, req protocol.ChatRequest) (*protocol.
 // StreamChat streams chat completion deltas via SSE.
 func (c *Client) StreamChat(ctx context.Context, req protocol.ChatRequest) (protocol.ChatStream, error) {
 	start := time.Now()
+	if req.Model == "" && c.cfg.Deployment != "" {
+		req.Model = c.cfg.Deployment
+	}
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
 	deployment := c.deployment(req)
-	if deployment == "" {
-		return nil, fmt.Errorf("azure deployment is required (set ClientConfig.Deployment or ChatRequest.Model)")
-	}
 
 	payload := map[string]any{
 		"messages": toMessages(req.Messages),
