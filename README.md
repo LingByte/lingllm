@@ -1,11 +1,9 @@
 # LingLLM
 
-A Go framework for building LLM applications and real-time voice agents. It combines a
-provider-agnostic LLM core, a full RAG stack, and an extensive real-time speech and
-telephony layer (ASR, TTS, VAD, voice cloning, voiceprint, WebRTC/SIP) behind unified,
-strongly-typed interfaces.
+A Go framework for building LLM applications. It combines a provider-agnostic LLM core
+and a full RAG stack behind unified, strongly-typed interfaces.
 
-Version: 1.4.5 · Go 1.26 · ~77k lines of code with ~37k lines of tests.
+Version: 1.4.5 · Go 1.26
 
 ## Features
 
@@ -25,20 +23,6 @@ Version: 1.4.5 · Go 1.26 · ~77k lines of code with ~37k lines of tests.
 - Knowledge base over Qdrant and Milvus
 - Document parsing (PDF, Office, OCR via gosseract)
 
-**Real-time voice**
-- ASR (speech-to-text) — 13+ engines: AWS, Baidu, Deepgram, FunASR, Gladia, Google,
-  Tencent Cloud, Volcengine, Whisper, and more
-- TTS (text-to-speech) — 16+ engines: Azure, AWS, Google, OpenAI, ElevenLabs, MiniMax,
-  FishAudio, Coqui, Volcengine, Xunfei, Aliyun, Tencent, Qiniu, Baidu, and local
-- VAD (voice activity detection) — Volcengine, Xunfei
-- Voice cloning and voiceprint (speaker) recognition
-- Real-time conversational agents — Aliyun Omni, Volcengine dialogue
-- Audio media pipeline — codecs, resampling, denoise (RNNoise), low-pass, routing, event bus
-
-**Telephony**
-- SIP signaling stack and SIP media handling
-- WebRTC / RTP / SRTP / DTLS transport built on pion
-
 ## Installation
 
 ```bash
@@ -49,16 +33,13 @@ go get github.com/LingByte/lingllm
 
 ```
 lingllm/
-├── protocol/        # Core LLM types, provider clients, and the SIP/voice stack
+├── protocol/        # Core LLM types and provider clients
 │   ├── types.go     # ChatRequest, ChatResponse, Message, Tool, ChatStream
 │   ├── factory.go   # Provider factory
 │   ├── stream.go    # Streaming utilities and transformers
 │   ├── openai/      # OpenAI client
 │   ├── anthropic/   # Anthropic client
-│   ├── ollama/      # Ollama client
-│   ├── voice/       # Voice session protocol
-│   ├── sip/         # SIP signaling stack
-│   └── sipmedia/    # SIP media handling
+│   └── ollama/      # Ollama client
 ├── chain/           # Chain-based processing pipeline
 ├── tools/           # Tool definitions, executors, and tool chains
 ├── prompt/          # Prompt templates and management
@@ -74,15 +55,7 @@ lingllm/
 ├── parser/          # Document parsing (PDF, Office, OCR)
 ├── cache/           # Caching layer
 │
-├── recognizer/      # ASR engines (speech-to-text)
-├── synthesizer/     # TTS engines (text-to-speech)
-├── vad/             # Voice activity detection
-├── voiceclone/      # Voice cloning
-├── voiceprint/      # Speaker (voiceprint) recognition
-├── realtime/        # Real-time conversational agents
-├── media/           # Audio media pipeline (codec, resample, denoise, routing)
-│
-├── utils/           # Shared text/audio utilities
+├── utils/           # Shared text utilities
 ├── shared/          # Shared helpers
 ├── examples/        # Runnable demos for each module
 └── version/         # Build version info
@@ -298,105 +271,6 @@ for _, r := range results {
 }
 ```
 
-## Real-time Voice
-
-### Speech Recognition (ASR)
-
-All ASR engines implement `recognizer.SpeechRecognitionEngine`, created through a factory
-keyed by vendor. Recognition is callback-driven: you feed audio bytes in and receive
-transcript results as they arrive.
-
-```go
-// SpeechRecognitionEngine interface:
-//   Init(resultCb SpeechRecognitionResult, errorCb RecognitionError)
-//   Vendor() string
-//   ConnAndReceive(dialogId string) error
-//   SendAudioBytes(data []byte) error
-//   SendEnd() error
-//   StopConn() error
-
-factory := recognizer.NewTranscriberFactory()
-
-cfg, _ := recognizer.NewTranscriberConfigFromMap("qcloud", map[string]interface{}{
-	"appId":     "your-app-id",
-	"secretId":  "your-secret-id",
-	"secretKey": "your-secret-key",
-})
-
-engine, err := factory.CreateTranscriber(cfg)
-if err != nil {
-	panic(err)
-}
-
-engine.Init(
-	func(text string, isLast bool, duration time.Duration, uuid string) {
-		fmt.Printf("[%v] %s (final=%t)\n", duration, text, isLast)
-	},
-	func(err error, isFatal bool) {
-		fmt.Printf("asr error (fatal=%t): %v\n", isFatal, err)
-	},
-)
-
-if err := engine.ConnAndReceive("dialog-1"); err != nil {
-	panic(err)
-}
-
-engine.SendAudioBytes(pcmFrame) // feed 16kHz PCM frames
-engine.SendEnd()
-engine.StopConn()
-```
-
-Supported vendors: `qcloud`, `google`, `aws`, `baidu`, `deepgram`, `gladia`, `whisper`,
-`funasr`, `funasr_realtime`, `volcengine`, `volcengine_llm`, and more. Call
-`factory.GetSupportedVendors()` for the full list at runtime.
-
-### Speech Synthesis (TTS)
-
-TTS engines implement `synthesizer.AudioSynthesisEngine` and stream audio through an
-`AudioSynthesisHandler` callback.
-
-```go
-// AudioSynthesisEngine interface:
-//   Provider() TTSProvider
-//   Format() media.StreamFormat
-//   Synthesize(ctx, handler AudioSynthesisHandler, text string) error
-//   Close() error
-
-engine, err := synthesizer.NewAudioSynthesisEngine("elevenlabs", map[string]any{
-	"apiKey":  os.Getenv("ELEVENLABS_API_KEY"),
-	"voiceId": "your-voice-id",
-})
-if err != nil {
-	panic(err)
-}
-defer engine.Close()
-
-err = engine.Synthesize(context.Background(), myHandler, "Hello from LingLLM")
-```
-
-`myHandler` implements:
-
-```go
-type AudioSynthesisHandler interface {
-	OnMessage([]byte)                    // receive audio chunks
-	OnTimestamp(ts SentenceTimestamp)    // receive word/sentence timing
-}
-```
-
-Supported providers: `qiniu`, `xunfei`, `aliyun`, `qcloud`, `baidu`, `azure`, `google`,
-`aws`, `openai`, `elevenlabs`, `minimax`, `fishspeech`, `fishaudio`, `coqui`,
-`volcengine`, `volcengine_clone`, `local`, `local_gospeech`.
-
-### Other Voice Modules
-
-- **VAD** — `vad.NewDefaultFactory(logger)` creates voice-activity detectors (Volcengine, Xunfei).
-- **Voice cloning** — `voiceclone.NewFactory()` for clone workflows (Volcengine, Xunfei).
-- **Voiceprint** — `voiceprint.NewService(config, cache)` for speaker enrollment and identification.
-- **Real-time agents** — `realtime.NewAgentFromCredential(cfg, opts)` for full-duplex
-  conversational agents (Aliyun Omni, Volcengine dialogue).
-- **Media pipeline** — the `media` package provides codecs, resampling, RNNoise denoise,
-  low-pass filtering, routing, and an event bus for assembling audio processing stages.
-
 ## Examples
 
 Runnable demos live under [`examples/`](examples/):
@@ -413,9 +287,6 @@ Runnable demos live under [`examples/`](examples/):
 | `chunk-demo` | Document chunking |
 | `knowledge-demo`, `qdrant-demo` | Knowledge base |
 | `response-demo`, `batch-processing-demo` | Response handling / batching |
-| `voice-demo` | Voice session |
-| `voiceclone-volcengine-demo`, `voiceclone-xunfei-demo` | Voice cloning |
-| `sip-uas-demo`, `sip-outbound-demo`, `sip-signaling-server`, `sip-rtp-server`, `sip-split` | SIP telephony |
 
 ## Core Interfaces
 
@@ -426,9 +297,6 @@ Runnable demos live under [`examples/`](examples/):
 | `Tool` / `ToolExecutor` | `tools` | Tool definitions and execution |
 | `Chain` / `Node` | `chain` | Composable processing pipeline |
 | `Embedder` | `embedder` | Text embedding |
-| `SpeechRecognitionEngine` | `recognizer` | ASR engines |
-| `AudioSynthesisEngine` | `synthesizer` | TTS engines |
-| `Agent` | `realtime` | Real-time conversational agents |
 
 ## Testing
 
@@ -438,7 +306,7 @@ go test -cover ./...    # with coverage
 ```
 
 The `embedder`, `search`, `retrieve`, and `knowledge` modules carry high coverage
-(80%+, search at 96%+). Voice and SIP modules include extensive integration tests.
+(80%+, search at 96%+).
 
 ## Contributing
 
